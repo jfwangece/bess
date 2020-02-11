@@ -89,6 +89,7 @@ class TrafficClassBuilder;
 class PriorityTrafficClass;
 class WeightedFairTrafficClass;
 class RoundRobinTrafficClass;
+class CooperativeTrafficClass;
 class RateLimitTrafficClass;
 class LeafTrafficClass;
 class TrafficClass;
@@ -97,6 +98,7 @@ enum TrafficPolicy {
   POLICY_PRIORITY = 0,
   POLICY_WEIGHTED_FAIR,
   POLICY_ROUND_ROBIN,
+  POLICY_COOPERATIVE,
   POLICY_RATE_LIMIT,
   POLICY_LEAF,
   NUM_POLICIES,  // sentinel
@@ -112,6 +114,9 @@ enum WeightedFairFakeType {
 enum RoundRobinFakeType {
   ROUND_ROBIN = 0,
 };
+enum CooperativeFakeType {
+  COOPERATIVE = 0,
+};
 enum RateLimitFakeType {
   RATE_LIMIT = 0,
 };
@@ -124,7 +129,7 @@ enum LeafFakeType {
 using namespace traffic_class_initializer_types;
 
 const std::string TrafficPolicyName[NUM_POLICIES] = {
-    "priority", "weighted_fair", "round_robin", "rate_limit", "leaf"};
+    "priority", "weighted_fair", "round_robin", "cooperative", "rate_limit", "leaf"};
 
 const std::unordered_map<std::string, enum resource_t> ResourceMap = {
     {"count", RESOURCE_COUNT},
@@ -214,6 +219,7 @@ class TrafficClass {
   friend PriorityTrafficClass;
   friend WeightedFairTrafficClass;
   friend RoundRobinTrafficClass;
+  friend CooperativeTrafficClass;
   friend RateLimitTrafficClass;
   friend class LeafTrafficClass;
 
@@ -462,6 +468,58 @@ class RoundRobinTrafficClass final : public TrafficClass {
   // accessed from the master thread while the workers are running.
   std::vector<TrafficClass *> all_children_;
 };
+
+
+class CooperativeTrafficClass final : public TrafficClass {
+ public:
+  explicit CooperativeTrafficClass(const std::string &name)
+      : TrafficClass(name, POLICY_COOPERATIVE),
+        next_child_(),
+        runnable_children_(),
+        blocked_children_(),
+        all_children_() {}
+
+  ~CooperativeTrafficClass();
+
+  std::vector<TrafficClass *> Children() const override {
+    return all_children_;
+  }
+
+  // Returns true if child was added successfully.
+  bool AddChild(TrafficClass *child);
+
+  // Returns true if child was removed successfully.
+  bool RemoveChild(TrafficClass *child) override;
+
+  TrafficClass *PickNextChild() override;
+
+  void UnblockTowardsRoot(uint64_t tsc) override;
+  void BlockTowardsRoot() override;
+
+  void SetNextRunnableTask();
+  void FinishAndAccountTowardsRoot(SchedWakeupQueue *wakeup_queue,
+                                   TrafficClass *child, resource_arr_t usage,
+                                   uint64_t tsc) override;
+
+  const std::vector<TrafficClass *> &runnable_children() const {
+    return runnable_children_;
+  }
+
+  const std::list<TrafficClass *> &blocked_children() const {
+    return blocked_children_;
+  }
+
+ private:
+  size_t next_child_;
+
+  std::vector<TrafficClass *> runnable_children_;
+  std::list<TrafficClass *> blocked_children_;
+
+  // This is a copy of the pointers to all children. It can be safely
+  // accessed from the master thread while the workers are running.
+  std::vector<TrafficClass *> all_children_;
+};
+
 
 // Performs rate limiting on a single child class (which could implement some
 // other policy with many children).  Rate limit policy is special, because it

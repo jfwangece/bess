@@ -297,6 +297,139 @@ void WeightedFairTrafficClass::FinishAndAccountTowardsRoot(
   parent_->FinishAndAccountTowardsRoot(wakeup_queue, this, usage, tsc);
 }
 
+CooperativeTrafficClass::~CooperativeTrafficClass() {
+  for (TrafficClass *c : runnable_children_) {
+    delete c;
+  }
+  for (TrafficClass *c : blocked_children_) {
+    delete c;
+  }
+  TrafficClassBuilder::Clear(this);
+}
+
+bool CooperativeTrafficClass::AddChild(TrafficClass *child) {
+  if (child->parent_) {
+    return false;
+  }
+  child->parent_ = this;
+
+  if (child->blocked_) {
+    blocked_children_.push_back(child);
+  } else {
+    runnable_children_.push_back(child);
+  }
+
+  UnblockTowardsRoot(rdtsc());
+
+  all_children_.push_back(child);
+
+  return true;
+}
+
+bool CooperativeTrafficClass::RemoveChild(TrafficClass *child) {
+  if (child->parent_ != this) {
+    return false;
+  }
+
+  for (auto it = all_children_.begin(); it != all_children_.end(); it++) {
+    if (*it == child) {
+      all_children_.erase(it);
+      break;
+    }
+  }
+
+  for (auto it = blocked_children_.begin(); it != blocked_children_.end();
+       it++) {
+    if (*it == child) {
+      blocked_children_.erase(it);
+      child->parent_ = nullptr;
+      return true;
+    }
+  }
+
+  for (size_t i = 0; i < runnable_children_.size(); i++) {
+    if (runnable_children_[i] == child) {
+      runnable_children_.erase(runnable_children_.begin() + i);
+      child->parent_ = nullptr;
+      if (next_child_ > i) {
+        next_child_--;
+      }
+      // Wrap around for round robin.
+      if (next_child_ >= runnable_children_.size()) {
+        next_child_ = 0;
+      }
+      BlockTowardsRoot();
+
+      return true;
+    }
+  }
+
+  return false;
+}
+
+TrafficClass *CooperativeTrafficClass::PickNextChild() {
+  return runnable_children_[next_child_];
+}
+
+void CooperativeTrafficClass::UnblockTowardsRoot(uint64_t tsc) {
+  // TODO(barath): Optimize this unblocking behavior.
+  for (auto it = blocked_children_.begin(); it != blocked_children_.end();) {
+    if (!(*it)->blocked_) {
+      runnable_children_.push_back(*it);
+      it = blocked_children_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+
+  TrafficClass::UnblockTowardsRootSetBlocked(tsc, runnable_children_.empty());
+}
+
+void CooperativeTrafficClass::BlockTowardsRoot() {
+  for (size_t i = 0; i < runnable_children_.size();) {
+    if (runnable_children_[i]->blocked_) {
+      blocked_children_.push_back(runnable_children_[i]);
+      runnable_children_.erase(runnable_children_.begin() + i);
+      if (next_child_ > i) {
+        next_child_--;
+      }
+      // Wrap around for round robin.
+      if (next_child_ >= runnable_children_.size()) {
+        next_child_ = 0;
+      }
+    } else {
+      ++i;
+    }
+  }
+  TrafficClass::BlockTowardsRootSetBlocked(runnable_children_.empty());
+}
+
+void CooperativeTrafficClass::SetNextRunnableTask() {
+  // Selects the next TC in the runqueue.
+  next_child_ += 1;
+
+  // Wrap around for round robin.
+  if (next_child_ >= runnable_children_.size()) {
+    next_child_ = 0;
+  }
+}
+
+void CooperativeTrafficClass::FinishAndAccountTowardsRoot(
+    SchedWakeupQueue *wakeup_queue, TrafficClass *child, resource_arr_t usage,
+    uint64_t tsc) {
+  ACCUMULATE(stats_.usage, usage);
+  if (child->blocked_) {
+    runnable_children_.erase(runnable_children_.begin() + next_child_);
+    blocked_children_.push_back(child);
+    blocked_ = runnable_children_.empty();
+  }
+
+  if (!parent_) {
+    return;
+  }
+  parent_->FinishAndAccountTowardsRoot(wakeup_queue, this, usage, tsc);
+}
+
 RoundRobinTrafficClass::~RoundRobinTrafficClass() {
   for (TrafficClass *c : runnable_children_) {
     delete c;
