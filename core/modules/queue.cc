@@ -34,6 +34,7 @@
 
 #include "../utils/format.h"
 
+# define MAX_QUEUE_SIZE 67108864
 #define DEFAULT_QUEUE_SIZE 1024
 
 const Commands Queue::cmds = {
@@ -247,8 +248,8 @@ CommandResponse Queue::CommandSetBurst(
 }
 
 CommandResponse Queue::SetSize(uint64_t size) {
-  if (size < 4 || size > 16384) {
-    return CommandFailure(EINVAL, "must be in [4, 16384]");
+  if (size < 4 || size > MAX_QUEUE_SIZE) {
+    return CommandFailure(EINVAL, "must be in [4, 67108864]");
   }
 
   if (size & (size - 1)) {
