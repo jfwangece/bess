@@ -675,6 +675,13 @@ class BESS(object):
 
         return self._request('AddTc', request)
 
+    def load_tc_config(self, name, target_config):
+        request = bess_msg.LoadTcConfigRequest()
+        class_ = getattr(request, 'class')
+        class_.name = name
+        class_.config_file = target_config
+        self._request("LoadTcConfig", request)
+
     def update_tc_params(self, name, resource=None, limit=None, max_burst=None,
                          leaf_module_name=None, leaf_module_taskid=0):
         request = bess_msg.UpdateTcParamsRequest()

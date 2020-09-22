@@ -622,6 +622,25 @@ void RateLimitTrafficClass::FinishAndAccountTowardsRoot(
     SchedWakeupQueue *wakeup_queue, TrafficClass *child, resource_arr_t usage,
     uint64_t tsc) {
   ACCUMULATE(stats_.usage, usage);
+  if (config_based_rl_) {
+    if (start_tsc_ == 0) {
+      start_tsc_ = tsc;
+    }
+    if (tsc - start_tsc_ > rate_limit_timeline_duration_) {
+      start_tsc_ += rate_limit_timeline_duration_;
+      timeline_index_ = 0;
+    }
+
+    while (tsc - start_tsc_ > rate_limit_timeline_store_[timeline_index_].tsc) {
+      if (timeline_index_ == max_timeline_index_) {
+        break;
+      }
+
+      timeline_index_ += 1;
+      limit_ = rate_limit_timeline_store_[timeline_index_].limit;
+    }
+  }
+
   uint64_t elapsed_cycles = tsc - last_tsc_;
   last_tsc_ = tsc;
 

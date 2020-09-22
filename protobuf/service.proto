@@ -164,6 +164,9 @@ service BESSControl {
   /// NOTE: There should be no running worker to run this command.
   rpc UpdateTcParams (UpdateTcParamsRequest) returns (EmptyResponse) {}
 
+  /// Load a configuration file that defines a dynamic rate limter.
+  rpc LoadTcConfig (LoadTcConfigRequest) returns (EmptyResponse) {}
+
   /// Change parent (and child arguments) of an existing traffic class
   ///
   /// NOTE: There should be no running worker to run this command.

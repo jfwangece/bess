@@ -32,6 +32,7 @@
 
 #include <cstdint>
 #include <deque>
+#include <fstream>
 #include <functional>
 #include <list>
 #include <queue>
@@ -526,6 +527,13 @@ class CooperativeTrafficClass final : public TrafficClass {
 // can block and because there is a one-to-one parent-child relationship.
 class RateLimitTrafficClass final : public TrafficClass {
  public:
+  struct RateLimitData {
+    RateLimitData();
+    RateLimitData(uint64_t ts, uint64_t rate): tsc(ts), limit(rate) {}
+    uint64_t tsc;
+    uint64_t limit;
+  };
+
   RateLimitTrafficClass(const std::string &name, resource_t resource,
                         uint64_t limit, uint64_t max_burst)
       : TrafficClass(name, POLICY_RATE_LIMIT),
@@ -535,6 +543,7 @@ class RateLimitTrafficClass final : public TrafficClass {
         max_burst_(),
         max_burst_arg_(),
         tokens_(),
+        start_tsc_(0),
         last_tsc_(),
         child_() {
     set_limit(limit);
@@ -544,6 +553,30 @@ class RateLimitTrafficClass final : public TrafficClass {
   ~RateLimitTrafficClass();
 
   std::vector<TrafficClass *> Children() const override;
+
+  void LoadConfigFromFile(const std::string &config_file) {
+    std::ifstream fp (config_file, std::ifstream::in);
+    if (fp.is_open()) {
+      uint64_t ts, rl;
+      fp >> rate_limit_timeline_duration_;
+      while (fp >> ts >> rl) {
+        ts *= tsc_hz;
+        rl = to_work_units_per_cycle(rl);
+        RateLimitData dp (ts, rl);
+        rate_limit_timeline_store_.push_back(dp);
+      }
+      fp.close();
+
+      std::cout << "RateLimiter parses its input from file:" << config_file << std::endl;
+      std::cout << "Duration = " << rate_limit_timeline_duration_
+                << " RL data points" << rate_limit_timeline_store_.size()
+                << std::endl;
+
+      max_timeline_index_ = rate_limit_timeline_store_.size() - 1;
+      rate_limit_timeline_duration_ *= tsc_hz;
+      config_based_rl_ = true;
+    }
+  }
 
   // Returns true if child was added successfully.
   bool AddChild(TrafficClass *child);
@@ -612,6 +645,13 @@ class RateLimitTrafficClass final : public TrafficClass {
 
   static const int kUsageAmplifierPow = 32;
 
+  // Rate limit data points (sorted in a timeline) from a local file.
+  bool config_based_rl_ = false;
+  uint64_t rate_limit_timeline_duration_ = 60;
+  int max_timeline_index_ = 0;
+  int timeline_index_ = 0;
+  std::vector<RateLimitData> rate_limit_timeline_store_;
+
   // The resource that we are limiting.
   resource_t resource_;
 
@@ -624,6 +664,7 @@ class RateLimitTrafficClass final : public TrafficClass {
   uint64_t tokens_;         // In work units.
 
   // Last time this TC was scheduled.
+  uint64_t start_tsc_;
   uint64_t last_tsc_;
 
   TrafficClass *child_;

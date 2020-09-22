@@ -851,6 +851,27 @@ class BESSControlImpl final : public BESSControl::Service {
     return Status::OK;
   }
 
+  Status LoadTcConfig(ServerContext*, const LoadTcConfigRequest* request,
+                      EmptyResponse* response) override {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+
+    WorkerPauser wp;
+
+    bess::TrafficClass* c = FindTc(request->class_(), response);
+    if (!c) {
+      return Status::OK;
+    }
+
+    if (c->policy() == bess::POLICY_RATE_LIMIT) {
+      bess::RateLimitTrafficClass* tc =
+          reinterpret_cast<bess::RateLimitTrafficClass*>(c);
+      const std::string& config_file = request->class_().config_file();
+      tc->LoadConfigFromFile(config_file);
+    }
+
+    return Status::OK;
+  }
+
   Status UpdateTcParent(ServerContext*, const UpdateTcParentRequest* request,
                         EmptyResponse* response) override {
     std::lock_guard<std::recursive_mutex> lock(mutex_);

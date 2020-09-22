@@ -140,6 +140,9 @@ message TrafficClass {
   /// Only for "leaf": the task executed by this class.
   string leaf_module_name = 11;
   uint64 leaf_module_taskid = 12;
+
+  // For dynamic traffic classes, BESS loads its config from a config file.
+  string config_file = 13;
 }
 
 message ListTcsRequest {
@@ -172,6 +175,10 @@ message CheckSchedulingConstraintsResponse {
 }
 
 message AddTcRequest {
+  TrafficClass class = 1;
+}
+
+message LoadTcConfigRequest {
   TrafficClass class = 1;
 }
 

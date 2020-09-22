@@ -1,0 +1,17 @@
+#
+# This script applies a dynamic rate limit according to a rate
+# limit configuration file.
+#
+
+RLCONFIG = $CONF!""
+assert RLCONFIG
+
+bess.add_tc('bit_limit',
+            policy='rate_limit',
+            resource='bit',
+            limit={'bit': 10000000})
+bess.load_tc_config('bit_limit', RLCONFIG)
+
+src::Source()
+src -> Sink()
+src.attach_task(parent='bit_limit')
