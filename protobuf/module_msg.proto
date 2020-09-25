@@ -220,6 +220,29 @@ message L2ForwardCommandPopulateArg {
 }
 
 /**
+ * The FlowStats module measures and collects flow statistics for incoming
+ * traffic. Flow statistics include the flow arrival rate, and the number of
+ * active flows.
+ */
+message FlowStatsArg {
+  int64 measure_period = 1; /// The customized measurement period in Second.
+  int64 flow_timeout = 2;
+  int64 flow_entry_timeout = 3;
+}
+
+message FlowStatsCommandGetSummaryArg {
+  bool clear = 1; /// if true, the data will be all cleared after read
+}
+
+message FlowStatsCommandGetSummaryResponse {
+  double timestamp = 1; /// Seconds since boot.
+  double flow_arrival_rate = 2; /// The real-time flow arrival rate.
+  double peak_flow_arrival_rate = 3;
+  uint64 active_flows = 4; /// The number of active flows in real time.
+  uint64 peak_active_flows = 5;
+}
+
+/**
  * The Measure module measures and collects latency/jitter data for packets
  * annotated by a Timestamp module. Note that Timestamp and Measure module must reside
  * on the server for accurate measurement (as a result, the most typical use case is
