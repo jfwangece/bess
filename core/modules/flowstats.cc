@@ -54,6 +54,7 @@ void FlowStats::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     Ethernet *eth = pkt->head_data<Ethernet *>();
     Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
 
+    // ip->header_length (1 word = 4 bytes)
     size_t ip_hdr_len = (ip->header_length) << 2;
     if (ip->protocol == Ipv4::Proto::kTcp) {
       Tcp *tcp = reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_hdr_len);

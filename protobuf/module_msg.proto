@@ -58,6 +58,13 @@ message BPFCommandClearArg {
 }
 
 /**
+ *
+ */
+message CHACHAArg {
+  uint32 chacha_rounds = 1; /// The number of chacha cipher rounds.
+}
+
+/**
  * The ExactMatch module has a command `add(...)` that takes two parameters.
  * The ExactMatch initializer specifies what fields in a packet to inspect; add() specifies
  * which values to check for over these fields.
