@@ -544,6 +544,30 @@ message ExactMatchConfig {
 }
 
 /**
+ * The module FaaSIngress creates a system ingress which processes
+ * incoming traffic.
+ * Examples of ACL can be found in [faas_ingress.bess]
+ *
+ * __Input Gates__: 1
+ * __Output Gates__: 1
+ */
+message FaaSIngressArg {
+  /**
+   * One FaaS-NFV OpenFlow rule is represented by the following 6-tuple.
+   */
+  message Rule {
+    string src_ip = 1;      /// Source IP block in CIDR. Wildcard if "".
+    string dst_ip = 2;      /// Destination IP block in CIDR. Wildcard if "".
+    uint32 src_port = 3;    /// TCP/UDP source port. Wildcard if 0.
+    uint32 dst_port = 4;    /// TCP/UDP Destination port. Wildcard if 0.
+    uint32 action = 5;      /// 0 = drop, 1 = queue, 2 = forward.
+    uint32 egress_port = 6; /// The egress port (server ID).
+    string egress_mac = 7;  /// The egress MAC (server core ID).
+  }
+  repeated Rule rules = 1; ///A list of ACL rules.
+}
+
+/**
  * The FlowGen module generates simulated TCP flows of packets with correct SYN/FIN flags and sequence numbers.
  * This module is useful for testing, e.g., a NAT module or other flow-aware code.
  * Packets are generated off a base, "template" packet by modifying the IP src/dst and TCP src/dst. By default, only the ports are changed and will be modified by incrementing the template ports by up to 20000 more than the template values.

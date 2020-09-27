@@ -1,10 +1,11 @@
 #ifndef BESS_MODULES_FLOWSTATS_H_
 #define BESS_MODULES_FLOWSTATS_H_
 
+#include <map>
+
 #include "../module.h"
 #include "../utils/endian.h"
 #include "../utils/mcslock.h"
-#include <map>
 
 using bess::utils::be32_t;
 using bess::utils::be16_t;
