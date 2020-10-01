@@ -42,8 +42,8 @@ port_inc -> Measure() -> Sink()
 # One core is used to receive incoming packets.
 bess.add_worker(wid=1, core=1)
 port_inc.attach_task(wid=1)
-for wid in range(2, num_cores + 2):
-    bess.add_worker(wid=wid, core=wid)
-    flowgens[wid].attach_task(wid=wid)
+for wid in range(num_cores):
+    bess.add_worker(wid=wid+2, core=wid+2)
+    flowgens[wid].attach_task(wid=wid+2)
 
 bess.resume_all()
