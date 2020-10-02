@@ -111,8 +111,8 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     if (!emitted) {
       FlowRule new_rule = {
-        .src_ip = Ipv4Prefix(ToIpv4Address(ip->src)),
-        .dst_ip = Ipv4Prefix(ToIpv4Address(ip->dst)),
+        .src_ip = Ipv4Prefix(ToIpv4Address(ip->src) + "/32"),
+        .dst_ip = Ipv4Prefix(ToIpv4Address(ip->dst) + "/32"),
         .proto_ip = ip->protocol,
         .src_port = be16_t(sport),
         .dst_port = be16_t(dport),
@@ -129,12 +129,14 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 }
 
 bool FaaSIngress::process_new_flow(FlowRule &rule) {
+  grpc::ClientContext context;
+
   flow_request_.set_ipv4_src(ToIpv4Address(rule.src_ip.addr));
   flow_request_.set_ipv4_dst(ToIpv4Address(rule.dst_ip.addr));
   flow_request_.set_ipv4_protocol(rule.proto_ip);
   flow_request_.set_tcp_sport(rule.src_port.value());
   flow_request_.set_tcp_dport(rule.dst_port.value());
-  status_ = stub_->UpdateFlow(&context_, flow_request_, &flow_response_);
+  status_ = stub_->UpdateFlow(&context, flow_request_, &flow_response_);
   if (!status_.ok()) {
     return false;
   }

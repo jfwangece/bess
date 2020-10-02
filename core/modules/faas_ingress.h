@@ -1,7 +1,7 @@
 #ifndef BESS_MODULES_FAASINGRESS_H_
 #define BESS_MODULES_FAASINGRESS_H_
 
-#include <grpcpp/grpcpp.h>
+#include <grpc++/grpc++.h>
 #include <string>
 #include <vector>
 
@@ -81,7 +81,6 @@ class FaaSIngress final : public Module {
 
   // Our view of the server's exposed services.
   std::unique_ptr<bess::pb::FaaSControl::Stub> stub_;
-  grpc::ClientContext context_;
   grpc::Status status_;
   bess::pb::FlowInfo flow_request_;
   bess::pb::FlowTableEntry flow_response_;
