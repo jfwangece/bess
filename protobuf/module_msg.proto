@@ -565,6 +565,8 @@ message FaaSIngressArg {
     string egress_mac = 7;  /// The egress MAC (server core ID).
   }
   repeated Rule rules = 1; ///A list of ACL rules.
+  string faas_service_ip = 2; /// FaaS controller's IP.
+  uint32 faas_service_port = 3; /// FaaS service's port number. (optional)
 }
 
 /**

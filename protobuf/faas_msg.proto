@@ -1,0 +1,31 @@
+
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/any.proto";
+import "error.proto";
+
+package bess.pb;
+
+message FlowInfo {
+    string ipv4_src = 1;
+    string ipv4_dst = 2;
+    uint32 ipv4_protocol = 3;
+    uint32 tcp_sport = 4;
+    uint32 tcp_dport = 5;
+}
+
+message FlowTableEntry {
+    uint32 switch_port = 2;
+    string dmac = 3; 
+}
+
+service FaaSControl {
+    // Query FaaS service to handle a new flow.
+    rpc UpdateFlow (FlowInfo) returns (FlowTableEntry) {}
+}
+
+service SwitchControl {
+    // Delete one flow entry from FaaS ConnTable.
+    rpc DeleteFlowEntry (FlowTableEntry) returns (google.protobuf.Empty) {}
+}

@@ -5,6 +5,8 @@
 #include "../utils/udp.h"
 #include "../utils/tcp.h"
 
+static const std::string kDefaultFaaSServicePort = "10515";
+
 const Commands FaaSIngress::cmds = {
   {"add", "FaaSIngressArg", MODULE_CMD_FUNC(&FaaSIngress::CommandAdd),
    Command::THREAD_UNSAFE},
@@ -12,10 +14,30 @@ const Commands FaaSIngress::cmds = {
    Command::THREAD_SAFE}};
 
 CommandResponse FaaSIngress::Init(const bess::pb::FaaSIngressArg &arg) {
+  using bess::utils::Ethernet;
+  using bess::utils::Ipv4;
+  using bess::utils::Udp;
+  using bess::utils::Tcp;
+
+  if (arg.faas_service_ip().empty()) {
+    LOG(INFO) << "No FaaS service IP provided. FaaSIngress forwards all packets";
+    faas_service_addr_ = "";
+  } else {
+    if (arg.faas_service_port() > 0) {
+      faas_service_addr_ = arg.faas_service_ip() + ":" + std::to_string(arg.faas_service_port());
+    } else {
+      faas_service_addr_ = arg.faas_service_ip() + ":" + kDefaultFaaSServicePort;
+    }
+
+    auto channel = grpc::CreateChannel(faas_service_addr_, grpc::InsecureChannelCredentials());
+    stub_ = bess::pb::FaaSControl::NewStub(channel);
+  }
+
   for (const auto &rule : arg.rules()) {
     FlowRule new_rule = {
         .src_ip = Ipv4Prefix(rule.src_ip()),
         .dst_ip = Ipv4Prefix(rule.dst_ip()),
+        .proto_ip = Ipv4::Proto::kTcp,
         .src_port = be16_t(static_cast<uint16_t>(rule.src_port())),
         .dst_port = be16_t(static_cast<uint16_t>(rule.dst_port())),
         .action = FlowAction(rule.action()),
@@ -50,8 +72,12 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   using bess::utils::Udp;
   using bess::utils::Tcp;
 
-  gate_idx_t incoming_gate = ctx->current_igate;
+  if (faas_service_addr_.empty()) {
+    RunNextModule(ctx, batch);
+    return;
+  }
 
+  //gate_idx_t incoming_gate = ctx->current_igate;
   int cnt = batch->cnt();
   be16_t sport, dport;
   for (int i = 0; i < cnt; i++) {
@@ -74,25 +100,48 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     bool emitted = false;
     for (const auto &rule : rules_) {
-      if (rule.Match(ip->src, ip->dst, sport, dport)) { // An in-progress flow.
+      if (rule.Match(ip->src, ip->dst, ip->protocol, sport, dport)) { // An in-progress flow.
         if (rule.action == kForward) {
           emitted = true;
-          EmitPacket(ctx, pkt, incoming_gate);
+          EmitPacket(ctx, pkt, 0);
         }
         break;  // Stop matching other rules
       }
     }
 
-    process_new_flow();
-
     if (!emitted) {
-      DropPacket(ctx, pkt);
+      FlowRule new_rule = {
+        .src_ip = Ipv4Prefix(ToIpv4Address(ip->src)),
+        .dst_ip = Ipv4Prefix(ToIpv4Address(ip->dst)),
+        .proto_ip = ip->protocol,
+        .src_port = be16_t(sport),
+        .dst_port = be16_t(dport),
+        .action = FlowAction(2),
+        .egress_port = 0,
+        .egress_mac = "",
+      };
+
+      if (!process_new_flow(new_rule)) {
+        DropPacket(ctx, pkt);
+      }
     }
   }
 }
 
-void FaaSIngress::process_new_flow() {
-  return;
+bool FaaSIngress::process_new_flow(FlowRule &rule) {
+  flow_request_.set_ipv4_src(ToIpv4Address(rule.src_ip.addr));
+  flow_request_.set_ipv4_dst(ToIpv4Address(rule.dst_ip.addr));
+  flow_request_.set_ipv4_protocol(rule.proto_ip);
+  flow_request_.set_tcp_sport(rule.src_port.value());
+  flow_request_.set_tcp_dport(rule.dst_port.value());
+  status_ = stub_->UpdateFlow(&context_, flow_request_, &flow_response_);
+  if (!status_.ok()) {
+    return false;
+  }
+
+  rule.set_action(flow_response_.switch_port(), flow_response_.dmac());
+  rules_.push_back(rule);
+  return true;
 }
 
 ADD_MODULE(FaaSIngress, "FaaSIngress", "FaaSIngress module")

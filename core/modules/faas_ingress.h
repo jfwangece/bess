@@ -1,8 +1,12 @@
 #ifndef BESS_MODULES_FAASINGRESS_H_
 #define BESS_MODULES_FAASINGRESS_H_
 
+#include <grpcpp/grpcpp.h>
+#include <string>
 #include <vector>
 
+#include "pb/faas_msg.pb.h"
+#include "pb/faas_msg.grpc.pb.h"
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
 #include "../utils/ip.h"
@@ -11,6 +15,7 @@
 using bess::utils::be16_t;
 using bess::utils::be32_t;
 using bess::utils::Ipv4Prefix;
+
 
 class FaaSIngress final : public Module {
  public:
@@ -26,15 +31,22 @@ class FaaSIngress final : public Module {
   };
 
   struct FlowRule {
-  bool Match(be32_t sip, be32_t dip, be16_t sport, be16_t dport) const {
+  bool Match(be32_t sip, be32_t dip, uint8_t pip, be16_t sport, be16_t dport) const {
     return src_ip.Match(sip) && dst_ip.Match(dip) &&
+       (proto_ip == pip) &&
        (src_port == be16_t(0) || src_port == sport) &&
        (dst_port == be16_t(0) || dst_port == dport);
+  }
+
+  void set_action(uint o_port, const std::string& o_mac) {
+    egress_port = o_port;
+    egress_mac = o_mac;
   }
 
   // Match
   Ipv4Prefix src_ip;
   Ipv4Prefix dst_ip;
+  uint8_t proto_ip;
   be16_t src_port;
   be16_t dst_port;
 
@@ -59,12 +71,21 @@ class FaaSIngress final : public Module {
   // flow will be queued by this module before the rule is installed.
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
-  void process_new_flow();
+  bool process_new_flow(FlowRule &rule);
 
   CommandResponse CommandAdd(const bess::pb::FaaSIngressArg &arg);
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
 
  private:
+  std::string faas_service_addr_;
+
+  // Our view of the server's exposed services.
+  std::unique_ptr<bess::pb::FaaSControl::Stub> stub_;
+  grpc::ClientContext context_;
+  grpc::Status status_;
+  bess::pb::FlowInfo flow_request_;
+  bess::pb::FlowTableEntry flow_response_;
+
   std::vector<FlowRule> rules_;
 
   mcslock lock_;
