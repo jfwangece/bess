@@ -71,19 +71,26 @@ class FaaSIngress final : public Module {
   // flow will be queued by this module before the rule is installed.
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
-  bool process_new_flow(FlowRule &rule);
-
   CommandResponse CommandAdd(const bess::pb::FaaSIngressArg &arg);
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
 
  private:
+  bool process_new_flow(FlowRule &rule);
+  void convert_rule_to_of_request(FlowRule &rule, bess::pb::InsertFlowEntryRequest &req);
+
   std::string faas_service_addr_;
+  std::string switch_service_addr_;
 
   // Our view of the server's exposed services.
-  std::unique_ptr<bess::pb::FaaSControl::Stub> stub_;
+  std::unique_ptr<bess::pb::FaaSControl::Stub> faas_stub_;
+  // Our view of the swtich's exposed services.
+  std::unique_ptr<bess::pb::SwitchControl::Stub> switch_stub_;
+
   grpc::Status status_;
   bess::pb::FlowInfo flow_request_;
   bess::pb::FlowTableEntry flow_response_;
+  bess::pb::InsertFlowEntryRequest flowrule_request_;
+  google::protobuf::Empty flowrule_response_;
 
   std::vector<FlowRule> rules_;
 

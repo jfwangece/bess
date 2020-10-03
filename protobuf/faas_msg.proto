@@ -20,12 +20,33 @@ message FlowTableEntry {
     string dmac = 3; 
 }
 
+message InsertFlowEntryRequest {
+    string ipv4_src = 1;
+    string ipv4_dst = 2;
+    uint32 ipv4_protocol = 3;
+    uint32 tcp_sport = 4;
+    uint32 tcp_dport = 5;
+    uint32 switch_port = 6;
+    string dmac = 7;
+}
+
+message DeleteFlowEntryRequest {
+    string ipv4_src = 1;
+    string ipv4_dst = 2;
+    uint32 ipv4_protocol = 3;
+    uint32 tcp_sport = 4;
+    uint32 tcp_dport = 5;
+}
+
 service FaaSControl {
     // Query FaaS service to handle a new flow.
     rpc UpdateFlow (FlowInfo) returns (FlowTableEntry) {}
 }
 
 service SwitchControl {
-    // Delete one flow entry from FaaS ConnTable.
-    rpc DeleteFlowEntry (FlowTableEntry) returns (google.protobuf.Empty) {}
+    // Inserts one flow entry into FaaSConnTable.
+    rpc InsertFlowEntry (InsertFlowEntryRequest) returns (google.protobuf.Empty) {}
+
+    // Deletes one flow entry from FaaSConnTable.
+    rpc DeleteFlowEntry (DeleteFlowEntryRequest) returns (google.protobuf.Empty) {}
 }
