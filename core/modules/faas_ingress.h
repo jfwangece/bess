@@ -2,6 +2,7 @@
 #define BESS_MODULES_FAASINGRESS_H_
 
 #include <grpc++/grpc++.h>
+#include <hiredis/hiredis.h>
 #include <string>
 #include <vector>
 
@@ -77,6 +78,7 @@ class FaaSIngress final : public Module {
  private:
   bool process_new_flow(FlowRule &rule);
   void convert_rule_to_of_request(FlowRule &rule, bess::pb::InsertFlowEntryRequest &req);
+  std::string convert_rule_to_string(FlowRule &rule);
 
   std::string faas_service_addr_;
   std::string switch_service_addr_;
@@ -86,12 +88,16 @@ class FaaSIngress final : public Module {
   std::unique_ptr<bess::pb::FaaSControl::Stub> faas_stub_;
   // Our view of the swtich's exposed services.
   std::unique_ptr<bess::pb::SwitchControl::Stub> switch_stub_;
+  // The reusable connection context to a redis server.
+  redisContext* redis_ctx_;
 
   grpc::Status status_;
   bess::pb::FlowInfo flow_request_;
   bess::pb::FlowTableEntry flow_response_;
   bess::pb::InsertFlowEntryRequest flowrule_request_;
   google::protobuf::Empty flowrule_response_;
+
+  redisReply* redis_reply_;
 
   std::vector<FlowRule> rules_;
 

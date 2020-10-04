@@ -1,7 +1,5 @@
 #include "faas_ingress.h"
 
-//#include "hiredis.h"
-
 #include "../utils/ether.h"
 #include "../utils/ip.h"
 #include "../utils/udp.h"
@@ -9,7 +7,7 @@
 
 static const std::string kDefaultFaaSServicePort = "10515";
 static const std::string kDefaultSwitchServicePort = "10516";
-
+static const int kDefaultRedisServicePort = 6379;
 
 const Commands FaaSIngress::cmds = {
   {"add", "FaaSIngressArg", MODULE_CMD_FUNC(&FaaSIngress::CommandAdd),
@@ -51,11 +49,31 @@ CommandResponse FaaSIngress::Init(const bess::pb::FaaSIngressArg &arg) {
     switch_stub_ = bess::pb::SwitchControl::NewStub(switch_channel);
   }
 
+  redis_ctx_ = nullptr;
   if (arg.redis_service_ip().empty()) {
-    LOG(INFO) << "No FaaS service IP provided. FaaSIngress forwards all packets";
+    LOG(INFO) << "No Redis service IP provided.";
     redis_service_ip_ = "";
   } else {
     redis_service_ip_ = arg.redis_service_ip();
+
+    // Connecting
+    redis_ctx_ = (redisContext*)redisConnect(redis_service_ip_.c_str(), kDefaultRedisServicePort);
+    if (redis_ctx_ == nullptr) {
+      LOG(INFO) << "Can't allocate redis context";
+    } else if (redis_ctx_->err) {
+      LOG(INFO) << "Connecting Error: " << redis_ctx_->errstr;
+      redis_ctx_ = nullptr;
+    } else {
+      // Succeed.
+      if (!arg.redis_password().empty()) {
+        redis_reply_ = (redisReply*)redisCommand(redis_ctx_, "AUTH %s", arg.redis_password().c_str());
+        if (redis_reply_->type == REDIS_REPLY_ERROR) {
+            LOG(INFO) << "Failed to auth with Redis server";
+            freeReplyObject(redis_reply_);
+            redis_ctx_ = nullptr;
+        }
+      }
+    }
   }
 
   for (const auto &rule : arg.rules()) {
@@ -176,8 +194,34 @@ bool FaaSIngress::process_new_flow(FlowRule &rule) {
     }
   }
 
+  if (redis_ctx_ != nullptr) {
+    std::string tmp_flow_msg = convert_rule_to_string(rule);
+    redis_reply_ = (redisReply*)redisCommand(redis_ctx_, "PUBLISH %s %s", "flow", tmp_flow_msg.c_str());
+    if (redis_reply_ == NULL) {
+      LOG(INFO) << "Failed to send a flow request";
+      return false;
+    } else if (redis_reply_->type == REDIS_REPLY_ERROR) {
+      LOG(INFO) << "Failed to send a flow";
+      freeReplyObject(redis_reply_);
+      return false;
+    }
+
+    //LOG(INFO) << tmp_flow_msg;
+    freeReplyObject(redis_reply_);
+  }
+
   rules_.push_back(rule);
   return true;
+}
+
+std::string FaaSIngress::convert_rule_to_string(FlowRule &rule) {
+  return ToIpv4Address(rule.src_ip.addr) + "," +
+         ToIpv4Address(rule.dst_ip.addr) + "," +
+         std::to_string(rule.proto_ip) + "," +
+         std::to_string(rule.src_port.value()) + "," +
+         std::to_string(rule.dst_port.value()) + "," +
+         std::to_string(rule.egress_port) + "," +
+         rule.egress_mac;
 }
 
 void FaaSIngress::convert_rule_to_of_request(FlowRule &rule, bess::pb::InsertFlowEntryRequest &req) {
@@ -190,4 +234,5 @@ void FaaSIngress::convert_rule_to_of_request(FlowRule &rule, bess::pb::InsertFlo
   req.set_dmac(rule.egress_mac);
 }
 
-ADD_MODULE(FaaSIngress, "FaaSIngress", "FaaSIngress module")
+ADD_MODULE(FaaSIngress, "FaaSIngress",
+          "FaaSIngress module that interacts with the switch controller to handle packet losses.")
