@@ -39,7 +39,7 @@ print("Packet size = %d bytes" %(len(pkt_data)))
 
 port0::PMDPort(pci=pcie_addr, num_inc_q=1, num_out_q=num_cores)
 port_inc::PortInc(port=port0)
-ingress::FaaSIngress(faas_service_ip="128.105.145.33", redis_service_ip="128.105.145.253", redis_password="faas-nfv-cool")
+ingress::FaaSIngress(faas_service_ip="128.105.145.134", redis_service_ip="128.105.145.253", redis_password="faas-nfv-cool")
 
 flowgens = dict()
 for i in range(num_cores):
@@ -49,7 +49,7 @@ for i in range(num_cores):
         flow_duration = flow_time, \
         arrival = 'uniform', duration='uniform', quick_rampup=False, \
         ip_src_range = 50, ip_dst_range = 50)
-    flowgens[i] -> Timestamp(offset=ts_offset) -> ingress -> QueueOut(port=port0, qid=i)
+    flowgens[i] -> ingress -> Timestamp(offset=ts_offset) -> QueueOut(port=port0, qid=i)
 
 port_inc -> Measure(offset=ts_offset) -> Sink()
 
@@ -58,5 +58,3 @@ port_inc.attach_task(wid=1)
 for wid in range(num_cores):
     bess.add_worker(wid=wid+2, core=wid+2)
     flowgens[wid].attach_task(wid=wid+2)
-
-bess.resume_all()
