@@ -1,5 +1,7 @@
 #include "faas_ingress.h"
 
+//#include "hiredis.h"
+
 #include "../utils/ether.h"
 #include "../utils/ip.h"
 #include "../utils/udp.h"
@@ -40,13 +42,20 @@ CommandResponse FaaSIngress::Init(const bess::pb::FaaSIngressArg &arg) {
     switch_service_addr_ = "";
   } else {
     if (arg.switch_service_port() > 0) {
-      switch_service_addr_ = arg.faas_service_ip() + ":" + std::to_string(arg.switch_service_port());
+      switch_service_addr_ = arg.switch_service_ip() + ":" + std::to_string(arg.switch_service_port());
     } else {
-      switch_service_addr_ = arg.faas_service_ip() + ":" + kDefaultFaaSServicePort;
+      switch_service_addr_ = arg.switch_service_ip() + ":" + kDefaultSwitchServicePort;
     }
 
     auto switch_channel = grpc::CreateChannel(switch_service_addr_, grpc::InsecureChannelCredentials());
     switch_stub_ = bess::pb::SwitchControl::NewStub(switch_channel);
+  }
+
+  if (arg.redis_service_ip().empty()) {
+    LOG(INFO) << "No FaaS service IP provided. FaaSIngress forwards all packets";
+    redis_service_ip_ = "";
+  } else {
+    redis_service_ip_ = arg.redis_service_ip();
   }
 
   for (const auto &rule : arg.rules()) {
@@ -88,7 +97,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   using bess::utils::Udp;
   using bess::utils::Tcp;
 
-  if (faas_service_addr_.empty() || switch_service_addr_.empty()) {
+  if (faas_service_addr_.empty()) {
     RunNextModule(ctx, batch);
     return;
   }
@@ -145,23 +154,26 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 }
 
 bool FaaSIngress::process_new_flow(FlowRule &rule) {
-  grpc::ClientContext context;
+  grpc::ClientContext ctx1, ctx2;
 
   flow_request_.set_ipv4_src(ToIpv4Address(rule.src_ip.addr));
   flow_request_.set_ipv4_dst(ToIpv4Address(rule.dst_ip.addr));
   flow_request_.set_ipv4_protocol(rule.proto_ip);
   flow_request_.set_tcp_sport(rule.src_port.value());
   flow_request_.set_tcp_dport(rule.dst_port.value());
-  status_ = faas_stub_->UpdateFlow(&context, flow_request_, &flow_response_);
+  status_ = faas_stub_->UpdateFlow(&ctx1, flow_request_, &flow_response_);
   if (!status_.ok()) {
     return false;
   }
 
   rule.set_action(flow_response_.switch_port(), flow_response_.dmac());
-  convert_rule_to_of_request(rule, flowrule_request_);
-  status_ = switch_stub_->InsertFlowEntry(&context, flowrule_request_, &flowrule_response_);
-  if (!status_.ok()) {
-    return false;
+
+  if (!switch_service_addr_.empty()) {
+    convert_rule_to_of_request(rule, flowrule_request_);
+    status_ = switch_stub_->InsertFlowEntry(&ctx2, flowrule_request_, &flowrule_response_);
+    if (!status_.ok()) {
+      return false;
+    }
   }
 
   rules_.push_back(rule);

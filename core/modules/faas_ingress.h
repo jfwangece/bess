@@ -80,6 +80,7 @@ class FaaSIngress final : public Module {
 
   std::string faas_service_addr_;
   std::string switch_service_addr_;
+  std::string redis_service_ip_;
 
   // Our view of the server's exposed services.
   std::unique_ptr<bess::pb::FaaSControl::Stub> faas_stub_;

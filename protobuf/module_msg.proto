@@ -569,6 +569,7 @@ message FaaSIngressArg {
   uint32 faas_service_port = 3; /// FaaS service's port number. (optional)
   string switch_service_ip = 4; /// Switch controller's IP.
   uint32 switch_service_port = 5; /// SwitchCtl service's port number. (optional)
+  string redis_service_ip = 6;
 }
 
 /**
