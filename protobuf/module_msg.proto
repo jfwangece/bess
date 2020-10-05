@@ -573,6 +573,7 @@ message FaaSIngressArg {
   uint32 redis_service_port = 7;
   string redis_password = 8;
   uint32 max_rules_count = 9;
+  uint64 rule_delay_ms = 10;
 }
 
 /**
