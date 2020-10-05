@@ -164,6 +164,28 @@ message IPLookupCommandDeleteArg {
 message IPLookupCommandClearArg {
 }
 
+message LossCounterArg {
+  uint32 port_index = 1;
+  uint32 port_type = 2;
+}
+
+message LossCounterStartArg {
+  double target_packet_count = 1;
+}
+
+message LossCounterCommandGetSummaryArg {
+  uint32 port_index = 1;
+  bool clear = 2;
+}
+
+message LossCounterCommandGetSummaryResponse {
+  double timestamp = 1; /// Seconds since boot.
+  uint64 total_packets = 2; /// Total packets sent by all egress ports.
+  uint64 total_losses = 3; /// The total losses.
+  double avg_loss_rate = 4;
+  repeated uint64 per_port_losses = 5;
+}
+
 /**
  * The L2Forward module forwards traffic via exact match over the Ethernet
  * destination address. The command `add(...)`  allows you to specifiy a
