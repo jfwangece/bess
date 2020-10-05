@@ -130,6 +130,7 @@ CommandResponse LossCounter::CommandStart(const bess::pb::LossCounterStartArg &a
     target_packet_count_ = (uint64_t)arg.target_packet_count();
   }
 
+  Clear();
   Start();
   return CommandSuccess();
 }
