@@ -1,0 +1,20 @@
+#
+# This scripts demonstrates the usage of the LossCounter module.
+#
+
+import scapy.all as scapy
+
+src::Source()
+lc_e::LossCounter(port_index=0, port_type=0)
+lc_i::LossCounter(port_index=0, port_type=1)
+q::Queue()
+
+src -> lc_e -> q
+q -> lc_i -> Sink()
+
+lc_e.start(target_packet_count=1e7)
+
+bess.add_worker(0, 0)
+bess.add_worker(1, 1)
+src.attach_task(wid=0)
+q.attach_task(wid=1)

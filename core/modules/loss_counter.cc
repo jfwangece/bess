@@ -48,6 +48,11 @@ void LossCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     if (target_packet_count_ > 0 && CountTotalPackets() > target_packet_count_) {
       activated_ = false;
     }
+  } else {
+    if (port_type_ == kEgress) {
+      bess::Packet::Free(batch->pkts(), cnt);
+      return;
+    }
   }
 
   RunNextModule(ctx, batch);
