@@ -9,7 +9,7 @@ static const std::string kDefaultFaaSServicePort = "10515";
 static const std::string kDefaultSwitchServicePort = "10516";
 static const int kDefaultRedisServicePort = 6379;
 static const int kDefaultFaaSIngressStoreSize = 1600;
-static const uint64_t kDefaultRuleDelayMilliseconds = 2;
+static const uint64_t kDefaultRuleDelayMilliseconds = 0;
 
 
 const Commands FaaSIngress::cmds = {
@@ -160,9 +160,13 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     bool emitted = false;
     for (const auto &rule : rules_) {
       if (rule.Match(ip->src, ip->dst, ip->protocol, sport, dport)) { // An in-progress flow.
-        if (rule.action == kForward && now_ > rule.active_ts) {
+        if (rule.action == kForward) {
           emitted = true;
-          EmitPacket(ctx, pkt, 0);
+          if (now_ >= rule.active_ts) {
+            EmitPacket(ctx, pkt, 0);
+          } else {
+            DropPacket(ctx, pkt);
+          }
         }
         break;  // Stop matching other rules
       }
