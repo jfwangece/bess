@@ -42,7 +42,7 @@ print("Packet size = %d bytes" %(len(pkt_data)))
 
 port0::PMDPort(pci=pcie_addr, num_inc_q=1, num_out_q=num_cores)
 port_inc::PortInc(port=port0)
-ingress::FaaSIngress(faas_service_ip="128.105.145.134", redis_service_ip="128.105.145.253", redis_password="faas-nfv-cool")
+ingress::FaaSIngress(faas_service_ip="128.105.145.134", redis_service_ip="128.105.145.253", redis_password="faas-nfv-cool", max_rules_count=800)
 
 flowgens = dict()
 for i in range(num_cores):

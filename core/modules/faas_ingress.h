@@ -3,8 +3,9 @@
 
 #include <grpc++/grpc++.h>
 #include <hiredis/hiredis.h>
-#include <string>
+#include <deque>
 #include <vector>
+#include <string>
 
 #include "pb/faas_msg.pb.h"
 #include "pb/faas_msg.grpc.pb.h"
@@ -99,7 +100,9 @@ class FaaSIngress final : public Module {
 
   redisReply* redis_reply_;
 
-  std::vector<FlowRule> rules_;
+  long unsigned int max_rules_count_;
+  std::vector<FlowRule> rules_vector_;
+  std::deque<FlowRule> rules_;
 
   mcslock lock_;
 };

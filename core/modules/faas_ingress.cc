@@ -8,6 +8,8 @@
 static const std::string kDefaultFaaSServicePort = "10515";
 static const std::string kDefaultSwitchServicePort = "10516";
 static const int kDefaultRedisServicePort = 6379;
+static const int kDefaultFaaSIngressStoreSize = 1600;
+
 
 const Commands FaaSIngress::cmds = {
   {"add", "FaaSIngressArg", MODULE_CMD_FUNC(&FaaSIngress::CommandAdd),
@@ -76,6 +78,12 @@ CommandResponse FaaSIngress::Init(const bess::pb::FaaSIngressArg &arg) {
     }
   }
 
+  if (arg.max_rules_count() > 0) {
+    max_rules_count_ = arg.max_rules_count();
+  } else {
+    max_rules_count_ = kDefaultFaaSIngressStoreSize;
+  }
+
   for (const auto &rule : arg.rules()) {
     FlowRule new_rule = {
         .src_ip = Ipv4Prefix(rule.src_ip()),
@@ -142,6 +150,8 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     }
 
     bool emitted = false;
+    //for (auto it = rules_.begin(); it != rules_.end(); ++it) {
+    //  const auto& rule = *it;
     for (const auto &rule : rules_) {
       if (rule.Match(ip->src, ip->dst, ip->protocol, sport, dport)) { // An in-progress flow.
         if (rule.action == kForward) {
@@ -210,7 +220,12 @@ bool FaaSIngress::process_new_flow(FlowRule &rule) {
     freeReplyObject(redis_reply_);
   }
 
-  rules_.push_back(rule);
+  //rules_.push_back(rule);
+  rules_.emplace_front(rule);
+  while (rules_.size() > max_rules_count_) {
+    rules_.pop_back();
+  }
+
   return true;
 }
 
