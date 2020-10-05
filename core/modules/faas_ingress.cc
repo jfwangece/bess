@@ -9,6 +9,7 @@ static const std::string kDefaultFaaSServicePort = "10515";
 static const std::string kDefaultSwitchServicePort = "10516";
 static const int kDefaultRedisServicePort = 6379;
 static const int kDefaultFaaSIngressStoreSize = 1600;
+static const uint64_t kDefaultRuleDelayMilliseconds = 2;
 
 
 const Commands FaaSIngress::cmds = {
@@ -84,6 +85,12 @@ CommandResponse FaaSIngress::Init(const bess::pb::FaaSIngressArg &arg) {
     max_rules_count_ = kDefaultFaaSIngressStoreSize;
   }
 
+  if (arg.rule_delay_ms() > 0) {
+    rule_delay_ts_ = (uint64_t)arg.rule_delay_ms() * tsc_hz / 1000;
+  } else {
+    rule_delay_ts_ = kDefaultRuleDelayMilliseconds * tsc_hz / 1000;
+  }
+
   for (const auto &rule : arg.rules()) {
     FlowRule new_rule = {
         .src_ip = Ipv4Prefix(rule.src_ip()),
@@ -94,6 +101,7 @@ CommandResponse FaaSIngress::Init(const bess::pb::FaaSIngressArg &arg) {
         .action = FlowAction(rule.action()),
         .egress_port = rule.egress_port(),
         .egress_mac = rule.egress_mac(),
+        .active_ts = 0,
     };
     rules_.push_back(new_rule);
   }
@@ -128,7 +136,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     return;
   }
 
-  //gate_idx_t incoming_gate = ctx->current_igate;
+  now_ = rdtsc();
   int cnt = batch->cnt();
   be16_t sport, dport;
   for (int i = 0; i < cnt; i++) {
@@ -150,19 +158,21 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     }
 
     bool emitted = false;
-    //for (auto it = rules_.begin(); it != rules_.end(); ++it) {
-    //  const auto& rule = *it;
     for (const auto &rule : rules_) {
       if (rule.Match(ip->src, ip->dst, ip->protocol, sport, dport)) { // An in-progress flow.
         if (rule.action == kForward) {
-          emitted = true;
-          EmitPacket(ctx, pkt, 0);
+	  if (now_ > rule.active_ts) {
+            emitted = true;
+            EmitPacket(ctx, pkt, 0);
+	  } else {
+            DropPacket(ctx, pkt);
+	  }
         }
         break;  // Stop matching other rules
       }
     }
 
-    if (!emitted) {
+    if (!emitted) { // A new flow.
       FlowRule new_rule = {
         .src_ip = Ipv4Prefix(ToIpv4Address(ip->src) + "/32"),
         .dst_ip = Ipv4Prefix(ToIpv4Address(ip->dst) + "/32"),
@@ -172,6 +182,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         .action = FlowAction(2),
         .egress_port = 0,
         .egress_mac = "",
+        .active_ts = 0,
       };
 
       if (!process_new_flow(new_rule)) {
@@ -216,11 +227,13 @@ bool FaaSIngress::process_new_flow(FlowRule &rule) {
       return false;
     }
 
-    //LOG(INFO) << tmp_flow_msg;
     freeReplyObject(redis_reply_);
   }
 
-  //rules_.push_back(rule);
+  // Update the active timestamp for the new rule.
+  now_ = rdtsc();
+  rule.active_ts = now_ + rule_delay_ts_;
+
   rules_.emplace_front(rule);
   while (rules_.size() > max_rules_count_) {
     rules_.pop_back();

@@ -5,12 +5,12 @@
 import scapy.all as scapy
 
 # This script generates a number of flows at a specified packet rate.
-pcie_addr=str($BESS_PCIE!'06:00.0')
+pcie_addr=str($BESS_PCIE!'06:00.1')
 num_cores=int($BESS_CORES!'1')
 pkt_size=int($BESS_PKT_SIZE!'1500')
-num_flows=int($BESS_FLOWS!'500')
-flow_time=int($BESS_FLOW_TIME!'40') # in Seconds
-base_pkt_rate=int($BESS_INIT_RATE!'4000000')
+num_flows=int($BESS_FLOWS!'200')
+flow_time=int($BESS_FLOW_TIME!'60') # in Seconds
+base_pkt_rate=int($BESS_INIT_RATE!'1000000')
 base_bit_rate=int($BESS_INIT_RATE!'9500000000')
 ts_offset=int($BESS_TS_OFFSET!'64')
 
@@ -42,9 +42,10 @@ print("Packet size = %d bytes" %(len(pkt_data)))
 
 port0::PMDPort(pci=pcie_addr, num_inc_q=1, num_out_q=num_cores)
 port_inc::PortInc(port=port0)
-ingress::FaaSIngress(faas_service_ip="128.105.145.134", redis_service_ip="128.105.145.253", redis_password="faas-nfv-cool", max_rules_count=800)
+ingress::FaaSIngress(faas_service_ip="128.105.145.134", redis_service_ip="128.105.145.253", redis_password="faas-nfv-cool", max_rules_count=330, rule_delay_ms=0)
 
 flowgens = dict()
+queues = dict()
 for i in range(num_cores):
     flowgens[i] = FlowGen(template = pkt_data, \
         pps = base_pkt_rate / num_cores, \
@@ -52,12 +53,15 @@ for i in range(num_cores):
         flow_duration = flow_time, \
         arrival = 'uniform', duration='uniform', quick_rampup=False, \
         ip_src_range = 50, ip_dst_range = 50)
-    flowgens[i] -> ingress -> Timestamp(offset=ts_offset) -> QueueOut(port=port0, qid=i)
+    queues[i] = Queue()
+    flowgens[i] -> queues[i] -> ingress -> Timestamp(offset=ts_offset) -> QueueOut(port=port0, qid=i)
 
 port_inc -> Measure(offset=ts_offset) -> Sink()
 
 bess.add_worker(wid=1, core=1)
 port_inc.attach_task(wid=1)
 for wid in range(num_cores):
-    bess.add_worker(wid=wid+2, core=wid+2)
-    flowgens[wid].attach_task(wid=wid+2)
+    bess.add_worker(wid=2*wid+2, core=2*wid+2)
+    bess.add_worker(wid=2*wid+3, core=2*wid+3)
+    flowgens[wid].attach_task(wid=2*wid+2)
+    queues[wid].attach_task(wid=2*wid+3)

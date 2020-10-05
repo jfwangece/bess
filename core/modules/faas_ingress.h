@@ -56,6 +56,7 @@ class FaaSIngress final : public Module {
   FlowAction action;
   uint egress_port;
   std::string egress_mac;
+  uint64_t active_ts = 0;
   };
 
   static const Commands cmds;
@@ -80,6 +81,10 @@ class FaaSIngress final : public Module {
   bool process_new_flow(FlowRule &rule);
   void convert_rule_to_of_request(FlowRule &rule, bess::pb::InsertFlowEntryRequest &req);
   std::string convert_rule_to_string(FlowRule &rule);
+
+  // A slight delay of installing an OpenFlow rule for a flow.
+  uint64_t now_;
+  uint64_t rule_delay_ts_;
 
   std::string faas_service_addr_;
   std::string switch_service_addr_;
