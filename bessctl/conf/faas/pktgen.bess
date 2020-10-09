@@ -7,14 +7,17 @@ import scapy.all as scapy
 
 PACKET_OVERHEAD=24
 
-pcie_addr=str($BESS_PCIE!'81:00.0')
+pcie_addr=str($BESS_PCIE!'06:00.1')
 num_cores=int($BESS_CORES!'1')
 pkt_size=int($BESS_PKT_SIZE!'1500')
+base_pkt_rate=int($BESS_INIT_RATE!'1000000')
+base_bit_rate=int($BESS_INIT_RATE!'9000000000')
 
 assert(pcie_addr)
 assert(1 <= num_cores <= 16)
 assert(60 <= pkt_size <= 1522)
 
+pkt_size = min(pkt_size, base_bit_rate / base_pkt_rate / 8)
 
 # Create a "template" packet to use for generated flows.
 src_ether = '00:15:4d:12:2b:f4'
@@ -32,13 +35,13 @@ pkt_data = bytes(pkt)
 print("Packet size = %d bytes" %(len(pkt_data)))
 
 port0::PMDPort(pci=pcie_addr, num_inc_q=1, num_out_q=num_cores)
+port_inc::PortInc(port=port0)
 
 flowgens = dict()
 for i in range(num_cores):
     flowgens[i] = Source()
     flowgens[i] -> Rewrite(templates=[pkt_data]) -> Timestamp() -> QueueOut(port=port0, qid=i)
 
-port_inc::PortInc(port=port0)
 port_inc -> Measure() -> Sink()
 
 # One core is used to receive incoming packets.
@@ -46,6 +49,7 @@ bess.add_worker(wid=1, core=1)
 port_inc.attach_task(wid=1)
 for wid in range(num_cores):
     bess.add_worker(wid=wid+2, core=wid+2)
-    flowgens[wid].attach_task(wid=wid+2)
+    bess.add_tc('rl%d' %(wid+2), policy='rate_limit', resource='bit', limit={'bit', 9e8}, wid=wid+2)
+    flowgens[wid].attach_task(parent='rl%d' %(wid+2))
 
 bess.resume_all()

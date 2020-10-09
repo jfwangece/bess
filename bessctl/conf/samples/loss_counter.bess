@@ -4,17 +4,36 @@
 
 import scapy.all as scapy
 
+PACKET_OVERHEAD=24
+
+pkt_size=int($BESS_PKT_SIZE!'500')
+assert(60 <= pkt_size <= 1522)
+
+
+# Create a "template" packet to use for generated flows.
+src_ether = '00:15:4d:12:2b:f4'
+dst_ether = '00:00:00:00:00:04'
+src_ip = '10.0.0.1'
+dst_ip = '192.0.0.1'
+src_port = 10001
+dst_port = 8080
+eth = scapy.Ether(src=src_ether, dst=dst_ether)
+ip = scapy.IP(src=src_ip, dst=dst_ip)
+tcp = scapy.TCP(sport=src_port, dport=dst_port)
+payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+pkt = eth/ip/tcp/payload
+pkt_data = bytes(pkt)
+print("Packet size = %d bytes" %(len(pkt_data)))
+
 src::Source()
 lc_e::LossCounter(port_index=0, port_type=0)
 lc_i::LossCounter(port_index=0, port_type=1)
-q::Queue()
 
-src -> lc_e -> q
-q -> lc_i -> Sink()
+src -> Rewrite(templates=[pkt_data]) -> lc_e -> lc_i -> Sink()
 
-lc_e.start(target_packet_count=1e7)
+lc_e.start(target_packet_count=5e7)
 
 bess.add_worker(0, 0)
 bess.add_worker(1, 1)
-src.attach_task(wid=0)
-q.attach_task(wid=1)
+bess.add_tc('rl', policy='rate_limit', resource='bit', limit={'bit': 800000000}, wid=1)
+src.attach_task(parent='rl')
