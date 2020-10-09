@@ -35,5 +35,5 @@ lc_e.start(target_packet_count=5e7)
 
 bess.add_worker(0, 0)
 bess.add_worker(1, 1)
-bess.add_tc('rl', policy='rate_limit', resource='bit', limit={'bit': 800000000}, wid=1)
+bess.add_tc('rl', policy='rate_limit', resource='bit', limit={'bit': 900000000}, wid=1)
 src.attach_task(parent='rl')
