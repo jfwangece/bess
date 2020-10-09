@@ -38,18 +38,17 @@ void LossCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   now_ = rdtsc();
   int cnt = batch->cnt();
 
-  if (activated_) {
-    if (port_type_ == kEgress) {
+  if (port_type_ == kIngress) {
+    // Count incoming packets whenever possible.
+    per_port_counters_[port_index_].ingress_cnt += cnt;
+  } else if (port_type_ == kEgress) {
+    // Count outgoing packets only if we are now under target packet count.
+    if (activated_) {
       per_port_counters_[port_index_].egress_cnt += cnt;
-    } else if (port_type_ == kIngress) {
-      per_port_counters_[port_index_].ingress_cnt += cnt;
-    }
-
-    if (target_packet_count_ > 0 && CountTotalPackets() > target_packet_count_) {
-      activated_ = false;
-    }
-  } else {
-    if (port_type_ == kEgress) {
+      if (target_packet_count_ > 0 && CountTotalPackets() > target_packet_count_) {
+        activated_ = false;
+      }
+    } else {
       bess::Packet::Free(batch->pkts(), cnt);
       return;
     }

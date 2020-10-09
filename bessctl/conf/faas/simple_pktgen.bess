@@ -5,6 +5,8 @@
 
 import scapy.all as scapy
 
+PACKET_OVERHEAD=24
+
 pcie_addr=str($BESS_PCIE!'81:00.0')
 num_cores=int($BESS_CORES!'1')
 pkt_size=int($BESS_PKT_SIZE!'1500')
@@ -24,7 +26,7 @@ dst_port = 8080
 eth = scapy.Ether(src=src_ether, dst=dst_ether)
 ip = scapy.IP(src=src_ip, dst=dst_ip)
 tcp = scapy.TCP(sport=src_port, dport=dst_port)
-payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)]
+payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
 pkt = eth/ip/tcp/payload
 pkt_data = bytes(pkt)
 print("Packet size = %d bytes" %(len(pkt_data)))

@@ -4,6 +4,8 @@
 
 import scapy.all as scapy
 
+PACKET_OVERHEAD=24
+
 # 'show module' command shows detailed stats/parameters
 
 pkt_size = int($BESS_PKT_SIZE!'1500')
@@ -12,7 +14,7 @@ assert(60 <= pkt_size <= 1522)
 eth = scapy.Ether(src='00:15:4d:12:2b:f4', dst='06:16:3e:1b:72:32')
 ip = scapy.IP(src='10.0.0.1', dst='10.0.0.2')   # dst IP is overwritten
 tcp = scapy.TCP(sport=10001, dport=8080)
-payload = ('hello' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)]
+payload = ('hello' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
 pkt = eth/ip/tcp/payload
 pkt_data = bytes(pkt)
 
