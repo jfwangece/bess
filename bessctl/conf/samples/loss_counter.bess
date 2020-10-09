@@ -6,9 +6,13 @@ import scapy.all as scapy
 
 PACKET_OVERHEAD=24
 
+base_pkt_rate=int($BESS_INIT_RATE!'1000000')
+base_bit_rate=int($BESS_INIT_RATE!'9000000000')
 pkt_size=int($BESS_PKT_SIZE!'500')
+
 assert(60 <= pkt_size <= 1522)
 
+pkt_size = min(pkt_size, base_bit_rate / base_pkt_rate / 8)
 
 # Create a "template" packet to use for generated flows.
 src_ether = '00:15:4d:12:2b:f4'
@@ -35,5 +39,5 @@ lc_e.start(target_packet_count=5e7)
 
 bess.add_worker(0, 0)
 bess.add_worker(1, 1)
-bess.add_tc('rl', policy='rate_limit', resource='bit', limit={'bit': 900000000}, wid=1)
+bess.add_tc('rl', policy='rate_limit', resource='packet', limit={'packet': base_pkt_rate}, wid=1)
 src.attach_task(parent='rl')

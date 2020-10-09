@@ -53,7 +53,7 @@ bess.add_worker(wid=1, core=1)
 port_inc.attach_task(wid=1)
 for wid in range(num_cores):
     bess.add_worker(wid=wid+2, core=wid+2)
-    bess.add_tc('rl%d' %(wid+2), policy='rate_limit', resource='bit', limit={'bit': 900000000}, wid=wid+2)
+    bess.add_tc('rl%d' %(wid+2), policy='rate_limit', resource='packet', limit={'packet': base_pkt_rate}, wid=wid+2)
     flowgens[wid].attach_task(parent='rl%d' %(wid+2))
 
 bess.resume_all()
