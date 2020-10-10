@@ -1,4 +1,5 @@
 #include "loss_counter.h"
+#include "timestamp.h"
 
 // Declare all static members
 PerPortCounter LossCounter::per_port_counters_[64];
@@ -20,6 +21,12 @@ const Commands LossCounter::cmds = {
 };
 
 CommandResponse LossCounter::Init(const bess::pb::LossCounterArg &arg) {
+  if (arg.offset() > 0) {
+    offset_ = arg.offset();
+  } else {
+    offset_ = 64;
+  }
+
   if (arg.port_index() > 0) {
     port_index_ = arg.port_index();
   } else {
@@ -36,12 +43,41 @@ CommandResponse LossCounter::Init(const bess::pb::LossCounterArg &arg) {
   return CommandSuccess();
 }
 
+static inline bool is_marked(bess::Packet *pkt, size_t offset) {
+  auto *marker = pkt->head_data<Timestamp::MarkerType *>(offset);
+  if (*marker == Timestamp::kMarker) {
+    return true;
+  }
+  return false;
+}
+
+static inline void mark_packet(bess::Packet *pkt, size_t offset) {
+  Timestamp::MarkerType *marker;
+  const size_t kStampSize = sizeof(*marker);
+  size_t room = pkt->data_len() - offset;
+  if (room < kStampSize) {
+    void *ret = pkt->append(kStampSize - room);
+    if (!ret) {
+      // not enough tailroom for timestamp. give up
+      return;
+    }
+  }
+
+  marker = pkt->head_data<Timestamp::MarkerType *>(offset);
+  *marker = Timestamp::kMarker;
+}
+
 void LossCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   now_ = rdtsc();
   int cnt = batch->cnt();
+  size_t offset = offset_;
 
   if (port_type_ == kIngress) {
-    per_port_counters_[port_index_].ingress_cnt += cnt;
+    for (int i = 0; i < cnt; i++) {
+      if (is_marked(batch->pkts()[i], offset)) {
+        per_port_counters_[port_index_].ingress_cnt += 1;
+      }
+    }
   } else if (port_type_ == kEgress) {
     // Count outgoing packets only if we are now under target packet count.
     if (!per_port_counters_[port_index_].is_counting_) {
@@ -51,6 +87,9 @@ void LossCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       }
     } else {
       if (is_activated_) {
+        for (int i = 0; i < cnt; i++) {
+          mark_packet(batch->pkts()[i], offset);
+        }
         per_port_counters_[port_index_].egress_cnt += cnt;
         if (packet_count_target_ > 0 && CountTotalPackets() > packet_count_target_) {
           is_activated_ = false;

@@ -61,7 +61,7 @@ for i in range(num_cores):
     flowgens[i] -> queues[i] -> Timestamp(offset=ts_offset) -> lc_egress -> QueueOut(port=port0, qid=i)
 
 port_inc -> lc_ingress -> Measure(offset=ts_offset) -> Sink()
-lc_egress.start(target_packet_count=5e7)
+lc_egress.start(packet_count_offset=60000, packet_count_target=5e7)
 
 bess.add_worker(wid=1, core=1)
 port_inc.attach_task(wid=1)

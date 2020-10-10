@@ -59,6 +59,7 @@ private:
 
   // The current global tsc.
   uint64_t now_;
+  size_t offset_;
 
   static bool is_activated_;
 

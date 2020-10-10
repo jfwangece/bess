@@ -165,8 +165,9 @@ message IPLookupCommandClearArg {
 }
 
 message LossCounterArg {
-  uint32 port_index = 1;
-  uint32 port_type = 2;
+  uint64 offset = 1;
+  uint32 port_index = 2;
+  uint32 port_type = 3;
 }
 
 message LossCounterStartArg {
