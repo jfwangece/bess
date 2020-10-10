@@ -81,10 +81,10 @@ void LossCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   } else if (port_type_ == kEgress) {
     // Count outgoing packets only if we are now under target packet count.
     if (!per_port_counters_[port_index_].is_counting_) {
-      per_port_counters_[port_index_].egress_cnt += cnt;
-      if (per_port_counters_[port_index_].egress_cnt > packet_count_offset_) {
+      if (per_port_counters_[port_index_].egress_cnt + cnt > packet_count_offset_) {
         per_port_counters_[port_index_].Start();
       }
+      per_port_counters_[port_index_].egress_cnt += cnt;
     } else {
       if (is_activated_) {
         for (int i = 0; i < cnt; i++) {
