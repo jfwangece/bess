@@ -79,18 +79,21 @@ void LossCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       }
     }
   } else if (port_type_ == kEgress) {
-    // Count outgoing packets only if we are now under target packet count.
+    // Start counting when we hits the packet count offset.
     if (!per_port_counters_[port_index_].is_counting_) {
       if (per_port_counters_[port_index_].egress_cnt + cnt > packet_count_offset_) {
         per_port_counters_[port_index_].Start();
       }
-      per_port_counters_[port_index_].egress_cnt += cnt;
-    } else {
+    }
+
+    if (per_port_counters_[port_index_].is_counting_) {
       if (is_activated_) {
+        // Mark and count.
         for (int i = 0; i < cnt; i++) {
           mark_packet(batch->pkts()[i], offset);
         }
         per_port_counters_[port_index_].egress_cnt += cnt;
+
         if (packet_count_target_ > 0 && CountTotalPackets() > packet_count_target_) {
           is_activated_ = false;
         }
