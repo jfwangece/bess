@@ -9,8 +9,19 @@
 
 struct PerPortCounter {
   PerPortCounter() = default;
+
   uint64_t CountPerPortLosses() { return (egress_cnt - ingress_cnt); }
-  void Clear() { egress_cnt = 0; ingress_cnt = 0; }
+
+  void Clear() { is_counting_ = false; egress_cnt = 0; ingress_cnt = 0; }
+
+  void Start() {
+    egress_cnt = 0;
+    ingress_cnt = 0;
+    is_counting_ = true;
+  }
+
+  // If true, mark all egress packets as countable packets.
+  bool is_counting_ = false;
 
   // TrafficGen egress
   uint64_t egress_cnt = 0;
@@ -38,7 +49,7 @@ public:
   CommandResponse CommandStart(const bess::pb::LossCounterStartArg &arg);
 
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
-  void Activate() { activated_ = true; }
+  void Activate() { is_activated_ = false; }
   void Clear();
   void Start();
 
@@ -49,8 +60,13 @@ private:
   // The current global tsc.
   uint64_t now_;
 
-  static bool activated_;
-  static uint64_t target_packet_count_;
+  static bool is_activated_;
+
+  // At runtime, a per-port counter starts counting after its egress
+  // counter hits |packet_count_offset_|, and stops after its egress
+  // counter hits |packet_count_target_|.
+  static uint64_t packet_count_offset_;
+  static uint64_t packet_count_target_;
 
   // The ingress/egress port at which this instance is monitoring.
   int port_index_ = 0;

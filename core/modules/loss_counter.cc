@@ -3,10 +3,12 @@
 // Declare all static members
 PerPortCounter LossCounter::per_port_counters_[64];
 std::set<int> LossCounter::all_ports_;
-bool LossCounter::activated_ = false;
-uint64_t LossCounter::target_packet_count_ = 0;
+bool LossCounter::is_activated_ = false;
+uint64_t LossCounter::packet_count_offset_ = 0;
+uint64_t LossCounter::packet_count_target_ = 0;
 mcslock LossCounter::lock_;
 
+const uint64_t kDefaultPacketCountTarget = 1000000;
 
 const Commands LossCounter::cmds = {
     {"get_summary", "LossCounterCommandGetSummaryArg",
@@ -30,7 +32,7 @@ CommandResponse LossCounter::Init(const bess::pb::LossCounterArg &arg) {
     port_type_ = kIngress;
   }
 
-  activated_ = false;
+  is_activated_ = false;
   return CommandSuccess();
 }
 
@@ -39,18 +41,24 @@ void LossCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   int cnt = batch->cnt();
 
   if (port_type_ == kIngress) {
-    // Count incoming packets whenever possible.
     per_port_counters_[port_index_].ingress_cnt += cnt;
   } else if (port_type_ == kEgress) {
     // Count outgoing packets only if we are now under target packet count.
-    if (activated_) {
+    if (!per_port_counters_[port_index_].is_counting_) {
       per_port_counters_[port_index_].egress_cnt += cnt;
-      if (target_packet_count_ > 0 && CountTotalPackets() > target_packet_count_) {
-        activated_ = false;
+      if (per_port_counters_[port_index_].egress_cnt > packet_count_offset_) {
+        per_port_counters_[port_index_].Start();
       }
     } else {
-      bess::Packet::Free(batch->pkts(), cnt);
-      return;
+      if (is_activated_) {
+        per_port_counters_[port_index_].egress_cnt += cnt;
+        if (packet_count_target_ > 0 && CountTotalPackets() > packet_count_target_) {
+          is_activated_ = false;
+        }
+      } else {
+        bess::Packet::Free(batch->pkts(), cnt);
+        return;
+      }
     }
   }
 
@@ -77,7 +85,7 @@ void LossCounter::Clear() {
   mcslock_node_t mynode;
   mcs_lock(&lock_, &mynode);
 
-  activated_ = false;
+  is_activated_ = false;
   // Clear all counters.
   for (int i = 0; i < 64; ++i) {
     per_port_counters_[i].Clear();
@@ -90,7 +98,7 @@ void LossCounter::Start() {
   mcslock_node_t mynode;
   mcs_lock(&lock_, &mynode);
 
-  activated_ = true;
+  is_activated_ = true;
 
   mcs_unlock(&lock_, &mynode);
 }
@@ -124,9 +132,15 @@ CommandResponse LossCounter::CommandClear(const bess::pb::EmptyArg &) {
 }
 
 CommandResponse LossCounter::CommandStart(const bess::pb::LossCounterStartArg &arg) {
-  target_packet_count_ = 0;
-  if (arg.target_packet_count() > 0) {
-    target_packet_count_ = (uint64_t)arg.target_packet_count();
+  if (arg.packet_count_offset() > 0) {
+    packet_count_offset_ = (uint64_t)arg.packet_count_offset();
+  } else {
+    packet_count_offset_ = 0;
+  }
+  if (arg.packet_count_target() > 0) {
+    packet_count_target_ = (uint64_t)arg.packet_count_target();
+  } else {
+    packet_count_target_ = kDefaultPacketCountTarget;
   }
 
   Clear();

@@ -170,7 +170,8 @@ message LossCounterArg {
 }
 
 message LossCounterStartArg {
-  double target_packet_count = 1;
+  double packet_count_offset = 1;
+  double packet_count_target = 2;
 }
 
 message LossCounterCommandGetSummaryArg {
