@@ -181,11 +181,16 @@ message LossCounterCommandGetSummaryArg {
 }
 
 message LossCounterCommandGetSummaryResponse {
+  message PerPortLossCounterSummary {
+    uint32 port_idx = 1;
+    uint64 packets = 2;
+    uint64 losses = 3;
+  }
   double timestamp = 1; /// Seconds since boot.
   uint64 total_packets = 2; /// Total packets sent by all egress ports.
   uint64 total_losses = 3; /// The total losses.
   double avg_loss_rate = 4;
-  repeated uint64 per_port_losses = 5;
+  repeated PerPortLossCounterSummary per_port_summary = 5;
 }
 
 /**

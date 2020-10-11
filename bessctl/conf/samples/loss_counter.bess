@@ -35,7 +35,7 @@ lc_i::LossCounter(port_index=0, port_type=1)
 
 src -> Rewrite(templates=[pkt_data]) -> lc_e -> lc_i -> Sink()
 
-lc_e.start(target_packet_count=5e7)
+lc_e.start(packet_count_offset=50000, packet_count_target=1e6)
 
 bess.add_worker(0, 0)
 bess.add_worker(1, 1)

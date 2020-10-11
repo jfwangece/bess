@@ -46,7 +46,7 @@ for i in range(num_cores):
     flowgens[i] -> Rewrite(templates=[pkt_data]) -> Timestamp() -> lc_egress -> QueueOut(port=port0, qid=i)
 
 port_inc -> lc_ingress -> Measure() -> Sink()
-lc_egress.start(target_packet_count=5e7)
+lc_egress.start(packet_count_target=5e7)
 
 # One core is used to receive incoming packets.
 bess.add_worker(wid=1, core=1)

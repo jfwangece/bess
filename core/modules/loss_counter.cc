@@ -83,6 +83,8 @@ void LossCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     if (!per_port_counters_[port_index_].is_counting_) {
       if (per_port_counters_[port_index_].egress_cnt + cnt > packet_count_offset_) {
         per_port_counters_[port_index_].Start();
+      } else {
+        per_port_counters_[port_index_].egress_cnt += cnt;
       }
     }
 
@@ -127,7 +129,6 @@ void LossCounter::Clear() {
   mcslock_node_t mynode;
   mcs_lock(&lock_, &mynode);
 
-  is_activated_ = false;
   // Clear all counters.
   for (int i = 0; i < 64; ++i) {
     per_port_counters_[i].Clear();
@@ -140,6 +141,10 @@ void LossCounter::Start() {
   mcslock_node_t mynode;
   mcs_lock(&lock_, &mynode);
 
+  // Clear all counters.
+  for (int i = 0; i < 64; ++i) {
+    per_port_counters_[i].Clear();
+  }
   is_activated_ = true;
 
   mcs_unlock(&lock_, &mynode);
@@ -151,14 +156,22 @@ CommandResponse LossCounter::CommandGetSummary(
 
   uint64_t total_packets = CountTotalPackets();
   uint64_t total_losses = CountTotalLosses();
-  double avg_loss_rate = double(total_losses) / total_packets;
+  double avg_loss_rate = 0.0;
+  if (total_packets > 0) {
+    avg_loss_rate = double(total_losses) / total_packets;
+  }
+
   r.set_timestamp(get_epoch_time());
   r.set_total_packets(total_packets);
   r.set_total_losses(total_losses);
   r.set_avg_loss_rate(avg_loss_rate);
 
   for (const auto& port : all_ports_) {
-    r.add_per_port_losses(per_port_counters_[port].CountPerPortLosses());
+    bess::pb::LossCounterCommandGetSummaryResponse_PerPortLossCounterSummary* \
+      p = r.add_per_port_summary();
+    p->set_port_idx(port);
+    p->set_packets(per_port_counters_[port].egress_cnt);
+    p->set_losses(per_port_counters_[port].CountPerPortLosses());
   }
 
   if (arg.clear()) {
