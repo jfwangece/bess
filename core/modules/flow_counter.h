@@ -18,9 +18,11 @@ public:
 
   CommandResponse Init(const bess::pb::DistributedFlowCounterArg &arg);
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &);
-  CommandResponse CommandClear(const bess::pb::EmptyArg &);
   CommandResponse CommandStart(const bess::pb::EmptyArg &);
   CommandResponse CommandStop(const bess::pb::EmptyArg &);
+  // Reset = Clear + Start;
+  CommandResponse CommandReset(const bess::pb::EmptyArg &);
+  CommandResponse CommandClear(const bess::pb::EmptyArg &);
 
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
@@ -28,6 +30,7 @@ private:
   void Start();
   void Stop();
   void Clear();
+  void Reset();
 
   bool is_active_ = false;
 

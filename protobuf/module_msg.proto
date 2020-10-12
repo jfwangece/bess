@@ -65,8 +65,9 @@ message CHACHAArg {
 
 message DistributedFlowCounterArg {
   string redis_service_ip = 1;
-  string redis_password = 2;
-  uint32 redis_db = 3;
+  uint32 redis_port = 2;
+  string redis_password = 3;
+  uint32 redis_db = 4;
 }
 
 message DistributedFlowCounterGetSummaryRespondArg {

@@ -1,5 +1,7 @@
 #include "flow_counter.h"
 
+#include <unistd.h>
+
 #include "../utils/endian.h"
 #include "../utils/ether.h"
 #include "../utils/ip.h"
@@ -16,6 +18,8 @@ static const std::string kDefaultDistributedFlowCounterDB = "1";
 static const int kDefaultRedisServicePort = 6379;
 
 const Commands DistributedFlowCounter::cmds = {
+  {"reset", "EmptyArg", MODULE_CMD_FUNC(&DistributedFlowCounter::CommandReset),
+   Command::THREAD_SAFE},
   {"clear", "EmptyArg", MODULE_CMD_FUNC(&DistributedFlowCounter::CommandClear),
    Command::THREAD_SAFE},
   {"start", "EmptyArg", MODULE_CMD_FUNC(&DistributedFlowCounter::CommandStart),
@@ -35,9 +39,13 @@ CommandResponse DistributedFlowCounter::Init(
     redis_service_ip_ = arg.redis_service_ip();
 
     // Connecting
-    struct timeval timeout = {1, 500000}; // 1.5 seconds
-    redis_ctx_ = (redisContext*)redisConnectWithTimeout(redis_service_ip_.c_str(),
-                  kDefaultRedisServicePort, timeout);
+    struct timeval timeout = {5, 500000}; // 5.5 seconds
+    int redis_port = kDefaultRedisServicePort;
+    if (arg.redis_port() > 0) {
+      redis_port = int(arg.redis_port());
+    }
+    redis_ctx_ = (redisContext*)redisConnectWithTimeout(
+                  redis_service_ip_.c_str(), redis_port, timeout);
 
     if (redis_ctx_ == nullptr) {
       CommandFailure(EINVAL, "Error: failed to allocate a Redis context");
@@ -125,18 +133,23 @@ void DistributedFlowCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch
   RunNextModule(ctx, batch);
 }
 
+void DistributedFlowCounter::Reset() {
+  Clear();
+  Start();
+}
+
 void DistributedFlowCounter::Clear() {
   mcslock_node_t mynode;
   mcs_lock(&lock_, &mynode);
 
   is_active_ = false;
+  usleep(500000); // Sleep for 500 milliseconds.
+
   if (redis_ctx_) {
     redisReply *reply = (redisReply *)redisCommand(redis_ctx_, "FLUSHDB");
     freeReplyObject(reply);
   }
   flow_cache_.clear();
-
-  is_active_ = true;
 
   mcs_unlock(&lock_, &mynode);
 }
@@ -157,6 +170,11 @@ void DistributedFlowCounter::Stop() {
   is_active_ = false;
 
   mcs_unlock(&lock_, &mynode);
+}
+
+CommandResponse DistributedFlowCounter::CommandReset(const bess::pb::EmptyArg &) {
+  Reset();
+  return CommandResponse();
 }
 
 CommandResponse DistributedFlowCounter::CommandClear(const bess::pb::EmptyArg &) {
