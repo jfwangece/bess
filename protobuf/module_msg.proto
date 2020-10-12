@@ -1,4 +1,3 @@
-// Copyright (c) 2016-2017, Nefeli Networks, Inc.
 // Copyright (c) 2017, The Regents of the University of California.
 // All rights reserved.
 //
@@ -62,6 +61,16 @@ message BPFCommandClearArg {
  */
 message CHACHAArg {
   uint32 chacha_rounds = 1; /// The number of chacha cipher rounds.
+}
+
+message DistributedFlowCounterArg {
+  string redis_service_ip = 1;
+  string redis_password = 2;
+  uint32 redis_db = 3;
+}
+
+message DistributedFlowCounterGetSummaryRespondArg {
+  uint64 flow_count = 1;
 }
 
 /**
