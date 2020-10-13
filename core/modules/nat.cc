@@ -53,6 +53,102 @@ using bess::utils::ChecksumIncrement32;
 using bess::utils::UpdateChecksumWithIncrement;
 using bess::utils::UpdateChecksum16;
 
+namespace {
+inline std::pair<bool, Endpoint> ExtractEndpoint(const Ipv4 *ip,
+                                                  const void *l4,
+                                                  NAT::Direction dir) {
+  IpProto proto = static_cast<IpProto>(ip->protocol);
+
+  if (likely(proto == IpProto::kTcp || proto == IpProto::kUdp)) {
+    // UDP and TCP share the same layout for port numbers
+    const Udp *udp = static_cast<const Udp *>(l4);
+    Endpoint ret;
+
+    if (dir == NAT::kForward) {
+      ret = {.addr = ip->src, .port = udp->src_port, .protocol = proto};
+    } else {
+      ret = {.addr = ip->dst, .port = udp->dst_port, .protocol = proto};
+    }
+
+    return std::make_pair(true, ret);
+  }
+
+  // slow path
+  if (proto == IpProto::kIcmp) {
+    const Icmp *icmp = static_cast<const Icmp *>(l4);
+    Endpoint ret;
+
+    if (icmp->type == 0 || icmp->type == 8 || icmp->type == 13 ||
+        icmp->type == 15 || icmp->type == 16) {
+      if (dir == NAT::kForward) {
+        ret = {
+            .addr = ip->src, .port = icmp->ident, .protocol = IpProto::kIcmp};
+      } else {
+        ret = {
+            .addr = ip->dst, .port = icmp->ident, .protocol = IpProto::kIcmp};
+      }
+
+      return std::make_pair(true, ret);
+    }
+  }
+
+  return std::make_pair(
+      false, Endpoint{.addr = ip->src, .port = be16_t(0), .protocol = 0});
+}
+
+template <NAT::Direction dir>
+inline void Stamp(Ipv4 *ip, void *l4, const Endpoint &before,
+                  const Endpoint &after) {
+  IpProto proto = static_cast<IpProto>(ip->protocol);
+  DCHECK_EQ(before.protocol, after.protocol);
+  DCHECK_EQ(before.protocol, proto);
+
+  if (dir == NAT::kForward) {
+    ip->src = after.addr;
+  } else {
+    ip->dst = after.addr;
+  }
+
+  uint32_t l3_increment =
+      ChecksumIncrement32(before.addr.raw_value(), after.addr.raw_value());
+  ip->checksum = UpdateChecksumWithIncrement(ip->checksum, l3_increment);
+
+  uint32_t l4_increment =
+      l3_increment +
+      ChecksumIncrement16(before.port.raw_value(), after.port.raw_value());
+
+  if (likely(proto == IpProto::kTcp || proto == IpProto::kUdp)) {
+    Udp *udp = static_cast<Udp *>(l4);
+    if (dir == NAT::kForward) {
+      udp->src_port = after.port;
+    } else {
+      udp->dst_port = after.port;
+    }
+
+    if (proto == IpProto::kTcp) {
+      Tcp *tcp = static_cast<Tcp *>(l4);
+      tcp->checksum = UpdateChecksumWithIncrement(tcp->checksum, l4_increment);
+    } else {
+      // NOTE: UDP checksum is tricky in two ways:
+      // 1. if the old checksum field was 0 (not set), no need to update
+      // 2. if the updated value is 0, use 0xffff (rfc768)
+      if (udp->checksum != 0) {
+        udp->checksum =
+            UpdateChecksumWithIncrement(udp->checksum, l4_increment) ?: 0xffff;
+      }
+    }
+  } else {
+    DCHECK_EQ(proto, IpProto::kIcmp);
+    Icmp *icmp = static_cast<Icmp *>(l4);
+    icmp->ident = after.port;
+
+    // ICMP does not have a pseudo header
+    icmp->checksum = UpdateChecksum16(icmp->checksum, before.port.raw_value(),
+                                      after.port.raw_value());
+  }
+}
+} // namespace
+
 const Commands NAT::cmds = {
     {"get_initial_arg", "EmptyArg", MODULE_CMD_FUNC(&NAT::GetInitialArg),
      Command::THREAD_SAFE},
@@ -133,48 +229,6 @@ CommandResponse NAT::GetRuntimeConfig(const bess::pb::EmptyArg &) {
 
 CommandResponse NAT::SetRuntimeConfig(const bess::pb::EmptyArg &) {
   return CommandSuccess();
-}
-
-static inline std::pair<bool, Endpoint> ExtractEndpoint(const Ipv4 *ip,
-                                                        const void *l4,
-                                                        NAT::Direction dir) {
-  IpProto proto = static_cast<IpProto>(ip->protocol);
-
-  if (likely(proto == IpProto::kTcp || proto == IpProto::kUdp)) {
-    // UDP and TCP share the same layout for port numbers
-    const Udp *udp = static_cast<const Udp *>(l4);
-    Endpoint ret;
-
-    if (dir == NAT::kForward) {
-      ret = {.addr = ip->src, .port = udp->src_port, .protocol = proto};
-    } else {
-      ret = {.addr = ip->dst, .port = udp->dst_port, .protocol = proto};
-    }
-
-    return std::make_pair(true, ret);
-  }
-
-  // slow path
-  if (proto == IpProto::kIcmp) {
-    const Icmp *icmp = static_cast<const Icmp *>(l4);
-    Endpoint ret;
-
-    if (icmp->type == 0 || icmp->type == 8 || icmp->type == 13 ||
-        icmp->type == 15 || icmp->type == 16) {
-      if (dir == NAT::kForward) {
-        ret = {
-            .addr = ip->src, .port = icmp->ident, .protocol = IpProto::kIcmp};
-      } else {
-        ret = {
-            .addr = ip->dst, .port = icmp->ident, .protocol = IpProto::kIcmp};
-      }
-
-      return std::make_pair(true, ret);
-    }
-  }
-
-  return std::make_pair(
-      false, Endpoint{.addr = ip->src, .port = be16_t(0), .protocol = 0});
 }
 
 // Not necessary to inline this function, since it is less frequently called
@@ -268,58 +322,6 @@ NAT::HashTable::Entry *NAT::CreateNewEntry(const Endpoint &src_internal,
     } while (port != start_port && trials < kMaxTrials);
   }
   return nullptr;
-}
-
-template <NAT::Direction dir>
-inline void Stamp(Ipv4 *ip, void *l4, const Endpoint &before,
-                  const Endpoint &after) {
-  IpProto proto = static_cast<IpProto>(ip->protocol);
-  DCHECK_EQ(before.protocol, after.protocol);
-  DCHECK_EQ(before.protocol, proto);
-
-  if (dir == NAT::kForward) {
-    ip->src = after.addr;
-  } else {
-    ip->dst = after.addr;
-  }
-
-  uint32_t l3_increment =
-      ChecksumIncrement32(before.addr.raw_value(), after.addr.raw_value());
-  ip->checksum = UpdateChecksumWithIncrement(ip->checksum, l3_increment);
-
-  uint32_t l4_increment =
-      l3_increment +
-      ChecksumIncrement16(before.port.raw_value(), after.port.raw_value());
-
-  if (likely(proto == IpProto::kTcp || proto == IpProto::kUdp)) {
-    Udp *udp = static_cast<Udp *>(l4);
-    if (dir == NAT::kForward) {
-      udp->src_port = after.port;
-    } else {
-      udp->dst_port = after.port;
-    }
-
-    if (proto == IpProto::kTcp) {
-      Tcp *tcp = static_cast<Tcp *>(l4);
-      tcp->checksum = UpdateChecksumWithIncrement(tcp->checksum, l4_increment);
-    } else {
-      // NOTE: UDP checksum is tricky in two ways:
-      // 1. if the old checksum field was 0 (not set), no need to update
-      // 2. if the updated value is 0, use 0xffff (rfc768)
-      if (udp->checksum != 0) {
-        udp->checksum =
-            UpdateChecksumWithIncrement(udp->checksum, l4_increment) ?: 0xffff;
-      }
-    }
-  } else {
-    DCHECK_EQ(proto, IpProto::kIcmp);
-    Icmp *icmp = static_cast<Icmp *>(l4);
-    icmp->ident = after.port;
-
-    // ICMP does not have a pseudo header
-    icmp->checksum = UpdateChecksum16(icmp->checksum, before.port.raw_value(),
-                                      after.port.raw_value());
-  }
 }
 
 template <NAT::Direction dir>
