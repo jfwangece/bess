@@ -74,6 +74,39 @@ message DistributedFlowCounterGetSummaryRespondArg {
   uint64 flow_count = 1;
 }
 
+message DistributedNATArg {
+  message PortRange {
+    uint32 begin = 1;
+    uint32 end = 2;
+    bool suspended = 3;
+  }
+  message ExternalAddress {
+    string ext_addr = 1;
+    repeated PortRange port_ranges = 2;
+  }
+
+  string redis_service_ip = 1;
+  uint32 redis_port = 2;
+  string redis_password = 3;
+  uint32 redis_db = 4;
+  repeated ExternalAddress ext_addrs = 5; /// list of external IP addresses
+}
+
+message DistributedNATCommandAddInternalIPArg {
+  repeated string internal_ips = 1;
+}
+
+message DistributedNATCommandGetAllRulesResponse {
+  message Rule {
+    string internal_ip = 1;
+    string external_ip = 2;
+    uint32 internal_port = 3;
+    uint32 external_port = 4;
+  }
+  string timestamp = 2;
+  repeated Rule rules = 1;
+}
+
 /**
  * The ExactMatch module has a command `add(...)` that takes two parameters.
  * The ExactMatch initializer specifies what fields in a packet to inspect; add() specifies
