@@ -101,10 +101,16 @@ CommandResponse FaaSIngress::Init(const bess::pb::FaaSIngressArg &arg) {
         .action = FlowAction(rule.action()),
         .egress_port = rule.egress_port(),
         .egress_mac = rule.egress_mac(),
+        .encoded_mac = Ethernet::Address(),
         .active_ts = 0,
     };
     rules_.push_back(new_rule);
   }
+
+  if (arg.flow_action() == "forward") {
+    default_action_ = kForward;
+  }
+
   return CommandSuccess();
 }
 
@@ -160,11 +166,14 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     bool emitted = false;
     for (const auto &rule : rules_) {
       if (rule.Match(ip->src, ip->dst, ip->protocol, sport, dport)) { // An in-progress flow.
-        if (rule.action == kForward) {
-          emitted = true;
-          if (now_ >= rule.active_ts) {
+        emitted = true;
+        if (now_ >= rule.active_ts) {
+          EmitPacket(ctx, pkt, 0);
+        } else {
+          if (rule.action == kForward) {
+            eth->dst_addr = rule.encoded_mac;
             EmitPacket(ctx, pkt, 0);
-          } else {
+          } else if (rule.action == kDrop) {
             DropPacket(ctx, pkt);
           }
         }
@@ -182,6 +191,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         .action = FlowAction(2),
         .egress_port = 0,
         .egress_mac = "",
+        .encoded_mac = Ethernet::Address(),
         .active_ts = 0,
       };
 

@@ -11,11 +11,13 @@
 #include "pb/faas_msg.grpc.pb.h"
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
+#include "../utils/ether.h"
 #include "../utils/ip.h"
 #include "../utils/mcslock.h"
 
 using bess::utils::be16_t;
 using bess::utils::be32_t;
+using bess::utils::Ethernet;
 using bess::utils::Ipv4Prefix;
 
 
@@ -43,6 +45,8 @@ class FaaSIngress final : public Module {
   void set_action(uint o_port, const std::string& o_mac) {
     egress_port = o_port;
     egress_mac = o_mac;
+    encoded_mac.FromString(o_mac);
+    encoded_mac.bytes[0] = o_port & 0x11;
   }
 
   // Match
@@ -56,6 +60,8 @@ class FaaSIngress final : public Module {
   FlowAction action;
   uint egress_port;
   std::string egress_mac;
+
+  Ethernet::Address encoded_mac;
   uint64_t active_ts = 0;
   };
 
@@ -81,6 +87,8 @@ class FaaSIngress final : public Module {
   bool process_new_flow(FlowRule &rule);
   void convert_rule_to_of_request(FlowRule &rule, bess::pb::InsertFlowEntryRequest &req);
   std::string convert_rule_to_string(FlowRule &rule);
+
+  FlowAction default_action_ = kDrop;
 
   // A slight delay of installing an OpenFlow rule for a flow.
   uint64_t now_;

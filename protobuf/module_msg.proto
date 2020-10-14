@@ -646,6 +646,7 @@ message FaaSIngressArg {
   string redis_password = 8;
   uint32 max_rules_count = 9;
   uint64 rule_delay_ms = 10;
+  string flow_action = 11;
 }
 
 /**
