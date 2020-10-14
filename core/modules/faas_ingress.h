@@ -46,7 +46,7 @@ class FaaSIngress final : public Module {
     egress_port = o_port;
     egress_mac = o_mac;
     encoded_mac.FromString(o_mac);
-    encoded_mac.bytes[0] = o_port & 0x11;
+    encoded_mac.bytes[0] = o_port & 0xff;
   }
 
   // Match

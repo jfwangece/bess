@@ -188,7 +188,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         .proto_ip = ip->protocol,
         .src_port = be16_t(sport),
         .dst_port = be16_t(dport),
-        .action = FlowAction(2),
+        .action = default_action_,
         .egress_port = 0,
         .egress_mac = "",
         .encoded_mac = Ethernet::Address(),
