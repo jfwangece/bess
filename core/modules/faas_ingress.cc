@@ -216,6 +216,10 @@ bool FaaSIngress::process_new_flow(FlowRule &rule) {
   }
 
   rule.set_action(flow_response_.switch_port(), flow_response_.dmac());
+  if (rule.dst_port.value() < 2000) {
+    std::cout << flow_response_.switch_port();
+    std::cout << rule.encoded_mac.ToString();
+  }
 
   if (!switch_service_addr_.empty()) {
     convert_rule_to_of_request(rule, flowrule_request_);
