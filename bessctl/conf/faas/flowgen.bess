@@ -14,7 +14,7 @@ num_flows=int($BESS_FLOWS!'500')
 flow_time=int($BESS_FLOW_TIME!'40') # in Seconds
 base_pkt_rate=int($BESS_INIT_RATE!'4000000')
 base_bit_rate=int($BESS_INIT_RATE!'9500000000')
-ts_offset=int($BESS_TS_OFFSET!'64')
+ts_offset=int($BESS_TS_OFFSET!'68')
 
 assert(pcie_addr)
 assert(1 <= num_cores <= 16)
@@ -27,7 +27,7 @@ dst_ether=($BESS_DST_ETHER!'00:00:00:00:00:04')
 src_ip=($BESS_SRC_IP!'10.0.0.1')
 dst_ip=($BESS_DST_IP!'192.0.0.1')
 src_port=int($BESS_SRC_PORT!'10001')
-dst_port=int($BESS_DST_PORT!'8080')
+dst_port=int($BESS_DST_PORT!'2000')
 
 
 # Create a "template" packet to use for generated flows.

@@ -7,22 +7,19 @@ import scapy.all as scapy
 PACKET_OVERHEAD=24
 
 # This script generates a number of flows at a specified packet rate.
-pcie_addr=str($BESS_PCIE!'06:00.0')
+pcie_addr=str($BESS_PCIE!'06:00.1')
 num_cores=int($BESS_CORES!'1')
 pkt_size=int($BESS_PKT_SIZE!'1500')
 num_flows=int($BESS_FLOWS!'200')
 flow_time=int($BESS_FLOW_TIME!'60') # in Seconds
-base_pkt_rate=int($BESS_INIT_RATE!'1000000')
-base_bit_rate=int($BESS_INIT_RATE!'9000000000')
+base_pkt_rate=int($BESS_INIT_RATE!'1000')
+base_bit_rate=int($BESS_INIT_RATE!'200000')
 ts_offset=int($BESS_TS_OFFSET!'68')
-rule_delay=int($FAAS_RULE_DELAY!'200')
-num_faas_workers=int($FAAS_WORKERS!'5')
 
 assert(pcie_addr)
 assert(1 <= num_cores <= 16)
 assert(60 <= pkt_size <= 1522)
 assert(64 <= ts_offset <= 100)
-assert(rule_delay >= 0)
 
 pkt_size = min(pkt_size, base_bit_rate / base_pkt_rate / 8)
 
@@ -31,7 +28,7 @@ dst_ether=($BESS_DST_ETHER!'00:00:00:00:00:04')
 src_ip=($BESS_SRC_IP!'10.0.0.1')
 dst_ip=($BESS_DST_IP!'192.0.0.1')
 src_port=int($BESS_SRC_PORT!'10001')
-dst_port=int($BESS_DST_PORT!'8080')
+dst_port=int($BESS_DST_PORT!'2000')
 
 
 # Create a "template" packet to use for generated flows.
@@ -45,9 +42,8 @@ pkt = eth/ip/tcp/payload
 pkt_data = bytes(pkt)
 print("Packet size = %d bytes" %(len(pkt_data)))
 
-port0::PMDPort(pci=pcie_addr, num_inc_q=1, num_out_q=num_cores + 1)
+port0::PMDPort(pci=pcie_addr, num_inc_q=1, num_out_q=num_cores)
 port_inc::PortInc(port=port0)
-ingress::FaaSIngress(faas_service_ip="128.105.144.165", redis_service_ip="128.105.144.158", redis_password="faas-nfv-cool", max_rules_count=330, rule_delay_ms=rule_delay)
 
 flowgens = dict()
 queues = dict()
@@ -59,32 +55,20 @@ for i in range(num_cores):
         pps = base_pkt_rate / num_cores, \
         flow_rate = num_flows / flow_time, \
         flow_duration = flow_time, \
-        arrival = 'uniform', duration='uniform', quick_rampup=False, \
+        arrival = 'uniform', duration='uniform', quick_rampup=True, \
         ip_src_range = 50, ip_dst_range = 50)
     queues[i] = Queue()
-    flowgens[i] -> ingress -> Timestamp(offset=ts_offset) -> lc_egress -> queues[i] -> QueueOut(port=port0, qid=i)
+    flowgens[i] -> queues[i] -> Timestamp(offset=ts_offset) -> lc_egress -> QueueOut(port=port0, qid=i)
 
 port_inc -> lc_ingress -> Measure(offset=ts_offset) -> Sink()
-lc_egress.start(packet_count_offset=200000, packet_count_target=5e7)
-
-bg_pkts = dict()
-bg_srcs = dict()
-for i in range(num_faas_workers):
-    bg_pkts[i] = eth/ip/scapy.TCP(sport=src_port, dport=1000+i)/payload
-    bg_srcs[i] = Source()
-    bg_srcs[i] -> Rewrite(templates=[bytes(bg_pkts[i])]) -> queues[0]
-
-bess.add_worker(wid=0, core=0)
-for i in range(num_faas_workers):
-    bess.add_tc('rl%d' %(i), policy='rate_limit', resource='packet', limit={'packet': 5000}, wid=0)
-    bg_srcs[i].attach_task(parent='rl%d' %(i))
+lc_egress.start(packet_count_offset=5000, packet_count_target=1e5)
 
 bess.add_worker(wid=1, core=1)
 port_inc.attach_task(wid=1)
 for wid in range(num_cores):
     bess.add_worker(wid=2*wid+2, core=2*wid+2)
     bess.add_worker(wid=2*wid+3, core=2*wid+3)
-    flowgens[wid].attach_task(wid=2*wid+2)
+    flowgens[wid].attach_task(wid=wid+2)
     queues[wid].attach_task(wid=2*wid+3)
 
 bess.resume_all()
