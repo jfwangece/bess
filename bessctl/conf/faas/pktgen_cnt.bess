@@ -12,6 +12,7 @@ num_cores=int($BESS_CORES!'1')
 pkt_size=int($BESS_PKT_SIZE!'1500')
 base_pkt_rate=int($BESS_INIT_RATE!'1000000')
 base_bit_rate=int($BESS_INIT_RATE!'9000000000')
+ts_offset=int($BESS_TS_OFFSET!'68')
 
 assert(pcie_addr)
 assert(1 <= num_cores <= 16)
@@ -43,10 +44,10 @@ lc_ingress::LossCounter(port_index=0, port_type=1)
 
 for i in range(num_cores):
     flowgens[i] = Source()
-    flowgens[i] -> Rewrite(templates=[pkt_data]) -> Timestamp() -> lc_egress -> QueueOut(port=port0, qid=i)
+    flowgens[i] -> Rewrite(templates=[pkt_data]) -> Timestamp(offset=ts_offset) -> lc_egress -> QueueOut(port=port0, qid=i)
 
-port_inc -> lc_ingress -> Measure() -> Sink()
-lc_egress.start(packet_count_target=5e7)
+port_inc -> lc_ingress -> Measure(offset=ts_offset) -> Sink()
+lc_egress.start(packet_count_offset=2e6, packet_count_target=5e7)
 
 # One core is used to receive incoming packets.
 bess.add_worker(wid=1, core=1)

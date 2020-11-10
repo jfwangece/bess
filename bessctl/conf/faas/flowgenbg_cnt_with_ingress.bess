@@ -47,7 +47,7 @@ print("Packet size = %d bytes" %(len(pkt_data)))
 
 port0::PMDPort(pci=pcie_addr, num_inc_q=1, num_out_q=num_cores + 1)
 port_inc::PortInc(port=port0)
-ingress::FaaSIngress(faas_service_ip="128.105.144.165", redis_service_ip="128.105.144.158", redis_password="faas-nfv-cool", max_rules_count=330, rule_delay_ms=rule_delay)
+ingress::FaaSIngress(faas_service_ip="128.105.144.242", redis_service_ip="128.105.145.211", redis_password="faas-nfv-cool", max_rules_count=330, rule_delay_ms=rule_delay, flow_action="forward")
 
 flowgens = dict()
 queues = dict()
@@ -65,7 +65,7 @@ for i in range(num_cores):
     flowgens[i] -> ingress -> Timestamp(offset=ts_offset) -> lc_egress -> queues[i] -> QueueOut(port=port0, qid=i)
 
 port_inc -> lc_ingress -> Measure(offset=ts_offset) -> Sink()
-lc_egress.start(packet_count_offset=200000, packet_count_target=5e7)
+lc_egress.start(packet_count_offset=2000000, packet_count_target=1e8)
 
 bg_pkts = dict()
 bg_srcs = dict()
