@@ -1,0 +1,90 @@
+#
+# This is a traffic generator that generates many TCP flows.
+#
+
+import scapy.all as scapy
+
+PACKET_OVERHEAD=24
+
+# This script generates a number of flows at a specified packet rate.
+pcie0=str($BESS_PCIE!'06:00.0')
+pcie1=str($BESS_PCIE!'06:00.1')
+
+num_cores=int($BESS_CORES!'1')
+pkt_size=int($BESS_PKT_SIZE!'1500')
+num_flows=int($BESS_FLOWS!'200')
+flow_time=int($BESS_FLOW_TIME!'60') # in Seconds
+base_pkt_rate=int($BESS_INIT_RATE!'1000000')
+base_bit_rate=int($BESS_INIT_RATE!'9000000000')
+ts_offset=int($BESS_TS_OFFSET!'68')
+rule_delay=int($FAAS_RULE_DELAY!'200')
+num_faas_workers=int($FAAS_WORKERS!'5')
+
+assert(pcie0)
+assert(pcie1)
+assert(1 <= num_cores <= 16)
+assert(60 <= pkt_size <= 1522)
+assert(64 <= ts_offset <= 100)
+assert(rule_delay >= 0)
+
+pkt_size = min(pkt_size, base_bit_rate / base_pkt_rate / 8)
+
+src_ether=($BESS_SRC_ETHER!'00:15:4d:12:2b:f4')
+dst_ether=($BESS_DST_ETHER!'00:00:00:00:00:04')
+src_ip=($BESS_SRC_IP!'10.0.0.1')
+dst_ip=($BESS_DST_IP!'192.0.0.1')
+src_port=int($BESS_SRC_PORT!'10001')
+dst_port=int($BESS_DST_PORT!'8080')
+
+
+# Create a "template" packet to use for generated flows.
+# All packets in flow will follow this formula; flowgen
+# changes dst IP to generate new connections.
+eth = scapy.Ether(src=src_ether, dst=dst_ether)
+ip = scapy.IP(src=src_ip, dst=dst_ip)
+tcp = scapy.TCP(sport=src_port, dport=dst_port)
+payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+pkt = eth/ip/tcp/payload
+pkt_data = bytes(pkt)
+print("Packet size = %d bytes" %(len(pkt_data)))
+
+port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+port1::PMDPort(pci=pcie1, num_inc_q=1, num_out_q=1)
+
+port_inc::PortInc(port=port0)
+port_out::PortOut(port=port0)
+ingress::FaaSIngress(faas_service_ip="128.105.144.242", redis_service_ip="128.105.145.211", redis_password="faas-nfv-cool", max_rules_count=1000, rule_delay_ms=rule_delay, flow_action="forward")
+
+lc_egress::LossCounter(port_index=0, port_type=0)
+lc_ingress::LossCounter(port_index=0, port_type=1)
+lc_egress.start(packet_count_offset=2000000, packet_count_target=1e8)
+
+# Traffic
+flowgen1 = FlowGen(template = pkt_data, \
+    pps = base_pkt_rate / num_cores, \
+    flow_rate = num_flows / flow_time, \
+    flow_duration = flow_time, \
+    arrival = 'uniform', duration='uniform', quick_rampup=False, \
+    ip_src_range = 50, ip_dst_range = 50)
+
+flowgen1 -> Timestamp(offset=ts_offset) -> lc_egress -> port_out
+
+port_inc -> lc_ingress -> Measure(offset=ts_offset) -> Sink()
+
+# Control-plane
+ctl_inc::PortInc(port=port1)
+ctl_out::PortOut(port=port1)
+
+ctl_inc -> ingress -> ctl_out
+
+# Core allocation
+bess.add_worker(wid=1, core=1)
+port_inc.attach_task(wid=1)
+
+bess.add_worker(wid=2, core=2)
+flowgen1.attach_task(wid=2)
+
+bess.add_worker(wid=3, core=3)
+ctl_inc.attach_task(wid=3)
+
+bess.resume_all()

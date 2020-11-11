@@ -1,0 +1,43 @@
+#
+# This script demonstrates the usage of the FaaSIngress module.
+#
+
+import scapy.all as scapy
+
+PACKET_OVERHEAD=24
+
+# 'show module' command shows detailed stats/parameters
+
+pkt_size = int($BESS_PKT_SIZE!'1500')
+assert(60 <= pkt_size <= 1522)
+
+eth = scapy.Ether(src='00:15:4d:12:2b:f4', dst='06:16:3e:1b:72:32')
+ip = scapy.IP(src='10.0.0.1', dst='10.0.0.2')   # dst IP is overwritten
+tcp = scapy.TCP(sport=10001, dport=8080)
+payload = ('hello' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+pkt = eth/ip/tcp/payload
+pkt_data = bytes(pkt)
+
+# NOTE: without quick_rampup=1, it takes a while to converge to
+# the desied load level, especially when flow duration is pareto distribution
+bess.add_worker(1, 1)
+bess.add_worker(2, 2)
+
+src1::FlowGen(template=pkt_data, \
+            pps = 1e6, flow_rate = 1e1, flow_duration = 30.0, \
+            ip_src_range = 50, ip_dst_range = 50, \
+            arrival = 'exponential', duration = 'pareto', quick_rampup = False)
+src2::FlowGen(template=pkt_data, \
+            pps = 1e6, flow_rate = 1e1, flow_duration = 30.0, \
+            ip_src_range = 50, ip_dst_range = 50, \
+            arrival = 'exponential', duration = 'pareto', quick_rampup = False)
+
+# By default, CHACHA runs as CHACHA-20.
+ingress1::FaaSIngress(faas_service_ip="128.105.145.134", redis_service_ip="128.105.145.253", redis_password="faas-nfv-cool", max_rules_count=800)
+ingress2::FaaSIngress()
+
+src1 -> ingress1 -> Sink()
+src2 -> ingress2 -> Sink()
+
+src1.attach_task(wid=1)
+src2.attach_task(wid=2)

@@ -1,43 +1,28 @@
 #
-# This script demonstrates the usage of the FaaSIngress module.
+# This is the control-plane module for handling new flows in FaaS-NFV.
 #
 
 import scapy.all as scapy
 
-PACKET_OVERHEAD=24
+pcie0=str($BESS_PCIE!'06:00.0')
+faas_ip = '128.105.144.242'
+redis_ip = '128.105.145.211'
+rule_delay = 200
+default_flow_action = 'forward'
 
-# 'show module' command shows detailed stats/parameters
+port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+port_inc::PortInc(port=port0)
+port_out::PortOut(port=port0)
+ingress::FaaSIngress(
+    faas_service_ip=faas_ip,
+    redis_service_ip=redis_ip,
+    redis_password="faas-nfv-cool",
+    max_rules_count=1000,
+    rule_delay_ms=rule_delay,
+    flow_action=default_flow_action)
 
-pkt_size = int($BESS_PKT_SIZE!'1500')
-assert(60 <= pkt_size <= 1522)
+port_inc -> ingress -> port_out
 
-eth = scapy.Ether(src='00:15:4d:12:2b:f4', dst='06:16:3e:1b:72:32')
-ip = scapy.IP(src='10.0.0.1', dst='10.0.0.2')   # dst IP is overwritten
-tcp = scapy.TCP(sport=10001, dport=8080)
-payload = ('hello' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
-pkt = eth/ip/tcp/payload
-pkt_data = bytes(pkt)
-
-# NOTE: without quick_rampup=1, it takes a while to converge to
-# the desied load level, especially when flow duration is pareto distribution
-bess.add_worker(1, 1)
-bess.add_worker(2, 2)
-
-src1::FlowGen(template=pkt_data, \
-            pps = 1e6, flow_rate = 1e1, flow_duration = 30.0, \
-            ip_src_range = 50, ip_dst_range = 50, \
-            arrival = 'exponential', duration = 'pareto', quick_rampup = False)
-src2::FlowGen(template=pkt_data, \
-            pps = 1e6, flow_rate = 1e1, flow_duration = 30.0, \
-            ip_src_range = 50, ip_dst_range = 50, \
-            arrival = 'exponential', duration = 'pareto', quick_rampup = False)
-
-# By default, CHACHA runs as CHACHA-20.
-ingress1::FaaSIngress(faas_service_ip="128.105.145.134", redis_service_ip="128.105.145.253", redis_password="faas-nfv-cool", max_rules_count=800)
-ingress2::FaaSIngress()
-
-src1 -> ingress1 -> Sink()
-src2 -> ingress2 -> Sink()
-
-src1.attach_task(wid=1)
-src2.attach_task(wid=2)
+# Core allocation
+bess.add_worker(wid=1, core=1)
+port_inc.attach_task(wid=1)

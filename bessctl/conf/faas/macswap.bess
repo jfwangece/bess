@@ -4,13 +4,22 @@
 
 import scapy.all as scapy
 
-pcie_addr=str($BESS_PCIE!'06:00.0')
+pcie0=str($BESS_PCIE!'06:10.0')
+pcie1=str($BESS_PCIE!'06:10.2')
+pcie2=str($BESS_PCIE!'06:10.4')
+pcie3=str($BESS_PCIE!'06:10.6')
+pcie4=str($BESS_PCIE!'06:11.0')
 
-port0::PMDPort(pci=pcie_addr, num_inc_q=1, num_out_q=1)
-port_inc::PortInc(port=port0)
-port_out::PortOut(port=port0)
+port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+port1::PMDPort(pci=pcie1, num_inc_q=1, num_out_q=1)
+port2::PMDPort(pci=pcie2, num_inc_q=1, num_out_q=1)
+port3::PMDPort(pci=pcie3, num_inc_q=1, num_out_q=1)
+port4::PMDPort(pci=pcie4, num_inc_q=1, num_out_q=1)
 
-port_inc -> MacSwap() -> port_out
+port_inc::PortInc(port=port3)
+port_out::PortOut(port=port3)
+
+port_inc -> MACSwap() -> port_out
 
 bess.add_worker(wid=1, core=1)
 port_inc.attach_task(wid=1)
