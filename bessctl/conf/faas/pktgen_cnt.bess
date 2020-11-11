@@ -7,12 +7,12 @@ import scapy.all as scapy
 
 PACKET_OVERHEAD=24
 
-pcie_addr=str($BESS_PCIE!'06:00.1')
+pcie_addr=str($BESS_PCIE!'06:00.0')
 num_cores=int($BESS_CORES!'1')
 pkt_size=int($BESS_PKT_SIZE!'1500')
 base_pkt_rate=int($BESS_INIT_RATE!'1000000')
 base_bit_rate=int($BESS_INIT_RATE!'9000000000')
-ts_offset=int($BESS_TS_OFFSET!'68')
+ts_offset = 68
 
 assert(pcie_addr)
 assert(1 <= num_cores <= 16)
