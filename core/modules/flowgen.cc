@@ -268,6 +268,11 @@ CommandResponse FlowGen::ProcessUpdatableArguments(const bess::pb::FlowGenArg &a
     }
   }
 
+  ignore_synfin_ = false;
+  if (arg.ignore_synfin()) {
+    ignore_synfin_ = true;
+  }
+
   return CommandSuccess();
 }
 
@@ -452,7 +457,7 @@ bess::Packet *FlowGen::FillTcpPacket(struct flow *f) {
   bess::utils::Copy(p, tmpl_, size, true);
 
   // SYN or FIN?
-  if (f->first_pkt || f->packets_left <= 1) {
+  if (!ignore_synfin_ && (f->first_pkt || f->packets_left <= 1)) {
     pkt->set_total_len(60);  // eth + ip + tcp
     pkt->set_data_len(60);   // eth + ip + tcp
     ip->length = be16_t(40);

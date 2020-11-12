@@ -175,6 +175,7 @@ class FlowGen final : public Module {
   } pareto_;
 
   int burst_;
+  bool ignore_synfin_;     /* Ignore SIN and FIN packets? */
 };
 
 #endif  // BESS_MODULES_FLOWGEN_H_

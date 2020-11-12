@@ -56,7 +56,7 @@ for i in range(num_cores):
         flow_rate = num_flows / flow_time, \
         flow_duration = flow_time, \
         arrival = 'uniform', duration='uniform', quick_rampup=False, \
-        ip_src_range = 50, ip_dst_range = 50)
+        ip_src_range = 50, ip_dst_range = 50, ignore_synfin=True)
     queues[i] = Queue()
     flowgens[i] -> queues[i] -> Timestamp(offset=ts_offset) -> lc_egress -> QueueOut(port=port0, qid=i)
 
