@@ -218,6 +218,10 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
       if (!process_new_flow(new_rule)) {
         DropPacket(ctx, pkt);
+      } else {
+        // The rule is ready.. Emit the first packet of this flow!
+        eth->dst_addr = rule.encoded_mac;
+        EmitPacket(ctx, pkt, 0);
       }
     }
   }
