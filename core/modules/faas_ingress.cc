@@ -16,6 +16,9 @@ const Commands FaaSIngress::cmds = {
   {"add", "FaaSIngressArg", MODULE_CMD_FUNC(&FaaSIngress::CommandAdd),
    Command::THREAD_UNSAFE},
   {"clear", "EmptyArg", MODULE_CMD_FUNC(&FaaSIngress::CommandClear),
+   Command::THREAD_SAFE},
+  {"update", "FaaSIngressCommandUpdateArg",
+   MODULE_CMD_FUNC(&FaaSIngress::CommandUpdate),
    Command::THREAD_SAFE}};
 
 CommandResponse FaaSIngress::Init(const bess::pb::FaaSIngressArg &arg) {
@@ -111,6 +114,13 @@ CommandResponse FaaSIngress::Init(const bess::pb::FaaSIngressArg &arg) {
     default_action_ = kForward;
   }
 
+  local_decision_ = false;
+  egress_port_ = 0;
+  egress_mac_ = "00:00:00:00:00:01";
+  if (arg.local_decision()) {
+    local_decision_ = true;
+  }
+
   return CommandSuccess();
 }
 
@@ -121,6 +131,17 @@ CommandResponse FaaSIngress::CommandAdd(const bess::pb::FaaSIngressArg &arg) {
 
 CommandResponse FaaSIngress::CommandClear(const bess::pb::EmptyArg &) {
   Clear();
+  return CommandSuccess();
+}
+
+CommandResponse FaaSIngress::CommandUpdate(const bess::pb::FaaSIngressCommandUpdateArg &arg) {
+  mcslock_node_t mynode;
+  mcs_lock(&lock_, &mynode);
+
+  egress_port_ = arg.egress_port();
+  egress_mac_ = arg.egress_mac();
+
+  mcs_unlock(&lock_, &mynode);
   return CommandSuccess();
 }
 
@@ -205,20 +226,31 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 bool FaaSIngress::process_new_flow(FlowRule &rule) {
   grpc::ClientContext ctx1, ctx2;
 
-  flow_request_.set_ipv4_src(ToIpv4Address(rule.src_ip.addr));
-  flow_request_.set_ipv4_dst(ToIpv4Address(rule.dst_ip.addr));
-  flow_request_.set_ipv4_protocol(rule.proto_ip);
-  flow_request_.set_tcp_sport(rule.src_port.value());
-  flow_request_.set_tcp_dport(rule.dst_port.value());
-  status_ = faas_stub_->UpdateFlow(&ctx1, flow_request_, &flow_response_);
-  if (!status_.ok()) {
-    return false;
-  }
+  if (local_decision_) {
+    // use the local decision updated locally.
+    mcslock_node_t mynode;
+    mcs_lock(&lock_, &mynode);
 
-  rule.set_action(flow_response_.switch_port(), flow_response_.dmac());
-  if (rule.dst_port.value() < 2000) {
-    std::cout << flow_response_.switch_port();
-    std::cout << rule.encoded_mac.ToString();
+    rule.set_action(egress_port_, egress_mac_);
+
+    mcs_unlock(&lock_, &mynode);
+  } else {
+    // query the FaaS controller for a remote decison.
+    flow_request_.set_ipv4_src(ToIpv4Address(rule.src_ip.addr));
+    flow_request_.set_ipv4_dst(ToIpv4Address(rule.dst_ip.addr));
+    flow_request_.set_ipv4_protocol(rule.proto_ip);
+    flow_request_.set_tcp_sport(rule.src_port.value());
+    flow_request_.set_tcp_dport(rule.dst_port.value());
+    status_ = faas_stub_->UpdateFlow(&ctx1, flow_request_, &flow_response_);
+    if (!status_.ok()) {
+      return false;
+    }
+
+    rule.set_action(flow_response_.switch_port(), flow_response_.dmac());
+    if (rule.dst_port.value() < 2000) {
+      std::cout << flow_response_.switch_port();
+      std::cout << rule.encoded_mac.ToString();
+    }
   }
 
   if (!switch_service_addr_.empty()) {

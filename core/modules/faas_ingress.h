@@ -82,6 +82,7 @@ class FaaSIngress final : public Module {
 
   CommandResponse CommandAdd(const bess::pb::FaaSIngressArg &arg);
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
+  CommandResponse CommandUpdate(const bess::pb::FaaSIngressCommandUpdateArg &arg);
 
  private:
   bool process_new_flow(FlowRule &rule);
@@ -116,6 +117,11 @@ class FaaSIngress final : public Module {
   long unsigned int max_rules_count_;
   std::vector<FlowRule> rules_vector_;
   std::deque<FlowRule> rules_;
+
+  // Local decision
+  bool local_decision_;
+  uint egress_port_;
+  std::string egress_mac_;
 
   mcslock lock_;
 };

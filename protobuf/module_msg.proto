@@ -647,6 +647,15 @@ message FaaSIngressArg {
   uint32 max_rules_count = 9;
   uint64 rule_delay_ms = 10;
   string flow_action = 11;
+  bool local_decision = 12;
+}
+
+/*
+ * RPC call for updating the local decision of balancing flows.
+ */
+message FaaSIngressCommandUpdateArg {
+  uint32 egress_port = 1;
+  string egress_mac = 2;
 }
 
 /**
