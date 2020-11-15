@@ -189,6 +189,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       if (rule.Match(ip->src, ip->dst, ip->protocol, sport, dport)) { // An in-progress flow.
         emitted = true;
         if (now_ >= rule.active_ts) {
+          eth->dst_addr = rule.encoded_mac;
           EmitPacket(ctx, pkt, 0);
         } else {
           if (rule.action == kForward) {
@@ -265,19 +266,27 @@ bool FaaSIngress::process_new_flow(FlowRule &rule) {
     }
   }
 
+  bool rule_inserted = false;
   if (redis_ctx_ != nullptr) {
     std::string tmp_flow_msg = convert_rule_to_string(rule);
-    redis_reply_ = (redisReply*)redisCommand(redis_ctx_, "PUBLISH %s %s", "flow", tmp_flow_msg.c_str());
-    if (redis_reply_ == NULL) {
-      LOG(INFO) << "Failed to send a flow request";
-      return false;
-    } else if (redis_reply_->type == REDIS_REPLY_ERROR) {
-      LOG(INFO) << "Failed to send a flow";
-      freeReplyObject(redis_reply_);
-      return false;
-    }
 
-    freeReplyObject(redis_reply_);
+    for (int i = 0; i < 3; ++i) {
+      redis_reply_ = (redisReply*)redisCommand(redis_ctx_, "PUBLISH %s %s", "flow", tmp_flow_msg.c_str());
+      if (redis_reply_ == NULL) {
+        continue;
+      } else if (redis_reply_->type == REDIS_REPLY_ERROR) {
+        freeReplyObject(redis_reply_);
+      } else {
+        rule_inserted = true;
+        freeReplyObject(redis_reply_);
+        break;
+      }
+    }
+  }
+
+  if (!rule_inserted) {
+    LOG(ERROR) << "Failed to send a flow request";
+    return false;
   }
 
   // Update the active timestamp for the new rule.
