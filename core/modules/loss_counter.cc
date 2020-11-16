@@ -33,7 +33,13 @@ CommandResponse LossCounter::Init(const bess::pb::LossCounterArg &arg) {
     LOG(WARNING) << "LossCounter must work for a specific port";
   }
 
+  // |all_ports| is a static class member.
+  mcslock_node_t mynode;
+  mcs_lock(&lock_, &mynode);
+
   all_ports_.emplace(port_index_);
+
+  mcs_unlock(&lock_, &mynode);
 
   if (arg.port_type() == 1) {
     port_type_ = kIngress;
@@ -72,6 +78,9 @@ void LossCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   int cnt = batch->cnt();
   size_t offset = offset_;
 
+  mcslock_node_t mynode;
+  mcs_lock(&lock_, &mynode);
+
   if (port_type_ == kIngress) {
     for (int i = 0; i < cnt; i++) {
       if (is_marked(batch->pkts()[i], offset)) {
@@ -101,10 +110,13 @@ void LossCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         }
       } else {
         bess::Packet::Free(batch->pkts(), cnt);
+        mcs_unlock(&lock_, &mynode);
         return;
       }
     }
   }
+
+  mcs_unlock(&lock_, &mynode);
 
   RunNextModule(ctx, batch);
 }
