@@ -15,8 +15,8 @@ flow_time=int($BESS_FLOW_TIME!'60') # in Seconds
 base_pkt_rate=int($BESS_INIT_RATE!'1000000')
 base_bit_rate=int($BESS_INIT_RATE!'9000000000')
 ts_offset=int($BESS_TS_OFFSET!'68')
-rule_delay=int($FAAS_RULE_DELAY!'200')
-num_faas_workers=int($FAAS_WORKERS!'5')
+rule_delay = 300
+num_faas_workers = 4
 
 assert(pcie_addr)
 assert(1 <= num_cores <= 16)
@@ -47,7 +47,7 @@ print("Packet size = %d bytes" %(len(pkt_data)))
 
 port0::PMDPort(pci=pcie_addr, num_inc_q=1, num_out_q=num_cores + 1)
 port_inc::PortInc(port=port0)
-ingress::FaaSIngress(faas_service_ip="128.105.144.242", redis_service_ip="128.105.145.211", redis_password="faas-nfv-cool", max_rules_count=330, rule_delay_ms=rule_delay, flow_action="forward")
+ingress::FaaSIngress(faas_service_ip="128.105.144.17", redis_service_ip="128.105.145.211", redis_password="faas-nfv-cool", max_rules_count=1000, rule_delay_ms=rule_delay, flow_action="forward")
 
 flowgens = dict()
 queues = dict()

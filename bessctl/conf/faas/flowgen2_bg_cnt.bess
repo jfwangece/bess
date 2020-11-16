@@ -38,8 +38,8 @@ src_port=int($BESS_SRC_PORT!'10001')
 dst_port=int($BESS_DST_PORT!'8080')
 
 pkt_data = dict()
-lc_egress = dict()
-lc_ingress = dict()
+lc_egress_dict = dict()
+lc_ingress_dict = dict()
 for i in range(num_cores):
     src_ether = '00:15:4d:12:2b:%02d' %(i+1)
     eth = scapy.Ether(src=src_ether, dst=dst_ether)
@@ -66,16 +66,16 @@ for i in range(num_cores):
     queues[i] = Queue()
     port_incs[i] = PortInc(port=ports[i])
     if i == 0:
-        lc_egress[i] = lc_egress::LossCounter(port_index=i, port_type=0)
+        lc_egress_dict[i] = lc_egress::LossCounter(port_index=i, port_type=0)
     else:
-        lc_egress[i] = LossCounter(port_index=i, port_type=0)
-    lc_ingress[i] = LossCounter(port_index=i, port_type=1)
+        lc_egress_dict[i] = LossCounter(port_index=i, port_type=0)
+    lc_ingress_dict[i] = LossCounter(port_index=i, port_type=1)
 
-    flowgens[i] -> Timestamp(offset=ts_offset) -> lc_egress[i] -> queues[i] -> PortOut(port=ports[i])
+    flowgens[i] -> Timestamp(offset=ts_offset) -> lc_egress_dict[i] -> queues[i] -> PortOut(port=ports[i])
 
-    port_incs[i] -> lc_ingress[i] -> Measure(offset=ts_offset) -> Sink()
+    port_incs[i] -> lc_ingress_dict[i] -> Measure(offset=ts_offset) -> Sink()
 
-    lc_egress[i].start(packet_count_offset=2e6, packet_count_target=2e8)
+    lc_egress_dict[i].start(packet_count_offset=2e6, packet_count_target=2e8)
 
 # background traffic
 bg_pkts = dict()
