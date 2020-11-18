@@ -41,7 +41,7 @@ lc_egress_dict = dict()
 lc_ingress_dict = dict()
 for i in range(num_cores):
     src_ether = '00:15:4d:12:2b:%02d' %(i+1)
-    src_ip = '10.0.0.%d' %(i+1)
+    src_ip = '10.0.0.1'
     eth = scapy.Ether(src=src_ether, dst=dst_ether)
     ip = scapy.IP(src=src_ip, dst=dst_ip)
     tcp = scapy.TCP(sport=src_port, dport=dst_port)

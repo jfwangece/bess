@@ -78,3 +78,7 @@ message VPortArg {
   bool loopback = 8;
   repeated string ip_addrs = 9;
 }
+
+message VPortSecondaryArg {
+  string vport = 1;
+}

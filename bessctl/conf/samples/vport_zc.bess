@@ -1,0 +1,45 @@
+# This script demonstrates the use of BESS zero-copy Vports.
+
+import scapy.all as scapy
+
+# This script generates a number of flows at a specified packet rate.
+num_flows=int($BESS_FLOWS!'1000000')
+base_rate=int($BESS_INIT_RATE!'9000000000')
+ts_offset = 68
+
+flow_time = 60 #five seconds long
+
+# Create a "template" packet to use for generated flows.
+# All packets in flow will follow this formula; flowgen
+# changes dst IP to generate new connections.
+dst_ether=($BESS_DST_ETHER!'00:00:00:00:00:02')
+src_ether=($BESS_SRC_ETHER!'00:15:4d:12:2b:f4')
+eth = scapy.Ether(src=src_ether, dst=dst_ether)
+src_ip=($BESS_SRC_IP!'10.0.0.1')
+dst_ip=($BESS_DST_IP!'192.0.0.1')
+ip = scapy.IP(src=src_ip, dst=dst_ip)
+src_port = int($BESS_SRC_PORT!'10001')
+udp = scapy.TCP(sport=src_port, dport=12345)
+payload = "FaaS-NFV is cool." * 20
+pkt_template = bytes(eth/ip/udp/payload)
+
+vport_zc_pri::VPortPrimary()
+vport_zc_sec::VPortSecondary(vport="vport_zc_pri")
+port_out::QueueOut(port=vport_zc_pri, qid=0)
+port_inc::QueueInc(port=vport_zc_sec, qid=0)
+
+flowsrc0::FlowGen(template = pkt_template, \
+    pps = base_rate, \
+    flow_rate = num_flows / flow_time, \
+    flow_duration = flow_time, \
+    arrival = 'uniform', duration='uniform', quick_rampup = True, \
+    ip_src_range = 50, ip_dst_range = 50)
+
+flowsrc0 -> Timestamp(offset=ts_offset) -> port_out
+port_inc -> Measure(offset=ts_offset) -> Sink()
+
+bess.add_worker(wid=1, core=1)
+flowsrc0.attach_task(wid=1)
+port_inc.attach_task(wid=1)
+
+bess.resume_all()
