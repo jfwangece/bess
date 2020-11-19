@@ -16,6 +16,7 @@
 CommandResponse VPortPrimary::Init(const bess::pb::VPortPrimaryArg &arg) {
   pkt_copy_ = false;
   if (arg.pkt_copy()) {
+    LOG(INFO) << "Enable packet copy";
     pkt_copy_ = true;
   }
 
@@ -144,7 +145,7 @@ void VPortPrimary::DeInit() {
 
 int VPortPrimary::SendPackets(queue_t qid, bess::Packet **pkts, int cnt) {
   struct llring *q = out_qs_[qid];
-  int ret;
+  int ret = 0;
 
   /*
   // Outdated APIs
@@ -158,7 +159,18 @@ int VPortPrimary::SendPackets(queue_t qid, bess::Packet **pkts, int cnt) {
   }
   */
 
-  ret = llring_mp_enqueue_burst(q, (void **)pkts, cnt);
+  if (!pkt_copy_) {
+    ret = llring_mp_enqueue_burst(q, (void **)pkts, cnt);
+  } else {
+    bess::Packet *new_pkts[32];
+    for (int i = 0; i < cnt; ++i) {
+      new_pkts[i] = bess::Packet::copy(pkts[i]);
+    }
+    bess::Packet::Free(pkts, cnt);
+
+    ret = llring_mp_enqueue_burst(q, (void **)new_pkts, cnt);
+  }
+
   if (ret == -LLRING_ERR_NOBUF) {
     return 0;
   }
@@ -174,17 +186,13 @@ int VPortPrimary::RecvPackets(queue_t qid, bess::Packet **pkts, int cnt) {
   if (!pkt_copy_) {
     ret = llring_sc_dequeue_burst(q, (void **)pkts, cnt);
   } else {
-    bess::PacketBatch new_batch;
-
+    bess::Packet *new_pkts[32];
     for (int i = 0; i < cnt; ++i) {
-      bess::Packet *newpkt = bess::Packet::copy(pkts[i]);
-      if (newpkt) {
-        new_batch.add(newpkt);
-      }
+      new_pkts[i] = bess::Packet::copy(pkts[i]);
     }
     bess::Packet::Free(pkts, cnt);
 
-    ret = llring_sc_dequeue_burst(q, (void **)new_batch.pkts(), cnt);
+    ret = llring_sc_dequeue_burst(q, (void **)new_pkts, cnt);
   }
 
   return ret;
