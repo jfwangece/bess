@@ -46,8 +46,10 @@ CommandResponse VPortPrimary::Init(const bess::pb::VPortPrimaryArg &arg) {
   bar_ = bar;
 
 #pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Werror=pragmas"
 #pragma GCC diagnostic ignored "-Wstringop-truncation"
   strncpy(bar->name, name().c_str(), PORT_NAME_LEN);
+#pragma GCC diagnostic pop
 #pragma GCC diagnostic pop
 
   bar->num_inc_q = num_inc_q;
