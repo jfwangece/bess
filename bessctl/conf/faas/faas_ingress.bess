@@ -4,10 +4,10 @@
 
 import scapy.all as scapy
 
-pcie0=str($BESS_PCIE!'06:00.0')
-faas_ip = '128.105.144.242'
+pcie0=str($BESS_PCIE!'81:00.0')
+faas_ip = '128.105.144.17'
 redis_ip = '128.105.145.211'
-rule_delay = 200
+rule_delay = 1000
 default_flow_action = 'forward'
 ts_offset = 68
 
