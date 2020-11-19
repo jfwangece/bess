@@ -13,7 +13,12 @@
 
 #define ROUND_TO_64(x) ((x + 32) & (~0x3f))
 
-CommandResponse VPortPrimary::Init(const bess::pb::EmptyArg &) {
+CommandResponse VPortPrimary::Init(const bess::pb::VPortPrimaryArg &arg) {
+  pkt_copy_ = false;
+  if (arg.pkt_copy()) {
+    pkt_copy_ = true;
+  }
+
   struct vport_bar *bar = nullptr;
 
   int num_inc_q = num_queues[PACKET_DIR_INC];
@@ -158,9 +163,24 @@ int VPortPrimary::SendPackets(queue_t qid, bess::Packet **pkts, int cnt) {
 
 int VPortPrimary::RecvPackets(queue_t qid, bess::Packet **pkts, int cnt) {
   struct llring *q = inc_qs_[qid];
-  int ret;
+  int ret = 0;
 
-  ret = llring_sc_dequeue_burst(q, (void **)pkts, cnt);
+  if (!pkt_copy_) {
+    ret = llring_sc_dequeue_burst(q, (void **)pkts, cnt);
+  } else {
+    bess::PacketBatch new_batch;
+
+    for (int i = 0; i < cnt; ++i) {
+      bess::Packet *newpkt = bess::Packet::copy(pkts[i]);
+      if (newpkt) {
+        new_batch.add(newpkt);
+      }
+    }
+    bess::Packet::Free(pkts, cnt);
+
+    ret = llring_sc_dequeue_burst(q, (void **)new_batch.pkts(), cnt);
+  }
+
   return ret;
 }
 

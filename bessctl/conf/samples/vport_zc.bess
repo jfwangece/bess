@@ -2,12 +2,17 @@
 
 import scapy.all as scapy
 
-# This script generates a number of flows at a specified packet rate.
-num_flows=int($BESS_FLOWS!'1000000')
-base_rate=int($BESS_INIT_RATE!'9000000000')
-ts_offset = 68
+PACKET_OVERHEAD=24
 
-flow_time = 60 #five seconds long
+# This script generates a number of flows at a specified packet rate.
+num_flows=int($BESS_FLOWS!'200')
+base_pkt_rate=int($BESS_INIT_RATE!'1000000')
+base_bit_rate=int($BESS_INIT_RATE!'9000000000')
+flow_time = 60
+ts_offset = 68
+pkt_size = 1500
+
+pkt_size = min(pkt_size, base_bit_rate / base_pkt_rate / 8)
 
 # Create a "template" packet to use for generated flows.
 # All packets in flow will follow this formula; flowgen
@@ -19,27 +24,90 @@ src_ip=($BESS_SRC_IP!'10.0.0.1')
 dst_ip=($BESS_DST_IP!'192.0.0.1')
 ip = scapy.IP(src=src_ip, dst=dst_ip)
 src_port = int($BESS_SRC_PORT!'10001')
-udp = scapy.TCP(sport=src_port, dport=12345)
-payload = "FaaS-NFV is cool." * 20
-pkt_template = bytes(eth/ip/udp/payload)
+tcp = scapy.TCP(sport=src_port, dport=12345)
+payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+pkt_template = bytes(eth/ip/tcp/payload)
 
-vport_zc_pri::VPortPrimary()
-vport_zc_sec::VPortSecondary(vport="vport_zc_pri")
-port_out::QueueOut(port=vport_zc_pri, qid=0)
-port_inc::QueueInc(port=vport_zc_sec, qid=0)
+# zero copy
+vport_pri_0::VPortPrimary()
+vport_sec_0::VPortSecondary(vport="vport_pri_0")
+port_out_0::QueueOut(port=vport_pri_0, qid=0)
+port_inc_0::QueueInc(port=vport_sec_0, qid=0)
 
 flowsrc0::FlowGen(template = pkt_template, \
-    pps = base_rate, \
+    pps = base_bit_rate, \
     flow_rate = num_flows / flow_time, \
     flow_duration = flow_time, \
     arrival = 'uniform', duration='uniform', quick_rampup = True, \
     ip_src_range = 50, ip_dst_range = 50)
 
-flowsrc0 -> Timestamp(offset=ts_offset) -> port_out
-port_inc -> Measure(offset=ts_offset) -> Sink()
+flowsrc0 -> Timestamp(offset=ts_offset) -> port_out_0
+port_inc_0 -> Measure(offset=ts_offset) -> Sink()
 
 bess.add_worker(wid=1, core=1)
 flowsrc0.attach_task(wid=1)
-port_inc.attach_task(wid=1)
+port_inc_0.attach_task(wid=1)
+
+# copy
+vport_pri_1::VPortPrimary(pkt_copy=True)
+vport_sec_1::VPortSecondary(vport="vport_pri_1")
+port_out_1::QueueOut(port=vport_pri_1, qid=0)
+port_inc_1::QueueInc(port=vport_sec_1, qid=0)
+
+flowsrc1::FlowGen(template = pkt_template, \
+    pps = base_bit_rate, \
+    flow_rate = num_flows / flow_time, \
+    flow_duration = flow_time, \
+    arrival = 'uniform', duration='uniform', quick_rampup = True, \
+    ip_src_range = 50, ip_dst_range = 50)
+
+flowsrc1 -> Timestamp(offset=ts_offset) -> port_out_1
+port_inc_1 -> Measure(offset=ts_offset) -> Sink()
+
+bess.add_worker(wid=2, core=2)
+flowsrc1.attach_task(wid=2)
+port_inc_1.attach_task(wid=2)
+
+# zero copy - cross core
+vport_pri_2::VPortPrimary(pkt_copy=True)
+vport_sec_2::VPortSecondary(vport="vport_pri_2")
+port_out_2::QueueOut(port=vport_pri_2, qid=0)
+port_inc_2::QueueInc(port=vport_sec_2, qid=0)
+
+flowsrc2::FlowGen(template = pkt_template, \
+    pps = base_bit_rate, \
+    flow_rate = num_flows / flow_time, \
+    flow_duration = flow_time, \
+    arrival = 'uniform', duration='uniform', quick_rampup = True, \
+    ip_src_range = 50, ip_dst_range = 50)
+
+flowsrc2 -> Timestamp(offset=ts_offset) -> port_out_2
+port_inc_2 -> Measure(offset=ts_offset) -> Sink()
+
+bess.add_worker(wid=3, core=3)
+bess.add_worker(wid=4, core=4)
+flowsrc2.attach_task(wid=3)
+port_inc_2.attach_task(wid=4)
+
+# copy - cross core
+vport_pri_3::VPortPrimary(pkt_copy=True)
+vport_sec_3::VPortSecondary(vport="vport_pri_3")
+port_out_3::QueueOut(port=vport_pri_3, qid=0)
+port_inc_3::QueueInc(port=vport_sec_3, qid=0)
+
+flowsrc3::FlowGen(template = pkt_template, \
+    pps = base_bit_rate, \
+    flow_rate = num_flows / flow_time, \
+    flow_duration = flow_time, \
+    arrival = 'uniform', duration='uniform', quick_rampup = True, \
+    ip_src_range = 50, ip_dst_range = 50)
+
+flowsrc3 -> Timestamp(offset=ts_offset) -> port_out_3
+port_inc_3 -> Measure(offset=ts_offset) -> Sink()
+
+bess.add_worker(wid=5, core=5)
+bess.add_worker(wid=6, core=6)
+flowsrc3.attach_task(wid=5)
+port_inc_3.attach_task(wid=6)
 
 bess.resume_all()

@@ -82,3 +82,8 @@ message VPortArg {
 message VPortSecondaryArg {
   string vport = 1;
 }
+
+message VPortPrimaryArg {
+  bool pkt_copy = 1;
+}
+

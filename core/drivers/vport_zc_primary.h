@@ -53,7 +53,7 @@ struct vport_bar {
 
 class VPortPrimary final : public Port {
  public:
-  CommandResponse Init(const bess::pb::EmptyArg &arg);
+  CommandResponse Init(const bess::pb::VPortPrimaryArg &arg);
 
   void DeInit() override;
 
@@ -70,6 +70,8 @@ class VPortPrimary final : public Port {
   struct llring *out_qs_[MAX_QUEUES_PER_DIR] = {};
 
   int out_irq_fd_[MAX_QUEUES_PER_DIR] = {};
+
+  bool pkt_copy_ = false;
 };
 
 #endif  // BESS_DRIVERS_ZERO_COPY_PRIMARY_VPORT_
