@@ -1,0 +1,72 @@
+# This script demonstrates the usage of MemAnalyzer and MemChecker
+import copy
+import scapy.all as scapy
+
+PACKET_OVERHEAD=24
+
+# This script generates a number of flows at a specified packet rate.
+pkt_size = 1500
+num_flows = 200
+flow_time = 60
+base_pkt_rate = 1000000
+base_bit_rate = 9000000000
+ts_offset = 68
+
+assert(60 <= pkt_size <= 1522)
+assert(64 <= ts_offset <= 100)
+
+pkt_size = min(pkt_size, base_bit_rate / base_pkt_rate / 8)
+
+# Create a "template" packet to use for generated flows.
+# All packets in flow will follow this formula; flowgen
+# changes dst IP to generate new connections.
+
+dst_ether=($BESS_DST_ETHER!'00:00:00:00:00:04')
+dst_ip=($BESS_DST_IP!'192.0.0.1')
+src_port=int($BESS_SRC_PORT!'10001')
+dst_port=int($BESS_DST_PORT!'8080')
+
+pkt_data = dict()
+lc_egress_dict = dict()
+lc_ingress_dict = dict()
+for i in range(2):
+    src_ether = '00:15:4d:12:2b:%02d' %(i+1)
+    src_ip = '10.0.0.1'
+    eth = scapy.Ether(src=src_ether, dst=dst_ether)
+    ip = scapy.IP(src=src_ip, dst=dst_ip)
+    tcp = scapy.TCP(sport=src_port, dport=dst_port)
+    payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+
+    pkt = eth/ip/tcp/payload
+    pkt_data[i] = copy.deepcopy(bytes(pkt))
+    print("Packet size = %d bytes" %(len(pkt_data[i])))
+
+flowgens = dict()
+queues = dict()
+
+nf1::MemAnalyzer(hack_mode=False, offset=100, cycles_per_packet=2000)
+nf2::MemAnalyzer(hack_mode=True, offset=124, cycles_per_packet=10000)
+nf3::MemAnalyzer(hack_mode=False, offset=136, cycles_per_packet=2000)
+check::MemChecker(offset1=100, offset2=124)
+q::Queue(backpressure=False)
+
+for i in range(2):
+    flowgens[i] = FlowGen(template = pkt_data[i], \
+        pps = base_pkt_rate, \
+        flow_rate = num_flows / flow_time, \
+        flow_duration = flow_time, \
+        arrival = 'uniform', duration='uniform', quick_rampup=False, \
+        ip_src_range = 255, ip_dst_range = 255, ignore_synfin=True)
+    if i == 0:
+      flowgens[i] -> q
+
+q -> nf1 -> nf2 -> nf3 -> check -> Sink()
+
+bess.add_worker(1, 1)
+bess.add_worker(2, 2)
+bess.add_worker(3, 3)
+bess.add_worker(4, 4)
+
+flowgens[0].attach_task(wid=1)
+flowgens[1].attach_task(wid=2)
+q.attach_task(wid=2)

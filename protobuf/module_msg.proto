@@ -323,6 +323,12 @@ message FlowStatsCommandGetSummaryResponse {
 
 message MemAnalyzerArg {
   bool hack_mode = 1;
+  oneof type {
+    uint64 offset = 2;
+    string attr_name = 3;
+  }
+  uint32 cycles_per_batch = 4;
+  uint32 cycles_per_packet = 5;
 }
 
 message MemAnalyzeCommandGetSummaryResponse {
@@ -337,6 +343,17 @@ message MemAnalyzeCommandGetSummaryResponse {
   }
   repeated PacketMem packet_mems = 1;
   repeated MemzoneMem memzone_mems = 2;
+}
+
+message MemCheckerArg {
+  uint64 offset1 = 1;
+  uint64 offset2 = 2;
+}
+
+message MemCheckerCommandGetSummaryResponse {
+  uint64 total_packets = 1;
+  uint64 invalid_packets = 2;
+  double invalid_ratio = 3;
 }
 
 /**

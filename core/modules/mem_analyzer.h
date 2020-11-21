@@ -21,7 +21,7 @@ public:
     const struct rte_memzone* ptr;
   };
 
-  MemAnalyzer() : Module() {
+  MemAnalyzer() : Module(), offset_(), start_attr_id_(-1), end_attr_id_(-1) {
     max_allowed_workers_ = Worker::kMaxWorkers;
     paddr_to_packets_.clear();
 
@@ -42,6 +42,14 @@ public:
 
 private:
   bool hack_mode_ = false;
+
+  uint32_t cycles_per_batch_;
+  uint32_t cycles_per_packet_;
+
+  // to tag a packet
+  size_t offset_;
+  int start_attr_id_;
+  int end_attr_id_;
 
   std::map<uint64_t, PacketMem> hack_packets_;
 
