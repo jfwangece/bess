@@ -76,6 +76,14 @@ class alignas(64) Packet {
   uint32_t index() const { return index_; }
   void set_index(uint32_t index) { index_ = index; }
 
+  struct rte_mempool* pool() {
+    return pool_;
+  }
+
+  const struct rte_memzone* zone() {
+    return pool_->mz;
+  }
+
   template <typename T = char *>
   T reserve() {
     return reinterpret_cast<T>(reserve_);

@@ -316,7 +316,9 @@ DmaMemoryPool::~DmaMemoryPool() {
 
 void *DmaMemoryPool::Alloc(size_t size) {
   CHECK_GT(size, 0);
-  size = align_ceil(size, 4096);
+  // default = 4096 (4kB alignment)
+  // now = 2048 * 1024 (2MB alignment)
+  size = align_ceil(size, 2048 * 1024);
   void *ret = nullptr;
 
   // Perform first fit allocation.
@@ -343,7 +345,9 @@ void *DmaMemoryPool::Alloc(size_t size) {
 
 std::pair<void *, size_t> DmaMemoryPool::AllocUpto(size_t size) {
   CHECK_GT(size, 0);
-  size_t aligned_size = align_ceil(size, 4096);
+  // default = 4096 (4kB alignment)
+  // now = 2048 * 1024 (2MB alignment)
+  size_t aligned_size = align_ceil(size, 2048 * 1024);
   if (void *ret = Alloc(aligned_size)) {
     return {ret, size};
   }

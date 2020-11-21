@@ -45,7 +45,8 @@ void PacketPool::CreateDefaultPools(size_t capacity) {
       LOG(WARNING) << "Hugepage is disabled! Creating PlainPacketPool for "
                    << capacity << " packets on node " << sid;
       default_pools_[sid] = new PlainPacketPool(capacity, sid);
-    } else if (FLAGS_dpdk) {
+    } else if (FLAGS_dpdk && false) {
+      // let bess manages the hugepage memory.
       LOG(INFO) << "Creating DpdkPacketPool for " << capacity
                 << " packets on node " << sid;
       default_pools_[sid] = new DpdkPacketPool(capacity, sid);
@@ -212,6 +213,7 @@ BessPacketPool::BessPacketPool(size_t capacity, int socket_id)
       break;
     }
 
+    LOG(INFO) << "packet pool addr = " << addr << ", bytes = " << bytes;
     int ret = rte_mempool_populate_iova(pool_, static_cast<char *>(addr),
                                         Virt2Phy(addr), alloced_bytes, nullptr,
                                         nullptr);

@@ -321,6 +321,24 @@ message FlowStatsCommandGetSummaryResponse {
   uint64 peak_active_flows = 5;
 }
 
+message MemAnalyzerArg {
+  bool hack_mode = 1;
+}
+
+message MemAnalyzeCommandGetSummaryResponse {
+  message PacketMem {
+    string paddr = 1;
+    string vaddr = 2;
+    string ptr = 3;
+  }
+  message MemzoneMem {
+    string paddr = 1;
+    string vaddr = 2;
+  }
+  repeated PacketMem packet_mems = 1;
+  repeated MemzoneMem memzone_mems = 2;
+}
+
 /**
  * The Measure module measures and collects latency/jitter data for packets
  * annotated by a Timestamp module. Note that Timestamp and Measure module must reside
