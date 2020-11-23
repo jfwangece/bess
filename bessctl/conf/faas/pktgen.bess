@@ -10,8 +10,8 @@ PACKET_OVERHEAD=24
 pcie_addr=str($BESS_PCIE!'06:00.0')
 num_cores=int($BESS_CORES!'1')
 pkt_size=int($BESS_PKT_SIZE!'1500')
-base_pkt_rate=int($BESS_INIT_RATE!'1000000')
-base_bit_rate=int($BESS_INIT_RATE!'9000000000')
+base_pkt_rate = 1000000
+base_bit_rate = 9000 * base_pkt_rate
 ts_offset = 68
 
 assert(pcie_addr)
@@ -22,7 +22,7 @@ pkt_size = min(pkt_size, base_bit_rate / base_pkt_rate / 8)
 
 # Create a "template" packet to use for generated flows.
 src_ether = '00:15:4d:12:2b:f4'
-dst_ether = '00:00:00:00:00:04'
+dst_ether = '00:00:00:00:00:01'
 src_ip = '10.0.0.1'
 dst_ip = '192.0.0.1'
 src_port = 10001
