@@ -68,6 +68,7 @@ void ACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   using bess::utils::Udp;
 
   gate_idx_t incoming_gate = ctx->current_igate;
+  uint64_t start = rdtsc();
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
@@ -92,6 +93,16 @@ void ACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     if (!emitted) {
       DropPacket(ctx, pkt);
+    }
+  }
+
+  if (total_outputs < 10 && cnt > 30) {
+    per_round_pkt_cnts_.push_back(int(rdtsc() - start) / cnt);
+    if (per_round_pkt_cnts_.size() == 10000) {
+      std::sort(per_round_pkt_cnts_.begin(), per_round_pkt_cnts_.end());
+      LOG(INFO) << "p50 = " << per_round_pkt_cnts_[5000] << ", p99 = " << per_round_pkt_cnts_[9900];
+      per_round_pkt_cnts_.clear();
+      total_outputs += 1;
     }
   }
 }

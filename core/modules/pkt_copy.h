@@ -45,7 +45,7 @@ private:
   bool is_first_pkt = true;
 
   std::vector<int> per_round_pkt_cnts_;
-  int max_per_round_pkt_cnts_ = 0;
+  int total_outputs = 0;
 };
 
 #endif  // BESS_MODULES_UPDATE_TTL_H_

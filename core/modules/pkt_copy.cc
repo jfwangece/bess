@@ -69,12 +69,13 @@ void PktCopy::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
   bess::Packet::Free(batch->pkts(), cnt);
 
-  if (cnt > 30) {
+  if (total_outputs < 10 && cnt > 30) {
     per_round_pkt_cnts_.push_back(int(rdtsc() - start) / cnt);
     if (per_round_pkt_cnts_.size() == 10000) {
       std::sort(per_round_pkt_cnts_.begin(), per_round_pkt_cnts_.end());
       LOG(INFO) << "p50 = " << per_round_pkt_cnts_[5000] << ", p99 = " << per_round_pkt_cnts_[9900];
       per_round_pkt_cnts_.clear();
+      total_outputs += 1;
     }
   }
 }

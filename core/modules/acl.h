@@ -69,6 +69,8 @@ class ACL final : public Module {
 
  private:
   std::vector<ACLRule> rules_;
+  std::vector<int> per_round_pkt_cnts_;
+  int total_outputs = 0;
 };
 
 #endif  // BESS_MODULES_ACL_H_
