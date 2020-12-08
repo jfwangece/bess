@@ -1,0 +1,53 @@
+# This script benchmarks the packet copy overhead.
+
+import scapy.all as scapy
+
+PACKET_OVERHEAD=24
+
+# This script generates a number of flows at a specified packet rate.
+pkt_copy = False
+flow_time = 60
+ts_offset = 68
+pkt_size = 1024
+
+# Create a "template" packet to use for generated flows.
+# All packets in flow will follow this formula; flowgen
+# changes dst IP to generate new connections.
+dst_ether=($BESS_DST_ETHER!'00:00:00:00:00:02')
+src_ether=($BESS_SRC_ETHER!'00:15:4d:12:2b:f4')
+eth = scapy.Ether(src=src_ether, dst=dst_ether)
+src_ip=($BESS_SRC_IP!'10.0.0.1')
+dst_ip=($BESS_DST_IP!'192.0.0.1')
+ip = scapy.IP(src=src_ip, dst=dst_ip)
+src_port = int($BESS_SRC_PORT!'10001')
+tcp = scapy.TCP(sport=src_port, dport=12345)
+payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+pkt_template = bytes(eth/ip/tcp/payload)
+print("pkt size = %d, payload size = %d" %(pkt_size, len(payload)))
+
+pktsrc::Source()
+benchq::Queue(size=32)
+
+"""
+pktsrc -> Rewrite(templates=[pkt_template]) -> Timestamp(offset=ts_offset) -> pdateTTL() -> Measure(offset=ts_offset) -> Sink()
+bess.add_worker(wid=1, core=1)
+pktsrc.attach_task(wid=1)
+"""
+
+# measure the latency for copying 32-pkts
+pktsrc -> Rewrite(templates=[pkt_template]) -> benchq -> Timestamp(offset=ts_offset) -> PktCopy() -> Measure(offset=ts_offset) -> Sink()
+pktsrc.set_burst(burst=32)
+benchq.set_burst(burst=32)
+
+"""
+pktsrc -> Rewrite(templates=[pkt_template]) -> Timestamp(offset=ts_offset) -> benchq -> PktCopy() -> Measure(offset=ts_offset) -> Sink()
+pktsrc.set_burst(burst=32)
+benchq.set_burst(burst=32)
+"""
+
+bess.add_worker(wid=1, core=1)
+bess.add_worker(wid=2, core=2)
+pktsrc.attach_task(wid=1)
+benchq.attach_task(wid=2)
+
+bess.resume_all()
