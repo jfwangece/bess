@@ -52,6 +52,8 @@ private:
   uint8_t tc_key_[32];
   uint8_t tc_iv_[8];
   //uint8_t tc_res[64];
+
+  int chacha_offset_; // the payload offset (chacha starts at the payload+offset byte)
   int chacha_rounds_; // 8, 20 (20 by default)
 };
 

@@ -51,6 +51,28 @@ const Commands Queue::cmds = {
     {"set_runtime_config", "QueueArg",
      MODULE_CMD_FUNC(&Queue::SetRuntimeConfig), Command::THREAD_UNSAFE}};
 
+static inline void queuestamp_packet(bess::Packet *pkt, size_t offset,
+                                     uint64_t qlen) {
+  Queue::MarkerType *marker;
+  uint64_t *ts;
+
+  const size_t kStampSize = sizeof(*marker) + sizeof(*ts);
+  size_t room = pkt->data_len() - offset;
+
+  if (room < kStampSize) {
+    void *ret = pkt->append(kStampSize - room);
+    if (!ret) {
+      // not enough tailroom for timestamp. give up
+      return;
+    }
+  }
+
+  marker = pkt->head_data<Queue::MarkerType *>(offset);
+  *marker = Queue::kMarker;
+  ts = reinterpret_cast<uint64_t *>(marker + 1);
+  *ts = qlen;
+}
+
 int Queue::Resize(int slots) {
   struct llring *old_queue = queue_;
   struct llring *new_queue;
@@ -107,6 +129,11 @@ CommandResponse Queue::Init(const bess::pb::QueueArg &arg) {
   if (arg.backpressure()) {
     VLOG(1) << "Backpressure enabled for " << name() << "::Queue";
     backpressure_ = true;
+  }
+
+  if (arg.queuestamp()) {
+    VLOG(1) << "Queuestamp enabled for " << name() << "::Queue";
+    queuestamp_ = true;
   }
 
   if (arg.size() != 0) {
@@ -172,6 +199,13 @@ std::string Queue::GetDesc() const {
 
 /* from upstream */
 void Queue::ProcessBatch(Context *, bess::PacketBatch *batch) {
+  if (queuestamp_) {
+    int cnt = batch->cnt();
+    for (int i = 0; i < cnt; ++i) {
+      queuestamp_packet(batch->pkts()[i], 72, llring_count(queue_) + i);
+    }
+  }
+
   int queued =
       llring_mp_enqueue_burst(queue_, (void **)batch->pkts(), batch->cnt());
   if (backpressure_ && llring_count(queue_) > high_water_) {

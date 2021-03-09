@@ -37,6 +37,8 @@
 
 class Queue : public Module {
  public:
+  using MarkerType = uint32_t;
+  static const MarkerType kMarker = 0x54C5BE55;
   static const Commands cmds;
 
   Queue()
@@ -90,6 +92,9 @@ class Queue : public Module {
 
   // Whether backpressure should be applied or not
   bool backpressure_;
+
+  // Whether queuestamp should be applied or not
+  bool queuestamp_;
 
   int burst_;
 

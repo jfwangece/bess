@@ -43,6 +43,7 @@ class Measure final : public Module {
       : Module(),
         rtt_hist_(max_ns / ns_per_bucket, ns_per_bucket),
         jitter_hist_(max_ns / ns_per_bucket, ns_per_bucket),
+        queue_hist_(1024, 1),
         rand_(),
         jitter_sample_prob_(),
         last_rtt_ns_(),
@@ -59,6 +60,8 @@ class Measure final : public Module {
 
   CommandResponse CommandGetSummary(
       const bess::pb::MeasureCommandGetSummaryArg &arg);
+  CommandResponse CommandGetQueueSummary(
+      const bess::pb::MeasureCommandGetSummaryArg &arg);
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
 
   static const Commands cmds;
@@ -72,6 +75,7 @@ class Measure final : public Module {
 
   Histogram<uint64_t> rtt_hist_;
   Histogram<uint64_t> jitter_hist_;
+  Histogram<uint64_t> queue_hist_;
 
   Random rand_;
   double jitter_sample_prob_;

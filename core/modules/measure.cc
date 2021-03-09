@@ -53,9 +53,21 @@ static bool IsTimestamped(bess::Packet *pkt, size_t offset, uint64_t *time) {
   return false;
 }
 
+static bool IsQueuestamped(bess::Packet *pkt, size_t offset, uint64_t *qlen) {
+  auto *marker = pkt->head_data<Timestamp::MarkerType *>(offset);
+
+  if (*marker == Timestamp::kMarker) {
+    *qlen = *reinterpret_cast<uint64_t *>(marker + 1);
+    return true;
+  }
+  return false;
+}
+
 const Commands Measure::cmds = {
     {"get_summary", "MeasureCommandGetSummaryArg",
      MODULE_CMD_FUNC(&Measure::CommandGetSummary), Command::THREAD_SAFE},
+    {"get_queue", "MeasureCommandGetSummaryArg",
+     MODULE_CMD_FUNC(&Measure::CommandGetQueueSummary), Command::THREAD_SAFE},
     {"clear", "EmptyArg", MODULE_CMD_FUNC(&Measure::CommandClear),
      Command::THREAD_SAFE},
 };
@@ -81,6 +93,7 @@ CommandResponse Measure::Init(const bess::pb::MeasureArg &arg) {
   size_t num_buckets = quotient;
   rtt_hist_.Resize(num_buckets, latency_ns_resolution);
   jitter_hist_.Resize(num_buckets, latency_ns_resolution);
+  queue_hist_.Resize(1024, 1);
 
   if (arg.offset()) {
     offset_ = arg.offset();
@@ -117,6 +130,7 @@ void Measure::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     uint64_t pkt_time = 0;
+    uint64_t qlen = 0;
     if (attr_id_ != -1)
       pkt_time = get_attr<uint64_t>(this, attr_id_, batch->pkts()[i]);
     if (pkt_time || IsTimestamped(batch->pkts()[i], offset, &pkt_time)) {
@@ -141,6 +155,10 @@ void Measure::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         jitter_hist_.Insert(jitter);
         last_rtt_ns_ = diff;
       }
+    }
+
+    if (IsQueuestamped(batch->pkts()[i], 72, &qlen)) {
+      queue_hist_.Insert(qlen);
     }
   }
 
@@ -220,6 +238,36 @@ CommandResponse Measure::CommandGetSummary(
 
   SetHistogram(r.mutable_latency(), rtt, rtt_hist_.bucket_width());
   SetHistogram(r.mutable_jitter(), jitter, jitter_hist_.bucket_width());
+
+  if (arg.clear()) {
+    // Note that some samples might be lost due to the small gap between
+    // Summarize() and the next mcs_lock... but we posit that smaller
+    // critical section is more important.
+    Clear();
+  }
+
+  return CommandSuccess(r);
+}
+
+CommandResponse Measure::CommandGetQueueSummary(
+    const bess::pb::MeasureCommandGetSummaryArg &arg) {
+  bess::pb::MeasureCommandGetSummaryResponse r;
+
+  std::vector<double> latency_percentiles;
+
+  std::copy(arg.latency_percentiles().begin(), arg.latency_percentiles().end(),
+            back_inserter(latency_percentiles));
+
+  if (!IsValidPercentiles(latency_percentiles)) {
+    return CommandFailure(EINVAL, "invalid 'latency_percentiles'");
+  }
+
+  r.set_timestamp(get_epoch_time());
+  r.set_packets(pkt_cnt_);
+  r.set_bits((bytes_cnt_ + pkt_cnt_ * 24) * 8);
+  const auto &rtt = queue_hist_.Summarize(latency_percentiles);
+
+  SetHistogram(r.mutable_latency(), rtt, queue_hist_.bucket_width());
 
   if (arg.clear()) {
     // Note that some samples might be lost due to the small gap between
