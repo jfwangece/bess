@@ -298,6 +298,10 @@ message L2ForwardCommandPopulateArg {
   int64 gate_count = 3; /// How many gates to create in the L2Forward module.
 }
 
+message FlowLimiterArg {
+  uint32 num_flows = 1; /// The maximum number of flows
+}
+
 /**
  * The FlowStats module measures and collects flow statistics for incoming
  * traffic. Flow statistics include the flow arrival rate, and the number of
