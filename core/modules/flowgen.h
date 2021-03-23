@@ -41,6 +41,7 @@
 #include "../utils/random.h"
 
 #define MAX_TEMPLATE_SIZE 1536
+#define DEFAULT_BURSTY_PACKETS 20
 
 typedef std::pair<uint64_t, struct flow *> Event;
 typedef std::priority_queue<Event, std::vector<Event>, std::greater<Event>>
@@ -49,6 +50,10 @@ typedef std::priority_queue<Event, std::vector<Event>, std::greater<Event>>
 struct flow {
   int packets_left;
   bool first_pkt;
+  // For the last |bursty_packets|, the flow has double throughput
+  // compared to normal flows.
+  int bursty_packets_left;
+  int flow_id;
 
   uint32_t next_seq_no;
   bess::utils::be32_t src_ip, dst_ip;
@@ -89,7 +94,8 @@ class FlowGen final : public Module {
         flow_pkts_(),
         flow_gap_ns_(),
         pareto_(),
-        burst_() {
+        burst_(),
+        flow_id_(0) {
     is_task_ = true;
   }
 
@@ -176,6 +182,9 @@ class FlowGen final : public Module {
 
   int burst_;
   bool ignore_synfin_;     /* Ignore SIN and FIN packets? */
+
+  int flow_id_;
+  bool add_bursts_;
 };
 
 #endif  // BESS_MODULES_FLOWGEN_H_
