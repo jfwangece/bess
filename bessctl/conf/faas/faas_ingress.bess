@@ -20,7 +20,8 @@ ingress::FaaSIngress(
     redis_password="faas-nfv-cool",
     max_rules_count=1000,
     rule_delay_ms=rule_delay,
-    flow_action=default_flow_action)
+    flow_action=default_flow_action,
+    local_decision=True)
 
 port_inc -> ingress -> port_out
 
