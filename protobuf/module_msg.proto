@@ -718,7 +718,7 @@ message FlowGenArg {
   uint32 port_src_range = 10; /// When generating new flows, FlowGen modifies the template packet by changing the TCP port, incrementing it by at most port_src_range.
   uint32 port_dst_range = 11; /// When generating new flows, FlowGen modifies the template packet by changing the TCP dst port, incrementing it by at most port_dst_range.
   bool ignore_synfin = 12; /// Whether generate SIN and FIN packets.
-  bool add_bursts = 13; /// Whether add bursty packets to some flows.
+  uint32 extra_burst_size = 13; /// The extra bursty traffic size in packets.
 }
 
 /**

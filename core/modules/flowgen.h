@@ -184,7 +184,7 @@ class FlowGen final : public Module {
   bool ignore_synfin_;     /* Ignore SIN and FIN packets? */
 
   int flow_id_;
-  bool add_bursts_;
+  int extra_burst_size_;
 };
 
 #endif  // BESS_MODULES_FLOWGEN_H_
