@@ -9,7 +9,6 @@ faas_ip = '128.105.144.17'
 redis_ip = '128.105.145.211'
 rule_delay = 1000
 default_flow_action = 'forward'
-ts_offset = 68
 
 port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
 port_inc::PortInc(port=port0)

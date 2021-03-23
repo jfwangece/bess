@@ -131,6 +131,7 @@ CommandResponse Queue::Init(const bess::pb::QueueArg &arg) {
     backpressure_ = true;
   }
 
+  queuestamp_ = false;
   if (arg.queuestamp()) {
     VLOG(1) << "Queuestamp enabled for " << name() << "::Queue";
     queuestamp_ = true;

@@ -8,12 +8,12 @@ PACKET_OVERHEAD=24
 
 # This script generates a number of flows at a specified packet rate.
 num_cores=int($BESS_CORES!'1')
-num_flows =int($BESS_FLOWS!'300')
-flow_time=int($BESS_FLOW_TIME!'30') # in Seconds
+num_flows =int($BESS_FLOWS!'1000')
+flow_time=int($BESS_FLOW_TIME!'50') # in Seconds
 
 qlen_offset = 72
 ts_offset = 80
-base_pkt_rate = 500000
+base_pkt_rate = 580000
 pkt_size = 1000
 
 assert(1 <= num_cores <= 16)
@@ -39,8 +39,8 @@ pkt_data = bytes(pkt)
 print("Packet size = %d bytes" %(len(pkt_data)))
 
 flowgens = dict()
-queue::Queue(size=256, queuestamp=True)
-queue.set_burst(burst=32)
+queue::Queue(size=1024, queuestamp=True)
+queue.set_burst(burst = 16)
 chacha8::CHACHA(chacha_rounds = 8)
 measure0::Measure(offset=ts_offset)
 
@@ -53,7 +53,7 @@ for i in range(num_cores):
         ip_src_range = 50, ip_dst_range = 50, ignore_synfin=True)
 
     flowgens[i].set_burst(burst=1)
-    flowgens[i] -> Timestamp(offset=ts_offset) -> queue
+    flowgens[i] -> FlowLimiter(num_flows=1000) -> Timestamp(offset=ts_offset) -> queue
 
 queue -> chacha8 -> measure0 -> Sink()
 

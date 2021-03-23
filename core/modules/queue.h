@@ -34,6 +34,7 @@
 #include "../kmod/llring.h"
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
+#include "../utils/mcslock.h"
 
 class Queue : public Module {
  public:
@@ -115,6 +116,8 @@ class Queue : public Module {
   } stats_;
 
   bess::pb::QueueArg init_arg_;
+
+  mcslock lock_;
 };
 
 #endif  // BESS_MODULES_QUEUE_H_
