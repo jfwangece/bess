@@ -120,10 +120,6 @@ inline flow *FlowGen::ScheduleFlow(uint64_t time_ns) {
   }
 
   f->flow_id = flow_id_++;
-  if (extra_burst_size_ > 0 && f->flow_id % 10 == 0) {
-    f->bursty_packets_left = extra_burst_size_;
-  }
-
   f->first_pkt = true;
   f->next_seq_no = 12345;
   f->src_ip = be32_t(ip_src_base_ + rng_.GetRange(ip_src_range_));
@@ -133,6 +129,12 @@ inline flow *FlowGen::ScheduleFlow(uint64_t time_ns) {
 
   /* compensate the fraction part by adding [0.0, 1.0) */
   f->packets_left = NewFlowPkts() + rng_.GetReal();
+  if (increased_pkt_rate_freq_ > 0 &&
+      f->flow_id % increased_pkt_rate_freq_ == 0) {
+    f->increased_rate_thresh = f->packets_left * (100 - increased_pkt_rate_pos_) / 100;
+  }
+
+  f->flow_pps = flow_pps_;
 
   active_flows_++;
   generated_flows_++;
@@ -286,9 +288,19 @@ CommandResponse FlowGen::ProcessArguments(const bess::pb::FlowGenArg &arg) {
     quick_rampup_ = 1;
   }
 
-  extra_burst_size_ = 0;
-  if (arg.extra_burst_size() > 0) {
-    extra_burst_size_ = arg.extra_burst_size();
+  increased_pkt_rate_freq_ = 10;
+  if (arg.increased_pkt_rate_freq() > 0) {
+    increased_pkt_rate_freq_ = arg.increased_pkt_rate_freq();
+  }
+
+  increased_pkt_rate_pos_ = 100;
+  if (arg.increased_pkt_rate_pos() > 0) {
+    increased_pkt_rate_pos_ = arg.increased_pkt_rate_pos();
+  }
+
+  increased_pkt_rate_ratio_ = 0;
+  if (arg.increased_pkt_rate_ratio() > 0) {
+    increased_pkt_rate_ratio_ = arg.increased_pkt_rate_ratio();
   }
 
   ip_src_range_ = arg.ip_src_range();
@@ -538,33 +550,15 @@ void FlowGen::GeneratePackets(Context *ctx, bess::PacketBatch *batch) {
     }
 
     // Add bursty traffic.
-    // if (f->bursty_packets_left > 0 && f->packets_left <= DEFAULT_BURSTY_PACKETS) {
-    //   if (f->bursty_packets_left > 5 * (f->packets_left - 1)) {
-    //     // This is an extra packet. Do not trigger more packets.
-    //     f->bursty_packets_left--;
-    //     continue;
-    //   } else {
-    //     for (int r = 0; r < 5; r++) {
-    //       events_.emplace(t + 1 + r, f);
-    //     }
-    //   }
-    // }
-
-    if (f->bursty_packets_left > 0 && f->packets_left <= DEFAULT_BURSTY_PACKETS) {
-      if (f->bursty_packets_left == extra_burst_size_) {
-        // Start to add bursts.
-        for (int r = 0; r < extra_burst_size_; r++) {
-          events_.emplace(t + 1 + r, f);
-        }
-      } else {
-        f->bursty_packets_left -= 1;
-      }
-      continue;
+    if (f->increased_rate_thresh > 0 && f->packets_left == f->increased_rate_thresh) {
+      f->increased_rate_thresh = 0;
+      f->packets_left = f->packets_left * (100 + increased_pkt_rate_ratio_) / 100;
+      f->flow_pps = f->flow_pps * (100 + increased_pkt_rate_ratio_) / 100;
     }
 
     f->packets_left--;
 
-    events_.emplace(t + static_cast<uint64_t>(1e9 / flow_pps_), f);
+    events_.emplace(t + static_cast<uint64_t>(1e9 / f->flow_pps), f);
   }
 }
 

@@ -50,10 +50,12 @@ typedef std::priority_queue<Event, std::vector<Event>, std::greater<Event>>
 struct flow {
   int packets_left;
   bool first_pkt;
-  // For the last |bursty_packets|, the flow has double throughput
-  // compared to normal flows.
-  int bursty_packets_left;
+
+  // When there are |increased_rate_thresh| packets left, the flow
+  // is with an increased packet rate.
+  int increased_rate_thresh;
   int flow_id;
+  double flow_pps;
 
   uint32_t next_seq_no;
   bess::utils::be32_t src_ip, dst_ip;
@@ -184,7 +186,9 @@ class FlowGen final : public Module {
   bool ignore_synfin_;     /* Ignore SIN and FIN packets? */
 
   int flow_id_;
-  int extra_burst_size_;
+  int increased_pkt_rate_freq_;
+  int increased_pkt_rate_pos_;  /* 0-100 (percentage) in terms of total flow duration */
+  int increased_pkt_rate_ratio_;  /* the percent of increased packet rate */
 };
 
 #endif  // BESS_MODULES_FLOWGEN_H_
