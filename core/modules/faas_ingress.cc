@@ -305,7 +305,8 @@ bool FaaSIngress::process_new_flow(FlowRule &rule) {
 }
 
 std::string FaaSIngress::convert_rule_to_string(FlowRule &rule) {
-  return ToIpv4Address(rule.src_ip.addr) + "," +
+  return "assign," +
+         ToIpv4Address(rule.src_ip.addr) + "," +
          ToIpv4Address(rule.dst_ip.addr) + "," +
          std::to_string(rule.proto_ip) + "," +
          std::to_string(rule.src_port.value()) + "," +
