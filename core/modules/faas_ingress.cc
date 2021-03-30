@@ -217,7 +217,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         .active_ts = 0,
       };
 
-      if (flow_response_.switch_port() == 0) {
+      if (local_decision_ && egress_port_ == 0) {
         // The controller decides to drop all new flows.
         DropPacket(ctx, pkt);
       } else if (!process_new_flow(new_rule)) {

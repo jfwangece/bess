@@ -107,6 +107,8 @@ class FaaSIngress final : public Module {
   redisContext* redis_ctx_;
 
   grpc::Status status_;
+
+  // (Outdated) These are for FaaS controller's query.
   bess::pb::FlowInfo flow_request_;
   bess::pb::FlowTableEntry flow_response_;
   bess::pb::InsertFlowEntryRequest flowrule_request_;
@@ -118,7 +120,7 @@ class FaaSIngress final : public Module {
   std::vector<FlowRule> rules_vector_;
   std::deque<FlowRule> rules_;
 
-  // Local decision
+  // Local decision parameters
   bool local_decision_;
   uint egress_port_;
   std::string egress_mac_;
