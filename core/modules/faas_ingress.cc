@@ -274,7 +274,7 @@ bool FaaSIngress::process_new_flow(FlowRule &rule) {
     std::string tmp_flow_msg = convert_rule_to_string(rule);
 
     for (int i = 0; i < 3; ++i) {
-      redis_reply_ = (redisReply*)redisCommand(redis_ctx_, "PUBLISH %s %s", "flow", tmp_flow_msg.c_str());
+      redis_reply_ = (redisReply*)redisCommand(redis_ctx_, "PUBLISH %s %s", "faasctl", tmp_flow_msg.c_str());
       if (redis_reply_ == NULL) {
         continue;
       } else if (redis_reply_->type == REDIS_REPLY_ERROR) {
