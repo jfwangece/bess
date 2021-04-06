@@ -43,6 +43,8 @@ using bess::utils::Ethernet;
 using bess::utils::Ipv4;
 using bess::utils::Udp;
 
+Ethernet::Address BG_DST("00:00:00:00:00:01");
+
 static bool IsTimestamped(bess::Packet *pkt, size_t offset, uint64_t *time) {
   auto *marker = pkt->head_data<Timestamp::MarkerType *>(offset);
 
@@ -112,6 +114,11 @@ CommandResponse Measure::Init(const bess::pb::MeasureArg &arg) {
     jitter_sample_prob_ = kDefaultIpDvSampleProb;
   }
 
+  bg_dst_filter_ = false;
+  if (arg.bg_dst_filter()) {
+    bg_dst_filter_ = true;
+  }
+
   mcs_lock_init(&lock_);
 
   return CommandSuccess();
@@ -133,6 +140,15 @@ void Measure::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     uint64_t qlen = 0;
     if (attr_id_ != -1)
       pkt_time = get_attr<uint64_t>(this, attr_id_, batch->pkts()[i]);
+
+    if (bg_dst_filter_) {
+      bess::Packet *pkt = batch->pkts()[i];
+      Ethernet *eth = pkt->head_data<Ethernet *>();
+      if (eth->dst_addr == BG_DST) {
+        continue;
+      }
+    }
+
     if (pkt_time || IsTimestamped(batch->pkts()[i], offset, &pkt_time)) {
       uint64_t diff;
 

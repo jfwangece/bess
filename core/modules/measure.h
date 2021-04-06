@@ -87,6 +87,8 @@ class Measure final : public Module {
   uint64_t pkt_cnt_;
   uint64_t bytes_cnt_;
 
+  bool bg_dst_filter_ = false;
+
   mcslock lock_;
 };
 

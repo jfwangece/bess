@@ -847,6 +847,7 @@ message MeasureArg {
   double jitter_sample_prob = 3; /// How often the module should sample packets for inter-packet arrival measurements (to measure jitter).
   uint64 latency_ns_max = 4; /// maximum latency expected, in ns (default 0.1 s)
   uint32 latency_ns_resolution = 5; /// resolution, in ns (default 100)
+  bool bg_dst_filter = 7;
 }
 
 /**
