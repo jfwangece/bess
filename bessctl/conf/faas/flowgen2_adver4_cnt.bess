@@ -10,6 +10,7 @@ PACKET_OVERHEAD=24
 # This script generates a number of flows at a specified packet rate.
 pcie_addr = ['81:00.0', '81:00.1']
 num_cores = len(pcie_addr)
+core_offset = 8
 
 pkt_size=int($BESS_PKT_SIZE!'1500')
 num_flows=int($BESS_FLOWS!'200')
@@ -85,9 +86,9 @@ for i in range(num_cores):
 
 
 for wid in range(num_cores):
-    bess.add_worker(wid=3*wid+1, core=3*wid+1)
-    bess.add_worker(wid=3*wid+2, core=3*wid+2)
-    bess.add_worker(wid=3*wid+3, core=3*wid+3)
+    bess.add_worker(wid=3*wid+1, core=3*wid+1 + core_offset)
+    bess.add_worker(wid=3*wid+2, core=3*wid+2 + core_offset)
+    bess.add_worker(wid=3*wid+3, core=3*wid+3 + core_offset)
 
     flowgens[wid].attach_task(wid=3*wid+1)
     queues[wid].attach_task(wid=3*wid+2)
