@@ -67,7 +67,7 @@ for i in range(num_cores):
         ip_src_range = 255, ip_dst_range = 255, ignore_synfin=True, \
         increased_pkt_rate_freq = 10, \
         increased_pkt_rate_pos = 50, \
-        increased_pkt_rate_ratio = 30)
+        increased_pkt_rate_ratio = 80)
 
     queues[i] = Queue()
     port_incs[i] = PortInc(port=ports[i])
