@@ -2,19 +2,22 @@
 # This is a traffic generator that generates many TCP flows.
 #
 
+import copy
 import scapy.all as scapy
 
 PACKET_OVERHEAD=24
 
 # This script generates a number of flows at a specified packet rate.
-pcie_addr=str($BESS_PCIE!'06:00.1')
-num_cores=int($BESS_CORES!'1')
+pcie_addr = '81:00.0'
+num_cores = 1
+core_offset = 8
+
 pkt_size=int($BESS_PKT_SIZE!'1500')
 num_flows=int($BESS_FLOWS!'200')
 flow_time=int($BESS_FLOW_TIME!'60') # in Seconds
 base_pkt_rate=int($BESS_INIT_RATE!'1000000')
-base_bit_rate=int($BESS_INIT_RATE!'9500000000')
-ts_offset=int($BESS_TS_OFFSET!'68')
+base_bit_rate=int($BESS_INIT_RATE!'9000000000')
+ts_offset = 80
 
 assert(pcie_addr)
 assert(1 <= num_cores <= 16)
@@ -23,13 +26,12 @@ assert(64 <= ts_offset <= 100)
 
 pkt_size = min(pkt_size, base_bit_rate / base_pkt_rate / 8)
 
-src_ether=($BESS_SRC_ETHER!'00:15:4d:12:2b:f4')
-dst_ether=($BESS_DST_ETHER!'00:00:00:00:00:04')
-src_ip=($BESS_SRC_IP!'10.0.0.1')
-dst_ip=($BESS_DST_IP!'192.0.0.1')
-src_port=int($BESS_SRC_PORT!'10001')
-dst_port=int($BESS_DST_PORT!'8080')
-
+src_ether = '00:15:4d:12:2b:01'
+dst_ether = '00:00:00:00:00:04'
+src_ip = '10.0.0.1'
+dst_ip = '192.0.0.1'
+src_port = 10001
+dst_port = 8080
 
 # Create a "template" packet to use for generated flows.
 # All packets in flow will follow this formula; flowgen
@@ -56,18 +58,19 @@ for i in range(num_cores):
         flow_rate = num_flows / flow_time, \
         flow_duration = flow_time, \
         arrival = 'uniform', duration='uniform', quick_rampup=False, \
-        ip_src_range = 50, ip_dst_range = 50, ignore_synfin=True)
+        ip_src_range = 255, ip_dst_range = 255, ignore_synfin=True)
     queues[i] = Queue()
-    flowgens[i] -> queues[i] -> Timestamp(offset=ts_offset) -> lc_egress -> QueueOut(port=port0, qid=i)
+    flowgens[i] -> Timestamp(offset=ts_offset) -> lc_egress -> queues[i] -> QueueOut(port=port0, qid=i)
 
 port_inc -> lc_ingress -> Measure(offset=ts_offset) -> Sink()
 lc_egress.start(packet_count_offset=60000, packet_count_target=5e7)
 
-bess.add_worker(wid=1, core=1)
+bess.add_worker(wid=1, core=1 + core_offset)
 port_inc.attach_task(wid=1)
+
 for wid in range(num_cores):
-    bess.add_worker(wid=2*wid+2, core=2*wid+2)
-    bess.add_worker(wid=2*wid+3, core=2*wid+3)
+    bess.add_worker(wid=2*wid+2, core=2*wid+2 + core_offset)
+    bess.add_worker(wid=2*wid+3, core=2*wid+3 + core_offset)
     flowgens[wid].attach_task(wid=wid+2)
     queues[wid].attach_task(wid=2*wid+3)
 
