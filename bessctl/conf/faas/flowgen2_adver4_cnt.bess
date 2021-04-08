@@ -82,7 +82,7 @@ for i in range(num_cores):
 
     port_incs[i] -> Measure(offset=ts_offset) -> lc_ingress_dict[i] -> Sink()
 
-    lc_egress_dict[i].start(packet_count_offset=5e6, packet_count_target=2e8)
+    lc_egress_dict[i].start(packet_count_offset=5e6, packet_count_target=1e8)
 
 
 for wid in range(num_cores):
