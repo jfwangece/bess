@@ -1148,6 +1148,10 @@ message SetMetadataArg {
 message SinkArg {
 }
 
+message SnortArg {
+  repeated string keywords = 1;
+}
+
 /**
  * The Source module has a function `set_burst(...)` which
  * specifies the maximum number of packets to release in a single packetbatch
@@ -1270,6 +1274,7 @@ message UrlFilterArg {
     string path = 2;  /// Path prefix, e.g. "/"
   }
   repeated Url blacklist = 1; /// A list of Urls to block.
+  repeated string keywords = 2;
 }
 
 /**
