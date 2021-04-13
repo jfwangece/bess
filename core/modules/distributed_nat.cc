@@ -502,20 +502,23 @@ bool DistributedNAT::FetchRule(const Endpoint& endpoint, NatEntry &entry) {
     return false;
   } else if (redis_reply_->type == REDIS_REPLY_ERROR) {
     LOG(ERROR) << "Error: bad redis request";
-  } else {
-    value = redis_reply_->str;
-    size_t m = value.find(':');
-    ParseIpv4Address(value.substr(0, m), &entry.endpoint.addr);
-    entry.endpoint.port = be16_t(std::stoi(value.substr(m + 1, value.length() - m - 1)));
-
     freeReplyObject(redis_reply_);
     redis_reply_ = nullptr;
-    return true;
+    return false;
+  } else if (redis_reply_->str == NULL) {
+    freeReplyObject(redis_reply_);
+    redis_reply_ = nullptr;
+    return false;
   }
+
+  value = redis_reply_->str;
+  size_t m = value.find(':');
+  ParseIpv4Address(value.substr(0, m), &entry.endpoint.addr);
+  entry.endpoint.port = be16_t(std::stoi(value.substr(m + 1, value.length() - m - 1)));
 
   freeReplyObject(redis_reply_);
   redis_reply_ = nullptr;
-  return false;
+  return true;
 }
 
 void DistributedNAT::rules_sync_global() {
