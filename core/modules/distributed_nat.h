@@ -68,6 +68,7 @@ public:
 
   CommandResponse CommandAddInternalIP(const bess::pb::DistributedNATCommandAddInternalIPArg &);
   CommandResponse CommandGetAllRules(const bess::pb::EmptyArg &);
+  CommandResponse CommandClearAllRules(const bess::pb::EmptyArg &);
 
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
@@ -97,6 +98,7 @@ private:
 
   // This function fetches all flows from the redis store to local cache.
   void rules_sync_global();
+  void rules_reset_global();
 
   std::string redis_service_ip_;
 

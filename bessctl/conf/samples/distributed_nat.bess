@@ -11,7 +11,7 @@ def gen_packet(proto, src_ip, dst_ip):
     pkt = eth/ip/udp/payload
     return bytes(pkt)
 
-packets = [gen_packet(scapy.UDP, '172.16.100.1', '10.0.0.1'),
+packets = [gen_packet(scapy.UDP, '10.0.0.1', '172.16.100.1'),
            gen_packet(scapy.UDP, '172.12.55.99', '12.34.56.78'),
            gen_packet(scapy.UDP, '172.12.55.99', '10.0.0.1'),
            gen_packet(scapy.UDP, '172.16.100.1', '12.34.56.78'),
@@ -20,7 +20,7 @@ packets = [gen_packet(scapy.UDP, '172.16.100.1', '10.0.0.1'),
            ]
 
 # dynamic NAT configuration
-nat::DistributedNAT(ext_addrs=[{'ext_addr': '192.168.0.1'}, {'ext_addr': '192.168.0.2'}], redis_service_ip="128.105.144.32", redis_port=6380, redis_password='faas-nfv-cool')
-nat.add_internal_ip(internal_ips=["0.0.0.0/0"])
+nat::DistributedNAT(ext_addrs=[{'ext_addr': '192.168.0.1'}, {'ext_addr': '192.168.0.2'}], redis_service_ip="127.0.0.1", redis_port=6379, redis_password='faas-nfv-cool')
+nat.add_internal_ip(internal_ips=["10.0.0.0/8"])
 
-Source() -> Rewrite(templates=packets) -> nat -> MACSwap() -> IPSwap() -> Sink()
+Source() -> Rewrite(templates=packets) -> nat -> Sink()

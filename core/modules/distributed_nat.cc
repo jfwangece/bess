@@ -138,6 +138,8 @@ const Commands DistributedNAT::cmds = {
    MODULE_CMD_FUNC(&DistributedNAT::CommandAddInternalIP), Command::THREAD_UNSAFE},
   {"get_rules", "EmptyArg",
    MODULE_CMD_FUNC(&DistributedNAT::CommandGetAllRules), Command::THREAD_SAFE},
+  {"clear_rules", "EmptyArg",
+   MODULE_CMD_FUNC(&DistributedNAT::CommandClearAllRules), Command::THREAD_SAFE},
 };
 
 CommandResponse DistributedNAT::Init(const bess::pb::DistributedNATArg &arg) {
@@ -273,11 +275,32 @@ CommandResponse DistributedNAT::CommandGetAllRules(const bess::pb::EmptyArg &) {
   return CommandSuccess(response);
 }
 
+CommandResponse DistributedNAT::CommandClearAllRules(const bess::pb::EmptyArg &) {
+  rules_reset_global();
+
+  map_.Clear();
+  return CommandSuccess();
+}
+
 // Not necessary to inline this function, since it is less frequently called
 DistributedNAT::HashTable::Entry *DistributedNAT::CreateNewEntry(
                                     const Endpoint &src_internal,
                                     uint64_t now) {
+  NatEntry forward_entry;
+  NatEntry reverse_entry;
   Endpoint src_external;
+
+  // First, fetch remote states.
+  bool is_remote_found = FetchRule(src_internal, forward_entry);
+
+  if (is_remote_found) {
+    // |forward_entry| is filled with the previous entry.
+    src_external = forward_entry.endpoint;
+    reverse_entry.endpoint = src_internal;
+    map_.Insert(src_external, reverse_entry);
+
+    return map_.Insert(src_internal, forward_entry);
+  }
 
   // An internal IP address is always mapped to the same external IP address,
   // in an deterministic manner (rfc4787 REQ-2)
@@ -329,15 +352,13 @@ DistributedNAT::HashTable::Entry *DistributedNAT::CreateNewEntry(
       if (hash_reverse == nullptr) {
       found:
         // Found an available src_internal <-> src_external mapping
-        NatEntry forward_entry;
-        NatEntry reverse_entry;
-
         reverse_entry.endpoint = src_internal;
         map_.Insert(src_external, reverse_entry);
 
         forward_entry.endpoint = src_external;
 
-        UploadRule(src_external, reverse_entry);
+        //Update the global state.
+        // UploadRule(src_external, reverse_entry);
         UploadRule(src_internal, forward_entry);
 
         return map_.Insert(src_internal, forward_entry);
@@ -352,10 +373,13 @@ DistributedNAT::HashTable::Entry *DistributedNAT::CreateNewEntry(
 
         if (now - hash_forward->second.last_refresh > kTimeOutNs) {
           // Found an expired mapping. Remove A':a' <-> A'':a''...
-          RemoveRule(hash_forward->first);
-          RemoveRule(hash_reverse->first);
           map_.Remove(hash_forward->first);
           map_.Remove(hash_reverse->first);
+
+          // Update the global state
+          RemoveRule(hash_forward->first);
+          // RemoveRule(hash_reverse->first);
+
           goto found;  // and go install A:a <-> A':a'
         }
       }
@@ -390,6 +414,7 @@ void DistributedNAT::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       dir = kReverse;
     } else {
       DropPacket(ctx, pkt);
+      continue;
     }
 
     size_t ip_bytes = (ip->header_length) << 2;
@@ -446,6 +471,13 @@ void DistributedNAT::UploadRule(const Endpoint &endpoint, const NatEntry &entry)
            std::to_string(entry.endpoint.port.value());
 
   redis_reply_ = (redisReply *)redisCommand(redis_ctx_, "HSET %s %s %s", kRedisKey_.c_str(), field.c_str(), value.c_str());
+  if (redis_reply_ == nullptr) {
+    LOG(ERROR) << "Error: bad redis connection";
+    return;
+  } else if (redis_reply_->type == REDIS_REPLY_ERROR) {
+    LOG(ERROR) << "Error: bad redis request";
+  }
+
   freeReplyObject(redis_reply_);
 }
 
@@ -464,17 +496,25 @@ bool DistributedNAT::FetchRule(const Endpoint& endpoint, NatEntry &entry) {
   field += ToIpv4Address(endpoint.addr) + ":" +
            std::to_string(endpoint.port.value());
 
-  redis_reply_ = (redisReply *)redisCommand(redis_ctx_, "HGET %s %s %s", kRedisKey_.c_str(), field.c_str());
-  if (redis_reply_ != nullptr && redis_reply_->type != REDIS_REPLY_ERROR) {
+  redis_reply_ = (redisReply *)redisCommand(redis_ctx_, "HGET %s %s", kRedisKey_.c_str(), field.c_str());
+  if (redis_reply_ == nullptr) {
+    LOG(ERROR) << "Error: bad redis connection";
+    return false;
+  } else if (redis_reply_->type == REDIS_REPLY_ERROR) {
+    LOG(ERROR) << "Error: bad redis request";
+  } else {
     value = redis_reply_->str;
-    size_t m = value.find(',');
+    size_t m = value.find(':');
     ParseIpv4Address(value.substr(0, m), &entry.endpoint.addr);
     entry.endpoint.port = be16_t(std::stoi(value.substr(m + 1, value.length() - m - 1)));
+
     freeReplyObject(redis_reply_);
+    redis_reply_ = nullptr;
     return true;
   }
 
   freeReplyObject(redis_reply_);
+  redis_reply_ = nullptr;
   return false;
 }
 
@@ -503,6 +543,26 @@ void DistributedNAT::rules_sync_global() {
     }
   }
   freeReplyObject(redis_reply_);
+}
+
+void DistributedNAT::rules_reset_global() {
+  std::string key;
+  redisReply* tmp_reply = nullptr;
+
+  redis_reply_ = (redisReply *)redisCommand(redis_ctx_,"HGETALL %s", kRedisKey_);
+  for (unsigned i = 0; i < redis_reply_->elements; i++) {
+    if ((i&1) == 0) {
+      key = redis_reply_->element[i]->str;
+
+      tmp_reply = (redisReply *)redisCommand(redis_ctx_,"HDEL %s %s", kRedisKey_, key);
+      if (tmp_reply != nullptr) {
+        freeReplyObject(tmp_reply);
+        tmp_reply = nullptr;
+      }
+    }
+  }
+  freeReplyObject(redis_reply_);
+  redis_reply_ = nullptr;
 }
 
 std::string DistributedNAT::GetDesc() const {
