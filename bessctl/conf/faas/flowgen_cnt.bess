@@ -60,10 +60,11 @@ for i in range(num_cores):
         arrival = 'uniform', duration='uniform', quick_rampup=False, \
         ip_src_range = 255, ip_dst_range = 255, ignore_synfin=True)
     queues[i] = Queue()
-    flowgens[i] -> Timestamp(offset=ts_offset) -> lc_egress -> queues[i] -> QueueOut(port=port0, qid=i)
+    flowgens[i] -> lc_egress -> Timestamp(offset=ts_offset) -> queues[i] -> QueueOut(port=port0, qid=i)
 
-port_inc -> lc_ingress -> Measure(offset=ts_offset) -> Sink()
-lc_egress.start(packet_count_offset=60000, packet_count_target=5e7)
+port_inc -> Measure(offset=ts_offset) -> lc_ingress -> Sink()
+
+lc_egress.start(packet_count_offset=5e4, packet_count_target=5e7)
 
 bess.add_worker(wid=1, core=1 + core_offset)
 port_inc.attach_task(wid=1)

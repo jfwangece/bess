@@ -13,8 +13,8 @@ num_cores = 1
 core_offset = 1
 
 pkt_size=int($BESS_PKT_SIZE!'1500')
-num_flows=int($BESS_FLOWS!'1000')
-flow_time=int($BESS_FLOW_TIME!'5') # in Seconds
+num_flows=int($BESS_FLOWS!'600')
+flow_time=int($BESS_FLOW_TIME!'60') # in Seconds
 base_pkt_rate=int($BESS_INIT_RATE!'1000000')
 base_bit_rate=int($BESS_INIT_RATE!'9000000000')
 ts_offset = 80
@@ -60,10 +60,11 @@ for i in range(num_cores):
         arrival = 'uniform', duration='uniform', quick_rampup=False, \
         ip_src_range = 255, ip_dst_range = 255, ignore_synfin=True)
     queues[i] = Queue()
-    flowgens[i] -> Timestamp(offset=ts_offset) -> lc_egress -> queues[i] -> QueueOut(port=port0, qid=i)
+    flowgens[i] -> lc_egress -> Timestamp(offset=ts_offset) -> queues[i] -> QueueOut(port=port0, qid=i)
 
-port_inc -> lc_ingress -> Measure(offset=ts_offset) -> Sink()
-lc_egress.start(packet_count_offset=60000, packet_count_target=5e7)
+port_inc -> Measure(offset=ts_offset) -> lc_ingress -> Sink()
+
+lc_egress.start(packet_count_offset=5e4, packet_count_target=5e7)
 
 bess.add_worker(wid=1, core=1 + core_offset)
 port_inc.attach_task(wid=1)
