@@ -1,0 +1,30 @@
+#
+# This is the control-plane module for handling new flows in FaaS-NFV.
+#
+
+import scapy.all as scapy
+
+pcie0 = '06:00.0'
+faas_ip = '128.105.144.219'
+redis_ip = '128.105.145.193'
+
+rule_delay = 1000
+default_flow_action = 'forward'
+
+port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+port_inc::PortInc(port=port0)
+port_out::PortOut(port=port0)
+ingress::FaaSIngress(
+    faas_service_ip=faas_ip,
+    redis_service_ip=redis_ip,
+    redis_password="faas-nfv-cool",
+    max_rules_count=1000,
+    rule_delay_ms=rule_delay,
+    flow_action=default_flow_action,
+    local_decision=False)
+
+port_inc -> ingress -> port_out
+
+# Core allocation
+bess.add_worker(wid=1, core=1)
+port_inc.attach_task(wid=1)
