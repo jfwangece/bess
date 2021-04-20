@@ -13,8 +13,8 @@ num_cores = 1
 core_offset = 1
 
 pkt_size=int($BESS_PKT_SIZE!'1500')
-num_flows=int($BESS_FLOWS!'200')
-flow_time=int($BESS_FLOW_TIME!'60') # in Seconds
+num_flows=int($BESS_FLOWS!'1000')
+flow_time=int($BESS_FLOW_TIME!'5') # in Seconds
 base_pkt_rate=int($BESS_INIT_RATE!'1000000')
 base_bit_rate=int($BESS_INIT_RATE!'9000000000')
 ts_offset = 80
