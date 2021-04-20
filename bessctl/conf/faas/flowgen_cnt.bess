@@ -17,7 +17,7 @@ num_flows=int($BESS_FLOWS!'200')
 flow_time=int($BESS_FLOW_TIME!'60') # in Seconds
 base_pkt_rate=int($BESS_INIT_RATE!'1000000')
 base_bit_rate=int($BESS_INIT_RATE!'9000000000')
-ts_offset = 80
+ts_offset = 100
 
 assert(pcie_addr)
 assert(1 <= num_cores <= 16)
@@ -61,6 +61,7 @@ for i in range(num_cores):
         ip_src_range = 255, ip_dst_range = 255, ignore_synfin=True)
     queues[i] = Queue()
     flowgens[i] -> lc_egress -> Timestamp(offset=ts_offset) -> queues[i] -> QueueOut(port=port0, qid=i)
+    queues[i].set_burst(burst=2)
 
 port_inc -> Measure(offset=ts_offset) -> lc_ingress -> Sink()
 
