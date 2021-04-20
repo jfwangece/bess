@@ -8,9 +8,8 @@ pcie0 = '06:00.0'
 faas_ip = '128.105.144.219'
 redis_ip = '128.105.145.193'
 
-rule_delay = 1000
+rule_delay = 0
 default_flow_action = 'forward'
-ts_offset = 100
 
 port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
 port_inc::PortInc(port=port0)
@@ -24,7 +23,7 @@ ingress::FaaSIngress(
     flow_action=default_flow_action,
     local_decision=True)
 
-port_inc -> Timestamp(offset=ts_offset) -> ingress -> Measure(offset=ts_offset) -> port_out
+port_inc -> ingress -> port_out
 
 # Core allocation
 bess.add_worker(wid=1, core=1)

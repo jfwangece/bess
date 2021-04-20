@@ -188,10 +188,16 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     for (const auto &rule : rules_) {
       if (rule.Match(ip->src, ip->dst, ip->protocol, sport, dport)) { // An in-progress flow.
         emitted = true;
-        if (now_ >= rule.active_ts) {
+
+        if (now_ > rule.active_ts) {
+          // Case 1: the new rule is active now at the ToR switch
+          // We drop the packet because we should not receive this packet
           eth->dst_addr = rule.encoded_mac;
-          EmitPacket(ctx, pkt, 0);
+          //EmitPacket(ctx, pkt, 0); // for experiments
+          DropPacket(ctx, pkt);
         } else {
+          // Case 2: the new rule has not been installed
+          // By default, the ingress applies the rule and forwards the packet
           if (rule.action == kForward) {
             eth->dst_addr = rule.encoded_mac;
             EmitPacket(ctx, pkt, 0);
@@ -199,11 +205,12 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
             DropPacket(ctx, pkt);
           }
         }
+
         break;  // Stop matching other rules
       }
     }
 
-    if (!emitted) { // A new flow.
+    if (!emitted) { // A new flow: no matched rule.
       FlowRule new_rule = {
         .src_ip = Ipv4Prefix(ToIpv4Address(ip->src) + "/32"),
         .dst_ip = Ipv4Prefix(ToIpv4Address(ip->dst) + "/32"),
