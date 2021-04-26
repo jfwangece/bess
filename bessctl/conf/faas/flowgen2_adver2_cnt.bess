@@ -10,15 +10,15 @@ PACKET_OVERHEAD=24
 # This script generates a number of flows at a specified packet rate.
 pcie_addr = ['06:00.0', '06:00.1']
 num_cores = len(pcie_addr)
-core_offset = 8
+core_offset = 1
 
 pkt_size=int($BESS_PKT_SIZE!'1500')
 num_flows=int($BESS_FLOWS!'200')
 flow_time=int($BESS_FLOW_TIME!'60') # in Seconds
 base_pkt_rate=int($BESS_INIT_RATE!'1000000')
 base_bit_rate=int($BESS_INIT_RATE!'9000000000')
+target_pkt_cnt = 1e8
 ts_offset = 100
-num_faas_workers = 4
 
 assert(len(pcie_addr) != 0)
 assert(pcie_addr[0])
@@ -82,7 +82,7 @@ for i in range(num_cores):
 
     port_incs[i] -> Measure(offset=ts_offset) -> lc_ingress_dict[i] -> Sink()
 
-    lc_egress_dict[i].start(packet_count_offset=5e6, packet_count_target=2e8)
+    lc_egress_dict[i].start(packet_count_offset=5e6, packet_count_target=target_pkt_cnt)
 
 
 for wid in range(num_cores):

@@ -61,7 +61,7 @@ for i in range(num_cores):
         ip_src_range = 255, ip_dst_range = 255, ignore_synfin=True)
     queues[i] = Queue()
     flowgens[i] -> lc_egress -> Timestamp(offset=ts_offset) -> queues[i] -> QueueOut(port=port0, qid=i)
-    queues[i].set_burst(burst=2)
+    queues[i].set_burst(burst=1)
 
 port_inc -> Measure(offset=ts_offset) -> lc_ingress -> Sink()
 

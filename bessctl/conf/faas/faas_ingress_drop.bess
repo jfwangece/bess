@@ -5,8 +5,8 @@
 import scapy.all as scapy
 
 pcie0 = '06:00.0'
-faas_ip = '128.105.144.219'
-redis_ip = '128.105.145.193'
+faas_ip = '128.105.145.255'
+redis_ip = '128.105.145.196'
 
 rule_delay = 0
 default_flow_action = 'forward'
