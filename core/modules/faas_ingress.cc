@@ -191,10 +191,11 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
         if (now_ > rule.active_ts) {
           // Case 1: the new rule is active now at the ToR switch
-          // We drop the packet because we should not receive this packet
+          // We still forward this packet because a FlowMod operation
+          // may make the flow rule invalid at the switch.
           eth->dst_addr = rule.encoded_mac;
-          //EmitPacket(ctx, pkt, 0); // for experiments
-          DropPacket(ctx, pkt);
+          EmitPacket(ctx, pkt, 0);
+          //DropPacket(ctx, pkt);
         } else {
           // Case 2: the new rule has not been installed
           // By default, the ingress applies the rule and forwards the packet

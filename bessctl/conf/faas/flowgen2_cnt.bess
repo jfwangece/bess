@@ -24,7 +24,7 @@ assert(len(pcie_addr) != 0)
 assert(pcie_addr[0])
 assert(1 <= num_cores <= 16)
 assert(60 <= pkt_size <= 1522)
-assert(64 <= ts_offset <= 100)
+assert(64 <= ts_offset < pkt_size)
 
 pkt_size = min(pkt_size, base_bit_rate / base_pkt_rate / 8)
 
