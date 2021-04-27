@@ -154,7 +154,7 @@ void FaaSIngress::Clear() {
   // Clear remote if necessary.
   if (redis_ctx_ != nullptr) {
     bool is_successful = false;
-    std::string reset_switch_str = "reset all";
+    std::string reset_switch_str = "reset,all";
     for (int i = 0; i < 3; ++i) {
       redis_reply_ = (redisReply*)redisCommand(redis_ctx_, "PUBLISH %s %s", "faasctl", reset_switch_str);
       if (redis_reply_ == NULL) {
