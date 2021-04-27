@@ -156,7 +156,7 @@ void FaaSIngress::Clear() {
     bool is_successful = false;
     std::string reset_switch_str = "reset,all";
     for (int i = 0; i < 3; ++i) {
-      redis_reply_ = (redisReply*)redisCommand(redis_ctx_, "PUBLISH %s %s", "faasctl", reset_switch_str);
+      redis_reply_ = (redisReply*)redisCommand(redis_ctx_, "PUBLISH %s %s", "faasctl", reset_switch_str.c_str());
       if (redis_reply_ == NULL) {
         continue;
       } else if (redis_reply_->type == REDIS_REPLY_ERROR) {
