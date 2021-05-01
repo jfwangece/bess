@@ -18,13 +18,17 @@ ingress::FaaSIngress(
     faas_service_ip=faas_ip,
     redis_service_ip=redis_ip,
     redis_password="faas-nfv-cool",
-    max_rules_count=1000,
+    max_rules_count=1500,
     rule_delay_ms=rule_delay,
     flow_action=default_flow_action,
     local_decision=True)
+queue::Queue()
 
-port_inc -> ingress -> port_out
+port_inc -> ingress -> queue -> port_out
+queue.set_burst(burst=1)
 
 # Core allocation
 bess.add_worker(wid=1, core=1)
+bess.add_worker(wid=2, core=2)
 port_inc.attach_task(wid=1)
+queue.attach_task(wid=2)

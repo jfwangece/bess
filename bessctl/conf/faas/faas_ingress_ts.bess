@@ -23,9 +23,14 @@ ingress::FaaSIngress(
     rule_delay_ms=rule_delay,
     flow_action=default_flow_action,
     local_decision=True)
+queue::Queue()
 
-port_inc -> Timestamp(offset=ts_offset) -> ingress -> Measure(offset=ts_offset) -> port_out
+port_inc -> Timestamp(offset=ts_offset) -> ingress -> Measure(offset=ts_offset) -> queue
+queue -> port_out
+queue.set_burst(burst=1)
 
 # Core allocation
 bess.add_worker(wid=1, core=1)
+bess.add_worker(wid=2, core=2)
 port_inc.attach_task(wid=1)
+queue.attach_task(wid=2)

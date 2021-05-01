@@ -73,6 +73,7 @@ for i in range(num_cores):
     lc_ingress_dict[i] = LossCounter(port_index=i, port_type=1)
 
     flowgens[i] -> lc_egress_dict[i] -> Timestamp(offset=ts_offset) -> queues[i] -> PortOut(port=ports[i])
+    queues[i].set_burst(burst=1)
 
     port_incs[i] -> Measure(offset=ts_offset) -> lc_ingress_dict[i] -> Sink()
 

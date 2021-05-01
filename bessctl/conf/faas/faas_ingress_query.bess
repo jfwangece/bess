@@ -22,9 +22,12 @@ ingress::FaaSIngress(
     rule_delay_ms=rule_delay,
     flow_action=default_flow_action,
     local_decision=False)
+queue::Queue()
 
-port_inc -> ingress -> port_out
+port_inc -> ingress -> queue -> port_out
 
 # Core allocation
 bess.add_worker(wid=1, core=1)
+bess.add_worker(wid=2, core=2)
 port_inc.attach_task(wid=1)
+queue.attach_task(wid=2)
