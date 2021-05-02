@@ -8,9 +8,9 @@ import scapy.all as scapy
 PACKET_OVERHEAD=24
 
 # This script generates a number of flows at a specified packet rate.
-pcie_addr = ['06:00.0', '06:00.1']
+pcie_addr = ['81:00.0', '81:00.1']
 num_cores = len(pcie_addr)
-core_offset = 1
+core_offset = 8
 
 pkt_size=int($BESS_PKT_SIZE!'1500')
 num_flows=int($BESS_FLOWS!'200')

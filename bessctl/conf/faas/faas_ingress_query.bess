@@ -4,8 +4,8 @@
 
 import scapy.all as scapy
 
-pcie0 = '06:00.0'
-faas_ip = '128.105.145.252'
+pcie0 = '81:00.0'
+faas_ip = '128.105.145.172'
 redis_ip = '128.105.145.181'
 
 rule_delay = 1000
