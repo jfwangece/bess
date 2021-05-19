@@ -129,8 +129,11 @@ inline flow *FlowGen::ScheduleFlow(uint64_t time_ns) {
 
   /* compensate the fraction part by adding [0.0, 1.0) */
   f->packets_left = NewFlowPkts() + rng_.GetReal();
-  if (increased_pkt_rate_freq_ > 0 &&
-      f->flow_id % increased_pkt_rate_freq_ == 0) {
+  // if (increased_pkt_rate_freq_ > 0 &&
+  //     f->flow_id % increased_pkt_rate_freq_ == 0) {
+  //   f->increased_rate_thresh = f->packets_left * (100 - increased_pkt_rate_pos_) / 100;
+  // }
+  if (100 * rng_.GetReal() <= increased_pkt_rate_freq_) {
     f->increased_rate_thresh = f->packets_left * (100 - increased_pkt_rate_pos_) / 100;
   }
 
