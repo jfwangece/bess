@@ -1,0 +1,16 @@
+#
+# This pipeline bounces all traffic back
+#
+
+import scapy.all as scapy
+
+pcie0=str($BESS_PCIE!'06:10.0')
+intr_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1, enable_interrupt=1)
+
+port_inc::PortInc(port=intr_port0)
+port_out::PortOut(port=intr_port0)
+
+port_inc -> MACSwap() -> port_out
+
+bess.add_worker(wid=1, core=1)
+port_inc.attach_task(wid=1)
