@@ -121,6 +121,10 @@ class PMDPort final : public Port {
    */
   int SendPackets(queue_t qid, bess::Packet **pkts, int cnt) override;
 
+  void TurnOnOffIntr(queue_t qid, bool on);
+
+  void SleepUntilRxInterrupt();
+
   uint64_t GetFlags() const override {
     return DRIVER_FLAG_SELF_INC_STATS | DRIVER_FLAG_SELF_OUT_STATS;
   }
@@ -148,6 +152,16 @@ class PMDPort final : public Port {
    * True if device did not exist when bessd started and was later patched in.
    */
   bool hot_plugged_;
+
+  /*!
+   * True if the PMD is on the interrupt mode.
+   */
+  bool intr_enabled_;
+
+  /*!
+   * The number of idle queues of this NIC / port.
+   */
+  int lcore_rx_idle_count_;
 
   /*!
    * The NUMA node to which device is attached

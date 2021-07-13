@@ -54,6 +54,20 @@ static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
   return ret;
 }
 
+void PMDPort::TurnOnOffIntr(queue_t qid, bool on) {
+  if (on) {
+    rte_eth_dev_rx_intr_enable(dpdk_port_id_, qid);
+  } else {
+    rte_eth_dev_rx_intr_disable(dpdk_port_id_, qid);
+  }
+}
+
+void PMDPort::SleepUntilRxInterrupt() {
+  int num = 1;
+  struct rte_epoll_event event[1];
+  rte_epoll_wait(RTE_EPOLL_PER_THREAD, event, num, 10);
+}
+
 void PMDPort::InitDriver() {
   dpdk_port_t num_dpdk_ports = rte_eth_dev_count_avail();
 
@@ -246,6 +260,12 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
     eth_conf.lpbk_mode = 1;
   }
 
+  lcore_rx_idle_count_ = 0;
+  intr_enabled_ = false;
+  if (arg.enable_interrupt()) {
+    intr_enabled_ = true;
+  }
+
   ret = rte_eth_dev_configure(ret_port_id, num_rxq, num_txq, &eth_conf);
   if (ret != 0) {
     return CommandFailure(-ret, "rte_eth_dev_configure() failed");
@@ -326,6 +346,19 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
     return CommandFailure(-ret, "rte_eth_dev_start() failed");
   }
   dpdk_port_id_ = ret_port_id;
+
+  // Enable interrupt
+  if (intr_enabled_) {
+    uint32_t data = 0;
+    ret = rte_eth_dev_rx_intr_ctl_q(dpdk_port_id_, 0,
+						RTE_EPOLL_PER_THREAD,
+						RTE_INTR_EVENT_ADD,
+						(void *)((uintptr_t)data));
+    if (ret != 0) {
+      intr_enabled_ = false;
+      LOG(WARNING) << "Failed to enable interrupt for port " << dpdk_port_id_;
+    }
+  }
 
   int numa_node = rte_eth_dev_socket_id(static_cast<int>(ret_port_id));
   node_placement_ =
@@ -477,8 +510,19 @@ void PMDPort::CollectStats(bool reset) {
 }
 
 int PMDPort::RecvPackets(queue_t qid, bess::Packet **pkts, int cnt) {
-  return rte_eth_rx_burst(dpdk_port_id_, qid,
-                          reinterpret_cast<rte_mbuf **>(pkts), cnt);
+start_rx:
+  int recv = rte_eth_rx_burst(dpdk_port_id_, qid,
+                              reinterpret_cast<rte_mbuf **>(pkts), cnt);
+  if (!intr_enabled_) {
+    return recv;
+  }
+  if (recv == 0) {
+    TurnOnOffIntr(qid, 1);
+    SleepUntilRxInterrupt();
+    TurnOnOffIntr(qid, 0);
+    goto start_rx;
+  }
+  return 0;
 }
 
 int PMDPort::SendPackets(queue_t qid, bess::Packet **pkts, int cnt) {
