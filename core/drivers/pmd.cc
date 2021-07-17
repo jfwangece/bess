@@ -36,6 +36,10 @@
 #include "../utils/ether.h"
 #include "../utils/format.h"
 
+namespace {
+#define MIN_ZERO_POLL_COUNT 10
+}
+
 static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
                                            int nb_rxq) {
   rte_eth_conf ret = {};
@@ -264,6 +268,7 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   intr_enabled_ = false;
   if (arg.enable_interrupt()) {
     intr_enabled_ = true;
+    eth_conf.intr_conf.rxq = 1;
   }
 
   ret = rte_eth_dev_configure(ret_port_id, num_rxq, num_txq, &eth_conf);
@@ -349,14 +354,14 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
 
   // Enable interrupt
   if (intr_enabled_) {
-    uint32_t data = 0;
+    uint32_t data = dpdk_port_id_ << CHAR_BIT | 0;
     ret = rte_eth_dev_rx_intr_ctl_q(dpdk_port_id_, 0,
 						RTE_EPOLL_PER_THREAD,
 						RTE_INTR_EVENT_ADD,
 						(void *)((uintptr_t)data));
     if (ret != 0) {
       intr_enabled_ = false;
-      LOG(WARNING) << "Failed to enable interrupt for port " << dpdk_port_id_;
+      LOG(WARNING) << "Failed to enable interrupt for port " << dpdk_port_id_ << ". Error code " << ret;
     }
   }
 
@@ -517,12 +522,19 @@ start_rx:
     return recv;
   }
   if (recv == 0) {
-    TurnOnOffIntr(qid, 1);
-    SleepUntilRxInterrupt();
-    TurnOnOffIntr(qid, 0);
-    goto start_rx;
+    lcore_rx_idle_count_ += 1;
+    if (lcore_rx_idle_count_ > MIN_ZERO_POLL_COUNT) {
+      TurnOnOffIntr(qid, 1);
+      SleepUntilRxInterrupt();
+      TurnOnOffIntr(qid, 0);
+      lcore_rx_idle_count_ = 0;
+      goto start_rx;
+    }
+  } else {
+    lcore_rx_idle_count_ = 0;
   }
-  return 0;
+
+  return recv;
 }
 
 int PMDPort::SendPackets(queue_t qid, bess::Packet **pkts, int cnt) {
