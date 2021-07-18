@@ -37,7 +37,7 @@
 #include "../utils/format.h"
 
 namespace {
-#define MIN_ZERO_POLL_COUNT 10
+#define MIN_ZERO_POLL_COUNT 100
 }
 
 static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
