@@ -4,7 +4,7 @@
 
 import scapy.all as scapy
 
-pcie0=str($BESS_PCIE!'06:10.0')
+pcie0=str($BESS_PCIE!'06:00.0')
 intr_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1, enable_interrupt=1)
 
 port_inc::PortInc(port=intr_port0)
