@@ -36,8 +36,15 @@
 #include "../utils/ether.h"
 #include "../utils/format.h"
 
+#include <sys/syscall.h>
+#include <sched.h>
+
 namespace {
 #define MIN_ZERO_POLL_COUNT 100
+#define gettid() syscall(SYS_gettid)
+
+bool rt_on = false;
+struct sched_param RT_HIGH_PRIORITY = { .sched_priority = 41, };
 }
 
 static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
@@ -515,6 +522,12 @@ void PMDPort::CollectStats(bool reset) {
 }
 
 int PMDPort::RecvPackets(queue_t qid, bess::Packet **pkts, int cnt) {
+  // Set the lcore thread to be RT thread
+  if (!rt_on) {
+    sched_setscheduler(gettid(), SCHED_FIFO, &RT_HIGH_PRIORITY);
+    rt_on = true;
+  }
+
 start_rx:
   int recv = rte_eth_rx_burst(dpdk_port_id_, qid,
                               reinterpret_cast<rte_mbuf **>(pkts), cnt);

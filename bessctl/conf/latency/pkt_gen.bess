@@ -41,7 +41,7 @@ flowgens = dict()
 for i in range(num_cores):
     flowgens[i] = Source()
     flowgens[i] -> Rewrite(templates=[pkt_data]) -> Timestamp(offset=ts_offset) -> QueueOut(port=port0, qid=i)
-    flowgens[i].SetBurst(burst=1)
+    flowgens[i].set_burst(burst=1)
 
 port_inc -> Measure(offset=ts_offset) -> Sink()
 
