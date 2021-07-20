@@ -44,6 +44,7 @@ namespace {
 #define MIN_ZERO_POLL_PERIOD_US 50
 #define gettid() syscall(SYS_gettid)
 
+bool intr_on = false;
 bool rt_on = false;
 struct sched_param RT_HIGH_PRIORITY = { .sched_priority = 41, };
 }
@@ -376,19 +377,6 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   // Reset hardware stat counters, as they may still contain previous data
   CollectStats(true);
 
-  // Enable interrupt
-  if (intr_enabled_) {
-    uint32_t data = dpdk_port_id_ << CHAR_BIT | 0;
-    ret = rte_eth_dev_rx_intr_ctl_q(dpdk_port_id_, 0,
-						RTE_EPOLL_PER_THREAD,
-						RTE_INTR_EVENT_ADD,
-						(void *)((uintptr_t)data));
-    if (ret != 0) {
-      intr_enabled_ = false;
-      LOG(WARNING) << "Failed to enable interrupt for port " << dpdk_port_id_ << ". Error code " << ret;
-    }
-  }
-
   driver_ = dev_info.driver_name ?: "unknown";
 
   return CommandSuccess();
@@ -530,7 +518,21 @@ void PMDPort::CollectStats(bool reset) {
 
 int PMDPort::RecvPackets(queue_t qid, bess::Packet **pkts, int cnt) {
   // Set the lcore thread to be RT thread
-  if (rt_enabled_ && !rt_on) {
+  if (unlikely(intr_enabled_ && !intr_on)) {
+    // Enable interrupt
+    uint32_t data = dpdk_port_id_ << CHAR_BIT | 0;
+    int ret = rte_eth_dev_rx_intr_ctl_q(dpdk_port_id_, 0,
+						RTE_EPOLL_PER_THREAD,
+						RTE_INTR_EVENT_ADD,
+						(void *)((uintptr_t)data));
+    if (ret != 0) {
+      intr_enabled_ = false;
+      LOG(WARNING) << "Failed to enable interrupt for port " << dpdk_port_id_ << ". Error code " << ret;
+    } else {
+      intr_on = true;
+    }
+  }
+  if (unlikely(rt_enabled_ && !rt_on)) {
     sched_setscheduler(gettid(), SCHED_FIFO, &RT_HIGH_PRIORITY);
     rt_on = true;
   }
