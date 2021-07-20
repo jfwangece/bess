@@ -77,7 +77,7 @@ void PMDPort::TurnOnOffIntr(queue_t qid, bool on) {
 void PMDPort::SleepUntilRxInterrupt() {
   int num = 1;
   struct rte_epoll_event event[1];
-  rte_epoll_wait(RTE_EPOLL_PER_THREAD, event, num, 10);
+  rte_epoll_wait(RTE_EPOLL_PER_THREAD, event, num, 1);
 }
 
 void PMDPort::InitDriver() {
@@ -278,6 +278,7 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   rt_enabled_ = false;
   if (arg.enable_interrupt()) {
     intr_enabled_ = true;
+    eth_conf.intr_conf.lsc = 1;
     eth_conf.intr_conf.rxq = 1;
   }
   if (arg.enable_rt()) {
@@ -365,6 +366,16 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   }
   dpdk_port_id_ = ret_port_id;
 
+  int numa_node = rte_eth_dev_socket_id(static_cast<int>(ret_port_id));
+  node_placement_ =
+      numa_node == -1 ? UNCONSTRAINED_SOCKET : (1ull << numa_node);
+
+  rte_eth_macaddr_get(dpdk_port_id_,
+                      reinterpret_cast<rte_ether_addr *>(conf_.mac_addr.bytes));
+
+  // Reset hardware stat counters, as they may still contain previous data
+  CollectStats(true);
+
   // Enable interrupt
   if (intr_enabled_) {
     uint32_t data = dpdk_port_id_ << CHAR_BIT | 0;
@@ -377,16 +388,6 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
       LOG(WARNING) << "Failed to enable interrupt for port " << dpdk_port_id_ << ". Error code " << ret;
     }
   }
-
-  int numa_node = rte_eth_dev_socket_id(static_cast<int>(ret_port_id));
-  node_placement_ =
-      numa_node == -1 ? UNCONSTRAINED_SOCKET : (1ull << numa_node);
-
-  rte_eth_macaddr_get(dpdk_port_id_,
-                      reinterpret_cast<rte_ether_addr *>(conf_.mac_addr.bytes));
-
-  // Reset hardware stat counters, as they may still contain previous data
-  CollectStats(true);
 
   driver_ = dev_info.driver_name ?: "unknown";
 
