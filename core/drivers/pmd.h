@@ -159,9 +159,21 @@ class PMDPort final : public Port {
   bool intr_enabled_;
 
   /*!
+   * True if the polling thread uses Linux RT thread.
+   */
+  bool rt_enabled_;
+
+  /*!
    * The number of idle queues of this NIC / port.
    */
   int lcore_rx_idle_count_;
+
+  /*!
+   * The timestamp of the start of this idle period
+   * If zero, this NIC queue has been receiving packets
+   */
+  uint64_t lcore_rx_idle_ts_;
+  uint64_t now_;
 
   /*!
    * The NUMA node to which device is attached

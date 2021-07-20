@@ -41,6 +41,7 @@
 
 namespace {
 #define MIN_ZERO_POLL_COUNT 100
+#define MIN_ZERO_POLL_PERIOD_US 50
 #define gettid() syscall(SYS_gettid)
 
 bool rt_on = false;
@@ -272,10 +273,15 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   }
 
   lcore_rx_idle_count_ = 0;
+  lcore_rx_idle_ts_ = 0;
   intr_enabled_ = false;
+  rt_enabled_ = false;
   if (arg.enable_interrupt()) {
     intr_enabled_ = true;
     eth_conf.intr_conf.rxq = 1;
+  }
+  if (arg.enable_rt()) {
+    rt_enabled_ = true;
   }
 
   ret = rte_eth_dev_configure(ret_port_id, num_rxq, num_txq, &eth_conf);
@@ -523,7 +529,7 @@ void PMDPort::CollectStats(bool reset) {
 
 int PMDPort::RecvPackets(queue_t qid, bess::Packet **pkts, int cnt) {
   // Set the lcore thread to be RT thread
-  if (!rt_on) {
+  if (rt_enabled_ && !rt_on) {
     sched_setscheduler(gettid(), SCHED_FIFO, &RT_HIGH_PRIORITY);
     rt_on = true;
   }
@@ -534,17 +540,31 @@ start_rx:
   if (!intr_enabled_) {
     return recv;
   }
-  if (recv == 0) {
-    lcore_rx_idle_count_ += 1;
-    if (lcore_rx_idle_count_ > MIN_ZERO_POLL_COUNT) {
-      TurnOnOffIntr(qid, 1);
-      SleepUntilRxInterrupt();
-      TurnOnOffIntr(qid, 0);
-      lcore_rx_idle_count_ = 0;
-      goto start_rx;
+  if (recv == 0) {    
+    // lcore_rx_idle_count_ += 1;
+    // if (lcore_rx_idle_count_ > MIN_ZERO_POLL_COUNT) {
+    //   TurnOnOffIntr(qid, 1);
+    //   SleepUntilRxInterrupt();
+    //   TurnOnOffIntr(qid, 0);
+    //   lcore_rx_idle_count_ = 0;
+    //   goto start_rx;
+    // }
+
+    now_ = rdtsc();
+    if (lcore_rx_idle_ts_ == 0) {
+      lcore_rx_idle_ts_ = now_;
+    } else {
+      if (tsc_to_us(now_ - lcore_rx_idle_ts_) > MIN_ZERO_POLL_PERIOD_US) {
+        TurnOnOffIntr(qid, 1);
+        SleepUntilRxInterrupt();
+        TurnOnOffIntr(qid, 0);
+        lcore_rx_idle_ts_ = 0;
+        goto start_rx;
+      }
     }
   } else {
     lcore_rx_idle_count_ = 0;
+    lcore_rx_idle_ts_ = 0;
   }
 
   return recv;
