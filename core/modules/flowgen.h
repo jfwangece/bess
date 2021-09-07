@@ -189,6 +189,9 @@ class FlowGen final : public Module {
   int increased_pkt_rate_freq_;
   int increased_pkt_rate_pos_;  /* 0-100 (percentage) in terms of total flow duration */
   int increased_pkt_rate_ratio_;  /* the percent of increased packet rate */
+
+  uint64_t curr_pkt_cnt_; /* the total number of packets that have been generated */
+  uint64_t total_pkt_cnt_limit_; /* the total number of packets being generated */
 };
 
 #endif  // BESS_MODULES_FLOWGEN_H_

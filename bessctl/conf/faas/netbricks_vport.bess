@@ -1,0 +1,17 @@
+
+pcie_addr=str($BESS_PCIE!'06:10.2')
+nic_port::PMDPort(pci=pcie_addr, num_inc_q=1, num_out_q=1)
+nic_inc::PortInc(port=nic_port)
+nic_out::PortOut(port=nic_port)
+
+vport::VPortPrimary(pkt_copy=True)
+vport_inc::QueueInc(port=vport, qid=0)
+vport_out::QueueOut(port=vport, qid=0)
+
+nic_inc -> vport_out
+vport_inc -> nic_out
+
+bess.add_worker(2, 2)
+bess.add_worker(3, 3)
+nic_inc.attach_worker(wid=2)
+vport_inc.attach_worker(wid=3)

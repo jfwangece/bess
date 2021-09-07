@@ -1,0 +1,84 @@
+#
+# This is a traffic generator that generates many TCP flows.
+#
+
+import copy
+import scapy.all as scapy
+
+PACKET_OVERHEAD=24
+
+# This script generates a number of flows at a specified packet rate.
+pcie_addr = ['06:00.0', '06:00.1']
+num_cores = len(pcie_addr)
+core_offset = 8
+
+pkt_size=int($BESS_PKT_SIZE!'1500')
+num_flows=int($BESS_FLOWS!'200')
+flow_time=int($BESS_FLOW_TIME!'60') # in Seconds
+base_pkt_rate=int($BESS_INIT_RATE!'1000000')
+base_bit_rate=int($BESS_INIT_RATE!'9000000000')
+target_pkt_cnt = 1e8
+ts_offset = 100
+
+assert(len(pcie_addr) != 0)
+assert(pcie_addr[0])
+assert(1 <= num_cores <= 16)
+assert(60 <= pkt_size <= 1522)
+assert(64 <= ts_offset < pkt_size)
+
+pkt_size = min(pkt_size, base_bit_rate / base_pkt_rate / 8)
+
+# Create a "template" packet to use for generated flows.
+# All packets in flow will follow this formula; flowgen
+# changes dst IP to generate new connections.
+
+dst_ether=($BESS_DST_ETHER!'00:00:00:00:00:04')
+dst_ip=($BESS_DST_IP!'192.0.0.1')
+src_port=int($BESS_SRC_PORT!'10001')
+dst_port=int($BESS_DST_PORT!'8080')
+
+pkt_data = dict()
+lc_egress_dict = dict()
+lc_ingress_dict = dict()
+for i in range(num_cores):
+    src_ether = '00:15:4d:12:2b:%02d' %(i+1)
+    src_ip = '10.0.0.1'
+    eth = scapy.Ether(src=src_ether, dst=dst_ether)
+    ip = scapy.IP(src=src_ip, dst=dst_ip)
+    tcp = scapy.TCP(sport=src_port, dport=dst_port)
+    payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+
+    pkt = eth/ip/tcp/payload
+    pkt_data[i] = copy.deepcopy(bytes(pkt))
+    print("Packet size = %d bytes" %(len(pkt_data[i])))
+
+ports = [PMDPort(pci=addr, num_inc_q=1, num_out_q=1) for addr in pcie_addr]
+flowgens = dict()
+queues = dict()
+port_incs = dict()
+
+for i in range(num_cores):
+    flowgens[i] = FlowGen(template = pkt_data[i], \
+        pps = base_pkt_rate, \
+        flow_rate = num_flows / flow_time, \
+        flow_duration = flow_time, \
+        arrival = 'uniform', duration='uniform', quick_rampup=False, \
+        ip_src_range = 255, ip_dst_range = 255, ignore_synfin=True, pkt_cnt_limit=int(target_pkt_cnt/num_cores))
+    queues[i] = Queue()
+    port_incs[i] = PortInc(port=ports[i])
+
+    flowgens[i] -> Timestamp(offset=ts_offset) -> queues[i] -> PortOut(port=ports[i])
+    queues[i].set_burst(burst=1)
+    port_incs[i] -> Measure(offset=ts_offset) -> Sink()
+
+
+for wid in range(num_cores):
+    bess.add_worker(wid=3*wid+1, core=3*wid+1 + core_offset)
+    bess.add_worker(wid=3*wid+2, core=3*wid+2 + core_offset)
+    bess.add_worker(wid=3*wid+3, core=3*wid+3 + core_offset)
+
+    flowgens[wid].attach_task(wid=3*wid+1)
+    queues[wid].attach_task(wid=3*wid+2)
+    port_incs[wid].attach_task(wid=3*wid+3)
+
+bess.resume_all()

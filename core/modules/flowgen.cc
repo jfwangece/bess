@@ -283,6 +283,12 @@ CommandResponse FlowGen::ProcessUpdatableArguments(const bess::pb::FlowGenArg &a
     ignore_synfin_ = true;
   }
 
+  curr_pkt_cnt_ = 0;
+  total_pkt_cnt_limit_ = 0;
+  if (arg.pkt_cnt_limit()) {
+    total_pkt_cnt_limit_ = uint64_t(arg.pkt_cnt_limit());
+  }
+
   return CommandSuccess();
 }
 
@@ -567,7 +573,7 @@ void FlowGen::GeneratePackets(Context *ctx, bess::PacketBatch *batch) {
 
 struct task_result FlowGen::RunTask(Context *ctx, bess::PacketBatch *batch,
                                     void *) {
-  if (children_overload_ > 0) {
+  if (children_overload_ > 0 || (total_pkt_cnt_limit_ != 0 && curr_pkt_cnt_ >= total_pkt_cnt_limit_)) {
     return {
         .block = true, .packets = 0, .bits = 0,
     };
@@ -579,6 +585,7 @@ struct task_result FlowGen::RunTask(Context *ctx, bess::PacketBatch *batch,
   RunNextModule(ctx, batch);
 
   uint32_t cnt = batch->cnt();
+  curr_pkt_cnt_ += cnt;
   return {.block = (cnt == 0),
           .packets = cnt,
           .bits = ((template_size_ + pkt_overhead) * cnt) * 8};
