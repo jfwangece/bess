@@ -146,6 +146,14 @@ message ExactMatchCommandSetDefaultGateArg {
 }
 
 /**
+ * The FlowCounter module maintains a per-flow packet counter, and computes
+ * an instantaneous flow rate according.
+ */
+message FlowCounterArg {
+  bool is_mc = 1; /// Is this module running on multiple cores
+}
+
+/**
  * The FlowGen module has a command `set_burst(...)` that allows you to specify
  * the maximum number of packets to be stored in a single PacketBatch released
  * by the module.

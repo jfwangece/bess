@@ -1,0 +1,49 @@
+# This script benchmarks the flow counter per-packet cycle cost.
+# Note: FlowCounter supports two different modes (single-core and multi-core).
+
+import scapy.all as scapy
+
+PACKET_OVERHEAD=24
+
+# This script generates a number of flows at a specified packet rate.
+pcie_addr=str($BESS_PCIE!'81:00.0')
+num_cores=int($BESS_CORES!'1')
+pkt_size=int($BESS_PKT_SIZE!'1500')
+num_flows=int($BESS_FLOWS!'500')
+flow_time=int($BESS_FLOW_TIME!'10') # in Seconds
+base_pkt_rate=int($BESS_INIT_RATE!'4000000')
+base_bit_rate=int($BESS_INIT_RATE!'9500000000')
+ts_offset=int($BESS_TS_OFFSET!'68')
+
+src_ether=($BESS_SRC_ETHER!'00:15:4d:12:2b:f4')
+dst_ether=($BESS_DST_ETHER!'00:00:00:00:00:04')
+src_ip=($BESS_SRC_IP!'10.0.0.1')
+dst_ip=($BESS_DST_IP!'192.0.0.1')
+src_port=int($BESS_SRC_PORT!'10001')
+dst_port=int($BESS_DST_PORT!'2000')
+
+# Create a "template" packet to use for generated flows.
+# All packets in flow will follow this formula; flowgen
+# changes dst IP to generate new connections.
+eth = scapy.Ether(src=src_ether, dst=dst_ether)
+ip = scapy.IP(src=src_ip, dst=dst_ip)
+tcp = scapy.TCP(sport=src_port, dport=dst_port)
+payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+pkt = eth/ip/tcp/payload
+pkt_data = bytes(pkt)
+print("Packet size = %d bytes" %(len(pkt_data)))
+
+pktsrc = FlowGen(template = pkt_data, \
+        pps = base_pkt_rate / num_cores, \
+        flow_rate = num_flows / flow_time, \
+        flow_duration = flow_time, \
+        arrival = 'uniform', duration='uniform', quick_rampup=False, \
+        ip_src_range = 50, ip_dst_range = 50, ignore_synfin=True)
+
+fc::FlowCounter(is_mc=False)
+#fc::FlowCounter(is_mc=True)
+
+pktsrc -> Timestamp(offset=ts_offset) -> fc -> Measure(offset=ts_offset) -> Sink()
+bess.add_worker(wid=1, core=1)
+bess.add_worker(wid=2, core=2)
+pktsrc.attach_task(wid=1)

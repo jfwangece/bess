@@ -78,9 +78,9 @@ endif
 
 # We always want these libraries to be dynamically linked even when the
 # user requests a static build.
-ALWAYS_DYN_LIBS := -lpthread -ldl
+ALWAYS_DYN_LIBS := -lpthread -ldl -latomic_hash
 # These libraries are not supported by pkg-config.
-ALWAYS_LIBS := -lpcap -lgflags -lnuma
+ALWAYS_LIBS := -lpcap -lgflags -lnuma -lm
 # If pkg-config is available, we just need a list of the dependecies.
 PKG_CONFIG_DEPS := libglog protobuf grpc++ libunwind zlib hiredis
 # If pkg-config is not available, we need to list the libs we depend on.
