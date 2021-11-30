@@ -98,6 +98,8 @@ DPDK_DIR = '%s/%s' % (DEPS_DIR, DPDK_VER)
 DPDK_CFLAGS = '"-g -w"'
 DPDK_CONFIG = '%s/build/.config' % DPDK_DIR
 
+HIREDIS_DIR = '%s/hiredis' % (DEPS_DIR)
+
 extra_libs = set()
 cxx_flags = []
 ld_flags = []
@@ -330,6 +332,13 @@ def makeflags():
     return result
 
 
+def build_hiredis():
+    # not installed yet?
+    print('Building hiredis')
+    out = cmd('cd %s && make && sudo make install' % (HIREDIS_DIR), False, True)
+    print(out)
+
+
 def build_dpdk():
     check_essential()
     download_dpdk(quiet=True)
@@ -488,6 +497,7 @@ def main():
     cmds = {
         'all': build_all,
         'download_dpdk': download_dpdk,
+        'hiredis': build_hiredis,
         'dpdk': build_dpdk,
         'bess': build_bess,
         'kmod': build_kmod,
