@@ -20,17 +20,7 @@ except:
 
 src = PortInc(port=pmd_port)
 queue = Queue(size=pow(2,24))
+replicate = Replicate(gates=[0, 1])
 
-src -> queue -> Sink()
-
-bess.add_worker(wid=1, core=1)
-bess.add_worker(wid=2, core=2)
-bess.add_tc('rl',
-            policy='rate_limit',
-            resource='packet',
-            limit={'packet': 1000},
-            wid=2)
-src.attach_task(wid=1)
-queue.attach_task(parent='rl')
-
-bess.resume_all()
+src -> queue -> replicate -> Sink()
+replicate:1 -> queue
