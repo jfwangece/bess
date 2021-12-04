@@ -31,6 +31,11 @@ syntax = "proto3";
 
 package bess.pb;
 
+message PCAPReaderArg {
+  string dev = 1;
+  bool timestamp = 2;
+}
+
 message PCAPPortArg {
   string dev = 1;
 }
