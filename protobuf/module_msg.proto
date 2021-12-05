@@ -1079,6 +1079,10 @@ message RandomUpdateArg {
   repeated Field fields = 1; /// A list of Random Update Fields.
 }
 
+message ReplayerArg {
+  uint64 offset = 1;
+}
+
 /**
  * The Rewrite module replaces an entire packet body with a packet "template"
  * converting all packets that pass through to copies of the of one of

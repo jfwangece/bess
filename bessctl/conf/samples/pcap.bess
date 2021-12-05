@@ -11,24 +11,23 @@ PCAPFILE = $PCAP!""
 assert PCAPFILE
 print("Target PCAP file: %s" %(PCAPFILE))
 
+tag_offset = 72
 pcap_file = '{}'.format(PCAPFILE)
 
-try:
-    pmd_port = PCAPReader(dev='{}'.format(pcap_file))
-except:
-    pmd_port = PCAPReader(dev='{}'.format(pcap_file))
-
+pmd_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
 src = PortInc(port=pmd_port)
 queue = Queue(size=pow(2,24))
+queue.set_burst(burst=8)
+rp = Replayer(offset=tag_offset)
 
-src -> queue -> Sink()
+src -> queue -> rp -> Sink()
 
 bess.add_worker(wid=1, core=1)
 bess.add_worker(wid=2, core=2)
 bess.add_tc('rl',
             policy='rate_limit',
             resource='packet',
-            limit={'packet': 1000},
+            limit={'packet': 1000000},
             wid=2)
 src.attach_task(wid=1)
 queue.attach_task(parent='rl')
