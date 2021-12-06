@@ -28,8 +28,8 @@ class PCAPReader final : public Port {
   // The module's pcap file handler
   pcap_t *pcap_handle_ = nullptr;
   // Initial time origin
-  uint32_t init_tsec_;
-  uint32_t init_tusec_;
+  uint64_t init_tsec_;
+  uint64_t init_tusec_;
   uint64_t global_init_ts_;
 };
 

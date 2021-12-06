@@ -17,7 +17,7 @@ pcap_file = '{}'.format(PCAPFILE)
 pmd_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
 src = PortInc(port=pmd_port)
 queue = Queue(size=pow(2,24))
-queue.set_burst(burst=8)
+queue.set_burst(burst=2)
 rp = Replayer(offset=tag_offset)
 
 src -> queue -> rp -> Sink()

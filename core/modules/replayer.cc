@@ -30,7 +30,6 @@ void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     uint64_t pkt_time = 0;
     GetTimestamp(batch->pkts()[i], offset_, &pkt_time);
     if (pkt_time) {
-      std::cout << pkt_time << ", " << tsc_to_us(rdtsc());
 checktime:
       if (tsc_to_us(rdtsc()) > pkt_time) {
         EmitPacket(ctx, batch->pkts()[i], 0);

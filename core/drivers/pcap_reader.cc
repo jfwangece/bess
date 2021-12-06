@@ -48,8 +48,8 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
     if (!pkt_) {
       return CommandFailure(EINVAL, "Error reading an empty pcap file.");
     }
-    init_tsec_ = pkthdr_.ts.tv_sec & 0xFFFFFFFF;
-    init_tusec_ = pkthdr_.ts.tv_usec & 0xFFFFFFFF;
+    init_tsec_ = pkthdr_.ts.tv_sec;
+    init_tusec_ = pkthdr_.ts.tv_usec;
     global_init_ts_ = tsc_to_us(rdtsc());
   }
 
@@ -128,8 +128,8 @@ alloc:
 
     if (is_timestamp_) {
       // Tag packet: to calculate the global timestamp (in usec) of this packet
-      uint32_t tsec = pkthdr_.ts.tv_sec & 0xFFFFFFFF;
-      uint32_t tusec = pkthdr_.ts.tv_usec & 0xFFFFFFFF;
+      uint64_t tsec = pkthdr_.ts.tv_sec;
+      uint64_t tusec = pkthdr_.ts.tv_usec;
       uint64_t ts = global_init_ts_ + ((tsec - init_tsec_) * 1000000 + tusec - init_tusec_);
       tag_packet(pkt, offset_, ts);
     }
