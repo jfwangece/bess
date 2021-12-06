@@ -157,18 +157,14 @@ void DistributedFlowCounter::Clear() {
 void DistributedFlowCounter::Start() {
   mcslock_node_t mynode;
   mcs_lock(&lock_, &mynode);
-
   is_active_ = true;
-
   mcs_unlock(&lock_, &mynode);
 }
 
 void DistributedFlowCounter::Stop() {
   mcslock_node_t mynode;
   mcs_lock(&lock_, &mynode);
-
   is_active_ = false;
-
   mcs_unlock(&lock_, &mynode);
 }
 

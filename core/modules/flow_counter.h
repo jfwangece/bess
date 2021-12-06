@@ -1,7 +1,6 @@
 #ifndef BESS_MODULES_DISTRIBUTED_FLOW_COUNTER_H_
 #define BESS_MODULES_DISTRIBUTED_FLOW_COUNTER_H_
 
-#include <atomic_hash.h>
 #include <hiredis/hiredis.h>
 #include <set>
 #include <tuple>
@@ -17,7 +16,7 @@ class FlowCounter final: public Module {
 public:
   static const Commands cmds;
 
-  CommandResponse Init(const bess::pb::FlowCounterArg &arg);
+  CommandResponse Init(const bess::pb::FlowCounterArg &);
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &);
   CommandResponse CommandStart(const bess::pb::EmptyArg &);
   CommandResponse CommandStop(const bess::pb::EmptyArg &);
@@ -33,11 +32,8 @@ private:
   void Clear();
   void Reset();
 
-  bool is_mc_ = false;
+  // If true, this module is actively counting packets.
   bool is_active_ = false;
-
-  hash_t *phash_ = nullptr;
-
   // The local flow counter cache.
   std::set<std::tuple<be32_t, be32_t, uint8_t, be16_t, be16_t>> flow_cache_;
 

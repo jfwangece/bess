@@ -14,33 +14,6 @@ using bess::utils::Tcp;
 using bess::utils::Udp;
 using bess::utils::be32_t;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-int cb_dup (void *data, void *arg)
-{
-  return -2;
-}
-int cb_add (void *data, void *arg)
-{
-  return -3;
-}
-int cb_get (void *data, void *arg)
-{
-  *((void **)arg) = strdup((const char*)data);
-  return -3;
-}
-int cb_del (void *data, void *arg)
-{
-  free (data);
-  return -1;
-}
-int cb_ttl (void *data, void *arg)
-{
-  free (data);
-  return -1;
-}
-#pragma GCC diagnostic pop
-
 const Commands FlowCounter::cmds = {
   {"clear", "EmptyArg", MODULE_CMD_FUNC(&FlowCounter::CommandClear),
    Command::THREAD_SAFE},
@@ -48,21 +21,11 @@ const Commands FlowCounter::cmds = {
    MODULE_CMD_FUNC(&FlowCounter::CommandGetSummary), Command::THREAD_SAFE},
 };
 
-CommandResponse FlowCounter::Init(
-    const bess::pb::FlowCounterArg &arg) {
+CommandResponse FlowCounter::Init(const bess::pb::FlowCounterArg &) {
   flow_cache_.clear();
   is_active_ = true;
-  is_mc_ = false;
-  if (arg.is_mc()) {
-    is_mc_ = true;
-    phash_ = atomic_hash_create(100, 0);
-    phash_->on_add = cb_add;
-    phash_->on_ttl = cb_ttl;
-    phash_->on_dup = cb_dup;
-    phash_->on_get = cb_get;
-    phash_->on_del = cb_del;
-  }
   mcs_lock_init(&lock_);
+
   return CommandSuccess();
 }
 
@@ -92,9 +55,6 @@ void FlowCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     } else {
       continue;
     }
-
-    std::string key ("FC:");
-    std::string field ("timestamp");
 
     auto curr_flow = std::make_tuple(ip->src, ip->dst, ip->protocol, sport, dport);
     bool found = flow_cache_.find(curr_flow) != flow_cache_.end();
@@ -127,18 +87,14 @@ void FlowCounter::Clear() {
 void FlowCounter::Start() {
   mcslock_node_t mynode;
   mcs_lock(&lock_, &mynode);
-
   is_active_ = true;
-
   mcs_unlock(&lock_, &mynode);
 }
 
 void FlowCounter::Stop() {
   mcslock_node_t mynode;
   mcs_lock(&lock_, &mynode);
-
   is_active_ = false;
-
   mcs_unlock(&lock_, &mynode);
 }
 
@@ -171,4 +127,4 @@ CommandResponse FlowCounter::CommandGetSummary(const bess::pb::EmptyArg &) {
 }
 
 ADD_MODULE(FlowCounter, "FlowCounter",
-          "Counts the number of flows observed in a distributed way")
+          "Counts the number of flows observed by this instance")
