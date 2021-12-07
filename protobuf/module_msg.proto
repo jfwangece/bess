@@ -181,6 +181,18 @@ message FlowGenCommandSetBurstArg {
 }
 
 /**
+ * The FlowLB module maintains a per-flow endhost-endhost mapping via
+ * a connection table. For each new connection, it uses a random index
+ * to pick a backend server from the global server pool table.
+ */
+message FlowLBArg {
+  message EndhostAddr {
+    string endpoint = 1;
+  }
+  repeated EndhostAddr endpoints = 1;
+}
+
+/**
  * The HashLB module has a command `set_mode(...)` which takes two parameters.
  * The `mode` parameter specifies whether the load balancer will hash over the
  * src/dest ethernet header (`'l2'`), over the src/dest IP addresses (`'l3'`), or over
