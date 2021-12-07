@@ -1,37 +1,8 @@
-// Copyright (c) 2016-2017, Nefeli Networks, Inc.
-// All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met:
-//
-// * Redistributions of source code must retain the above copyright notice, this
-// list of conditions and the following disclaimer.
-//
-// * Redistributions in binary form must reproduce the above copyright notice,
-// this list of conditions and the following disclaimer in the documentation
-// and/or other materials provided with the distribution.
-//
-// * Neither the names of the copyright holders nor the names of their
-// contributors may be used to endorse or promote products derived from this
-// software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
-// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-// POSSIBILITY OF SUCH DAMAGE.
-
 #include "flow_acl.h"
 
 #include "../utils/ether.h"
 #include "../utils/ip.h"
-#include "../utils/udp.h"
+#include "../utils/tcp.h"
 
 const Commands FlowACL::cmds = {
     {"add", "FlowACLArg", MODULE_CMD_FUNC(&FlowACL::CommandAdd),
@@ -65,7 +36,7 @@ CommandResponse FlowACL::CommandClear(const bess::pb::EmptyArg &) {
 void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   using bess::utils::Ethernet;
   using bess::utils::Ipv4;
-  using bess::utils::Udp;
+  using bess::utils::Tcp;
 
   gate_idx_t incoming_gate = ctx->current_igate;
 
@@ -75,24 +46,35 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     Ethernet *eth = pkt->head_data<Ethernet *>();
     Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
+
+    if (ip->protocol != Ipv4::Proto::kTcp) {
+      EmitPacket(ctx, pkt, 0);
+      continue;
+    }
+
     size_t ip_bytes = ip->header_length << 2;
-    Udp *udp = reinterpret_cast<Udp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
+    Tcp *tcp =
+        reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
 
     Flow flow;
     flow.src_ip = ip->src;
     flow.dst_ip = ip->dst;
-    flow.src_port = udp->src_port;
-    flow.dst_port = udp->dst_port;
+    flow.src_port = tcp->src_port;
+    flow.dst_port = tcp->dst_port;
 
     // Find existing flow, if we have one.
     std::unordered_map<Flow, bool, FlowHash>::iterator it =
         flow_cache_.find(flow);
 
     bool emitted = false;
-    if (it != flow_cache_.end()) {
+    if (it != flow_cache_.end()) { // an existing flow
       if (!it->second) { // if not drop
         emitted = true;
         EmitPacket(ctx, pkt, incoming_gate);
+      }
+
+      if (tcp->flags & Tcp::Flag::kFin) {
+        flow_cache_.erase(it);
       }
     } else { // by default, drop a new flow.
       std::tie(it, std::ignore) = flow_cache_.emplace(
@@ -100,7 +82,7 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       it->second = true;
 
       for (const auto &rule : rules_) {
-        if (rule.Match(ip->src, ip->dst, udp->src_port, udp->dst_port)) {
+        if (rule.Match(ip->src, ip->dst, tcp->src_port, tcp->dst_port)) {
           if (!rule.drop) {
             emitted = true;
             EmitPacket(ctx, pkt, incoming_gate);
