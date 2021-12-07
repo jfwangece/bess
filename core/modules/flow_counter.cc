@@ -126,5 +126,5 @@ CommandResponse FlowCounter::CommandGetSummary(const bess::pb::EmptyArg &) {
   return CommandSuccess(r);
 }
 
-ADD_MODULE(FlowCounter, "FlowCounter",
+ADD_MODULE(FlowCounter, "flow_counter",
           "Counts the number of flows observed by this instance")

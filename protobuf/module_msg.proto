@@ -145,6 +145,24 @@ message ExactMatchCommandSetDefaultGateArg {
   uint64 gate = 1; /// The gate number to send the default traffic out.
 }
 
+/*
+ * The FlowACL module maintains a per-flow hash table that stores the ACL decison.
+ */
+message FlowACLArg {
+  /**
+   * One ACL rule is represented by the following 6-tuple.
+   */
+  message Rule {
+    string src_ip = 1;    /// Source IP block in CIDR. Wildcard if "".
+    string dst_ip = 2;    /// Destination IP block in CIDR. Wildcard if "".
+    uint32 src_port = 3;  /// TCP/UDP source port. Wildcard if 0.
+    uint32 dst_port = 4;  /// TCP/UDP Destination port. Wildcard if 0.
+    bool established = 5; /// Not implemented
+    bool drop = 6;        /// Drop matched packets if true, forward if false. By default ACL drops all traffic.
+  }
+  repeated Rule rules = 1; ///A list of ACL rules.
+}
+
 /**
  * The FlowCounter module maintains a per-flow packet counter, and computes
  * an instantaneous flow rate according.

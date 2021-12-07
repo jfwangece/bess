@@ -27,52 +27,54 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef BESS_MODULES_SnortIDS_H_
-#define BESS_MODULES_SnortIDS_H_
-
-#include <rte_config.h>
-#include <rte_hash_crc.h>
+#ifndef BESS_MODULES_FLOW_ACL_H_
+#define BESS_MODULES_FLOW_ACL_H_
 
 #include <map>
-#include <string>
-#include <tuple>
-#include <utility>
 #include <vector>
-#include <queue>
 
 #include "../module.h"
-#include "../packet.h"
 #include "../pb/module_msg.pb.h"
 #include "../utils/flow.h"
-#include "../utils/trie.h"
+#include "../utils/ip.h"
 
-using bess::utils::TcpFlowReconstruct;
-using bess::utils::Trie;
 using bess::utils::be16_t;
 using bess::utils::be32_t;
+using bess::utils::Ipv4Prefix;
 using bess::utils::Flow;
 using bess::utils::FlowHash;
 using bess::utils::FlowRecord;
 
-// A module of HTTP URL filtering. Ends an HTTP connection if the Host field
-// matches the blacklist.
-// igate/ogate 0: traffic from internal network to external network
-// igate/ogate 1: traffic from external network to internal network
-class SnortIDS final : public Module {
+class FlowACL final : public Module {
  public:
-  typedef std::pair<std::string, std::string> Url;
+  struct ACLRule {
+    bool Match(be32_t sip, be32_t dip, be16_t sport, be16_t dport) const {
+      return src_ip.Match(sip) && dst_ip.Match(dip) &&
+             (src_port == be16_t(0) || src_port == sport) &&
+             (dst_port == be16_t(0) || dst_port == dport);
+    }
+
+    Ipv4Prefix src_ip;
+    Ipv4Prefix dst_ip;
+    be16_t src_port;
+    be16_t dst_port;
+    bool drop;
+  };
 
   static const Commands cmds;
-  static const gate_idx_t kNumIGates = 2;
-  static const gate_idx_t kNumOGates = 2;
 
-  CommandResponse Init([[maybe_unused]]const bess::pb::SnortArg &arg);
+  FlowACL() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; }
+
+  CommandResponse Init(const bess::pb::FlowACLArg &arg);
 
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
+  CommandResponse CommandAdd(const bess::pb::FlowACLArg &arg);
+  CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
+
  private:
-  std::unordered_map<std::string, Trie<std::tuple<>>> blacklist_;
-  std::unordered_map<Flow, FlowRecord, FlowHash> flow_cache_;
+  std::vector<ACLRule> rules_;
+  std::unordered_map<Flow, bool, FlowHash> flow_cache_;
 };
 
-#endif  // BESS_MODULES_SnortIDS_H_
+#endif  // BESS_MODULES_FLOW_ACL_H_
