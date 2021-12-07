@@ -1,0 +1,42 @@
+#ifndef BESS_MODULES_FLOW_IP_LOOKUP_H_
+#define BESS_MODULES_FLOW_IP_LOOKUP_H_
+
+#include <map>
+#include <vector>
+
+#include "../module.h"
+#include "../pb/module_msg.pb.h"
+#include "../utils/flow.h"
+#include "../utils/ip.h"
+
+using bess::utils::be16_t;
+using bess::utils::be32_t;
+using bess::utils::Flow;
+using bess::utils::FlowHash;
+
+class FlowIPLookup final : public Module {
+ public:
+  static const Commands cmds;
+
+  FlowIPLookup() : Module(), lpm_(), default_gate_() {
+    max_allowed_workers_ = Worker::kMaxWorkers;
+  }
+
+  CommandResponse Init(const bess::pb::FlowIPLookupArg &arg);
+
+  void DeInit() override;
+
+  void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
+
+ private:
+  // For longest prefix matching
+  struct rte_lpm *lpm_;
+  // Per-flow connection table
+  std::unordered_map<Flow, be32_t, FlowHash> flow_cache_;
+  // Default next hop
+  gate_idx_t default_gate_;
+
+  ParsedPrefix ParseIpv4Prefix(const std::string &prefix, uint64_t prefix_len);
+};
+
+#endif  // BESS_MODULES_FLOW_IP_LOOKUP_H_
