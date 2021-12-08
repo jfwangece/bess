@@ -15,9 +15,12 @@ public:
   typedef std::tuple<be32_t, be32_t, uint8_t, be16_t, be16_t> FlowTuple;
   struct PerFlowCounter {
     PerFlowCounter() = default;
-    PerFlowCounter(uint64_t cnt, uint64_t tsc): pkt_cnt(cnt), last_pkt_tsc(tsc) {};
+    PerFlowCounter(uint64_t cnt, uint64_t tsc): pkt_cnt(cnt), last_pkt_tsc(tsc) {
+      temp_pkt_cnt = 1;
+    };
 
     uint64_t pkt_cnt;
+    uint64_t temp_pkt_cnt;
     uint64_t last_pkt_tsc;
   };
 
@@ -42,6 +45,7 @@ private:
   // The current flow arrival rate.
   double flow_arrival_rate_ = 0;
   double peak_flow_arrival_rate_ = 0;
+  double peak_per_flow_pkt_rate_ = 0;
 
   // The current number of active flows.
   uint32_t active_flows_ = 0;

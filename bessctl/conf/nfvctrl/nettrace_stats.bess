@@ -1,0 +1,35 @@
+#
+# This script demonstrates the usage of the FlowStats module.
+#
+import scapy.all as scapy
+
+PCAPFILE = $PCAP!""
+assert PCAPFILE
+print("Target PCAP file: %s" %(PCAPFILE))
+
+tag_offset = 72
+pcap_file = '{}'.format(PCAPFILE)
+
+pmd_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
+src = PortInc(port=pmd_port)
+queue = Queue(size=pow(2,24))
+queue.set_burst(burst=4)
+replayer = Replayer(offset=tag_offset)
+
+# Use this following command to get real-time traffic statistics
+# command module flowstats get_summary EmptyArg
+flowstats::FlowStats(measure_period = 0.1, flow_timeout = 10.0)
+
+# for the backbone trace, "168.123.253.24:443-131.196.174.19:51791"
+# for the AS trace, "133.23.34.115:40982-13.107.178.22:443"
+acl::ACL(rules=[
+    {'src_ip': '168.123.253.24/32', 'dst_ip': '131.196.174.19/32', 'drop': False}])
+
+src -> queue -> replayer -> acl -> flowstats -> Sink()
+
+bess.add_worker(wid=1, core=1)
+bess.add_worker(wid=2, core=2)
+src.attach_task(wid=1)
+queue.attach_task(wid=2)
+
+bess.resume_all()

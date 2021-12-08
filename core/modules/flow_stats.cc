@@ -1,4 +1,4 @@
-#include "flowstats.h"
+#include "flow_stats.h"
 
 #include <algorithm>
 #include "../utils/common.h"
@@ -69,16 +69,27 @@ void FlowStats::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     auto it = map_flow_to_counter_.find(new_flow_);
     if (it == map_flow_to_counter_.end()) {
       // A new flow.
-      map_flow_to_counter_[new_flow_] = PerFlowCounter(1, now);
+      map_flow_to_counter_[new_flow_] = PerFlowCounter();
       count_new_flows_ += 1;
-    } else {
-      (it->second).pkt_cnt += 1;
-      (it->second).last_pkt_tsc = now;
     }
+    (it->second).pkt_cnt += 1;
+    (it->second).temp_pkt_cnt += 1;
+    (it->second).last_pkt_tsc = now;
   }
 
   if (now - last_measure_tsc_ >= measure_period_tsc_) {
-    flow_arrival_rate_ = (double)count_new_flows_ * tsc_hz / (rdtsc() - last_measure_tsc_);
+    uint64_t peak_per_flow_temp_pkt_cnt = 0;
+    for (auto &f : map_flow_to_counter_) {
+      if (f.second.temp_pkt_cnt > peak_per_flow_temp_pkt_cnt) {
+        peak_per_flow_temp_pkt_cnt = f.second.temp_pkt_cnt;
+      }
+      f.second.temp_pkt_cnt = 0;
+    }
+    peak_per_flow_pkt_rate_ = std::max(peak_per_flow_pkt_rate_,
+        (double)peak_per_flow_temp_pkt_cnt);
+        // (double)peak_per_flow_temp_pkt_cnt * tsc_hz / (now - last_measure_tsc_));
+
+    flow_arrival_rate_ = (double)count_new_flows_ * tsc_hz / (now - last_measure_tsc_);
     peak_flow_arrival_rate_ = std::max(peak_flow_arrival_rate_, flow_arrival_rate_);
 
     active_flows_ = CountActiveFlows(now);
@@ -140,6 +151,7 @@ CommandResponse FlowStats::CommandGetSummary(
   r.set_timestamp(get_epoch_time());
   r.set_flow_arrival_rate(flow_arrival_rate_);
   r.set_peak_flow_arrival_rate(peak_flow_arrival_rate_);
+  r.set_peak_flow_pkt_rate(peak_per_flow_pkt_rate_);
   r.set_active_flows(active_flows_);
   r.set_peak_active_flows(peak_active_flows_);
 

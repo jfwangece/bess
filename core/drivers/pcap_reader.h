@@ -4,6 +4,11 @@
 #include <pcap.h>
 #include <glog/logging.h>
 
+#include "../utils/ether.h"
+
+using bess::utils::Ethernet;
+using bess::utils::be16_t;
+
 class PCAPReader final : public Port {
  public:
   static const int MAX_TEMPLATE_SIZE = 1536;
@@ -23,6 +28,8 @@ class PCAPReader final : public Port {
   size_t offset_;
   // The module's packet counter
   uint64_t pkt_counter_ = 0;
+  // The Ethernet header template for packets without an Ethernet header
+  Ethernet eth_template_;
   // The module's temporal packet pointer and pcap header
   const uint8_t *pkt_ = nullptr;
   // The module's pcap file handler

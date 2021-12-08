@@ -56,6 +56,10 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
   // Initialize payload template
   memset(tmpl_, 1, MAX_TEMPLATE_SIZE);
 
+  eth_template_.src_addr = Ethernet::Address("11:22:33:44:55:66");
+  eth_template_.dst_addr = Ethernet::Address("99:88:77:66:55:44");
+  eth_template_.ether_type = be16_t(Ethernet::Type::kIpv4);
+
   return CommandSuccess();
 }
 
@@ -98,6 +102,10 @@ alloc:
 
     int total_copy_len = 0;
     int copy_len = std::min(caplen, static_cast<int>(pkt->tailroom()));
+
+    if (*(uint16_t*)pkt_ == 0x0045 || *(uint16_t*)pkt_ == 0x0845 || *(uint16_t*)pkt_ == 0x4845) {
+      bess::utils::CopyInlined(pkt->append(sizeof(eth_template_)), &eth_template_, sizeof(eth_template_), true);
+    }
     bess::utils::CopyInlined(pkt->append(copy_len), pkt_, copy_len, true);
 
     pkt_ += copy_len;
