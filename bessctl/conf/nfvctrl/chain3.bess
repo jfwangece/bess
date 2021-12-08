@@ -28,6 +28,7 @@ for i in range(nat_cnt / 50):
     for j in range(50):
         nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
 
+# for simplicity, we use FlowLB as NAT because the two modules are similar
 fw::FlowACL(rules=acl_rules)
 nat::FlowLB(endpoints=nat_hosts)
 
