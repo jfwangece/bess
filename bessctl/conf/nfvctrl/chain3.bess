@@ -9,7 +9,7 @@ acl_cnt=int($BESS_ACL!'2000')
 nat_cnt=int($BESS_NAT!'100')
 
 # By default, pick Intel NICs
-pcie0, offset0="af:00.0", 7
+pcie0, offset0="af:00.0", 8
 if nic != 0:
     pcie0, offset0="5e:00.1", 1
 

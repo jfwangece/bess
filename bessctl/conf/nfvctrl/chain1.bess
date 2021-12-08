@@ -8,7 +8,7 @@ burst_size=int($BESS_BURST!'32')
 lpm_cnt=int($BESS_RULES!'100')
 
 # By default, pick Intel NICs
-pcie0, offset0="af:00.0", 7
+pcie0, offset0="af:00.0", 8
 if nic != 0:
     pcie0, offset0="5e:00.1", 1
 

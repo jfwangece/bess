@@ -8,7 +8,7 @@ burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_RULES!'2000')
 
 # By default, pick Intel NICs
-pcie0, offset0="af:00.0", 7
+pcie0, offset0="af:00.0", 8
 if nic != 0:
     pcie0, offset0="5e:00.1", 1
 
@@ -22,9 +22,9 @@ for i in range(acl_cnt / 50):
         acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
 acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
 
-fw -> FlowACL(rules=acl_rules)
-ids -> SnortIDS()
-chacha -> CHACHA()
+fw::FlowACL(rules=acl_rules)
+ids::SnortIDS()
+chacha::CHACHA()
 
 pinc0 -> fw -> ids -> chacha -> MACSwap() -> pout0
 pinc0.set_burst(burst=burst_size)
