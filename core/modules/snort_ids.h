@@ -66,12 +66,17 @@ class SnortIDS final : public Module {
   static const gate_idx_t kNumIGates = 2;
   static const gate_idx_t kNumOGates = 2;
 
-  CommandResponse Init([[maybe_unused]]const bess::pb::SnortArg &arg);
+  CommandResponse Init(const bess::pb::SnortIDSArg &arg);
+  CommandResponse CommandAdd(const bess::pb::SnortIDSArg &arg);
+  CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
 
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
  private:
-  std::unordered_map<std::string, Trie<std::tuple<>>> blacklist_;
+  // Keyword count
+  int keyword_count_;
+  size_t min_keyword_len_;
+  // Per-flow payload buffer cache
   std::unordered_map<Flow, FlowRecord, FlowHash> flow_cache_;
 };
 

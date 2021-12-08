@@ -43,54 +43,51 @@
 using bess::utils::Ethernet;
 using bess::utils::Ipv4;
 using bess::utils::Tcp;
-using bess::utils::be16_t;
 
 const uint64_t TIME_OUT_NS = 10ull * 1000 * 1000 * 1000;  // 10 seconds
 
-const Commands SnortIDS::cmds = {};
+const Commands SnortIDS::cmds = {
+    {"add", "SnortIDSArg", MODULE_CMD_FUNC(&SnortIDS::CommandAdd),
+     Command::THREAD_UNSAFE},
+    {"clear", "EmptyArg", MODULE_CMD_FUNC(&SnortIDS::CommandClear),
+     Command::THREAD_UNSAFE}};
 
-CommandResponse SnortIDS::Init([[maybe_unused]] const bess::pb::SnortArg &arg) //
-{
-    // store keywords from .bess config file in an array
-    // for (int i = 0; i < arg.keywords_size(); i++) {
-    //   arr[i] = arg.keywords(i);
-    // }
+CommandResponse SnortIDS::Init(const bess::pb::SnortIDSArg &arg) {
+  keyword_count_ = arg.keywords_size();
+  min_keyword_len_ = 100;
+  std::vector<std::string> words;
+  for (int i = 0; i < keyword_count_; i++) {
+    words.push_back(arg.keywords(i));
+    min_keyword_len_ = std::min(arg.keywords(i).length(), min_keyword_len_);
+  }
+  BuildMatchingMachine(words);
 
-    // k = sizeof(arr) / sizeof(arr[0]);
-    std::string arr[4] = {"he", "she", "we", "us"};
-    int k = 4;
-    BuildMatchingMachine(arr, k);
+  return CommandSuccess();
+}
 
-    std::cout << "(1/2) Build matching machine" << std::endl;
+CommandResponse SnortIDS::CommandAdd(const bess::pb::SnortIDSArg &arg) {
+  Init(arg);
+  return CommandSuccess();
+}
 
-    return CommandSuccess();
+CommandResponse SnortIDS::CommandClear(const bess::pb::EmptyArg &) {
+  keyword_count_ = 0;
+  return CommandSuccess();
 }
 
 void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
-  gate_idx_t igate = ctx->current_igate;
-
-  // ! What does this do?
-  // Pass reverse traffic
-  if (igate == 1) {
-    RunChooseModule(ctx, 1, batch);
-    return;
-  }
-
   int cnt = batch->cnt();
-
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
 
     Ethernet *eth = pkt->head_data<Ethernet *>();
     Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
 
-    // ! if the protocol is not TCP then don't inspect the packet
     if (ip->protocol != Ipv4::Proto::kTcp) {
       EmitPacket(ctx, pkt, 0);
       continue;
     }
 
-    // ! What will this variable be used for?
     int ip_bytes = ip->header_length << 2;
     Tcp *tcp =
         reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
@@ -101,11 +98,8 @@ void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     flow.src_port = tcp->src_port;
     flow.dst_port = tcp->dst_port;
 
-    // ! Some kind of timestamp?
     uint64_t now = ctx->current_ns;
 
-    // ! <Key, Values, Hash>
-    // ! Iterator is created here 
     // Find existing flow, if we have one.
     std::unordered_map<Flow, FlowRecord, FlowHash>::iterator it =
         flow_cache_.find(flow);
@@ -114,16 +108,20 @@ void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
      * * Throw out packets from flows that have expired or been analyzed.
      * * When is a flow considered to be analyzed?
      **/
-
     if (it != flow_cache_.end()) {
       if (now >= it->second.ExpiryTime()) {
         // Discard old flow and start over.
         flow_cache_.erase(it);
         it = flow_cache_.end();
+      } else if (it->second.IsAnalyzed()) {
+        // Once we're finished analyzing, we only record *blocked* flows.
+        // Continue blocking this flow for TIME_OUT_NS more ns.
+        it->second.SetExpiryTime(now + TIME_OUT_NS);
+        DropPacket(ctx, pkt);
+        continue;
       }
     }
 
-    // ! Create a new flow entry
     if (it == flow_cache_.end()) {
       // Don't have a flow, or threw an aged one out.  If there's no
       // SYN in this packet the reconstruct code will fail.  This is
@@ -153,32 +151,40 @@ void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       continue;
     }
 
-    // Have something on this flow; keep it alive for a while longer.
+    // Update the default flow entry timeout timestamp
     record.SetExpiryTime(now + TIME_OUT_NS);
 
-    EmitPacket(ctx, pkt, 0);
-
-    if (tcp->flags & Tcp::Flag::kFin) {
+    bool matched = false;
+    if (buffer.contiguous_len() >= min_keyword_len_) {
       const char *buffer_data = buffer.buf();
-
       std::string search_string(buffer_data);
-
-      /*
-      std::vector<int> results = SearchWords(k, search_string);
-
-      std::cout << "Words: ";
-
-      for (auto it = results.begin(); it != results.end(); it++) {
-          std::string word = arr[*it];
-
-          std::cout << " " << word;
+      std::vector<int> match_results = SearchWords(keyword_count_, search_string);
+      for (int i : match_results) {
+        if (i > 0) {
+          matched = true;
+          break;
+        }
       }
-
-      std::cout << std::endl;
-      */
     }
 
+    if (!matched) {
+      EmitPacket(ctx, pkt, 0);
+
+      // Once FIN is observed, or we've seen all the headers and decided
+      // to pass the flow, there is no more need to reconstruct the flow.
+      // NOTE: if FIN is lost on its way to destination, this will simply pass
+      // the retransmitted packet.
+      if (tcp->flags & Tcp::Flag::kFin) {
+        flow_cache_.erase(it);
+      }
+    } else {
+      it->second.SetAnalyzed();
+
+      // Drop the data packet
+      DropPacket(ctx, pkt);
+    }
   }
 }
 
-ADD_MODULE(SnortIDS, "snort_ids", "Intrusion detection")
+ADD_MODULE(SnortIDS, "snort_ids",
+           "Intrusion detection that uses aho_corasick algorithm to match keyword strings")

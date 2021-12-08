@@ -1,0 +1,34 @@
+#
+# Test NF chain #1: a stateless simple chain
+# VLANPush -> Ipv4Forward
+#
+
+nic=int($BESS_NIC!'0')
+burst_size=int($BESS_BURST!'32')
+lpm_cnt=int($BESS_RULES!'100')
+
+# By default, pick Intel NICs
+pcie0, offset0="af:00.0", 7
+if nic != 0:
+    pcie0, offset0="5e:00.1", 1
+
+port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+pinc0::PortInc(port=port0)
+pout0::PortOut(port=port0)
+
+vlanpush::VLANPush(tci=2)
+vlanpop::VLANPop()
+ipfwd::IPLookup()
+
+for i in range(lpm_cnt):
+    ipfwd.add(prefix='172.%d.0.0' %(1+i), prefix_len=16, gate=0)
+ipfwd.add(prefix='0.0.0.0', prefix_len=0, gate=0)
+
+pinc0 -> vlanpush -> vlanpop -> ipfwd -> MACSwap() -> pout0
+pinc0.set_burst(burst=burst_size)
+
+# core ID starts at the offset core
+bess.add_worker(wid=0, core=offset0)
+pinc0.attach_task(wid=0)
+
+bess.resume_all()

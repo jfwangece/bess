@@ -1210,7 +1210,7 @@ message SetMetadataArg {
 message SinkArg {
 }
 
-message SnortArg {
+message SnortIDSArg {
   repeated string keywords = 1;
 }
 

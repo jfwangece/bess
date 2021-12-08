@@ -1,0 +1,36 @@
+#
+# Test NF chain #2: a heavy stateful chain
+# ACL/Firewall -> Snort/IDS -> Encryption
+#
+
+nic=int($BESS_NIC!'0')
+burst_size=int($BESS_BURST!'32')
+acl_cnt=int($BESS_RULES!'2000')
+
+# By default, pick Intel NICs
+pcie0, offset0="af:00.0", 7
+if nic != 0:
+    pcie0, offset0="5e:00.1", 1
+
+port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+pinc0::PortInc(port=port0)
+pout0::PortOut(port=port0)
+
+acl_rules = []
+for i in range(acl_cnt / 50):
+    for j in range(50):
+        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
+acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
+
+fw -> FlowACL(rules=acl_rules)
+ids -> SnortIDS()
+chacha -> CHACHA()
+
+pinc0 -> fw -> ids -> chacha -> MACSwap() -> pout0
+pinc0.set_burst(burst=burst_size)
+
+# core ID starts at the offset core
+bess.add_worker(wid=0, core=offset0)
+pinc0.attach_task(wid=0)
+
+bess.resume_all()
