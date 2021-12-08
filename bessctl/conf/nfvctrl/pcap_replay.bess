@@ -1,0 +1,37 @@
+#
+# The traffic generator that replays a PCAP packet trace.
+#
+import scapy.all as scapy
+
+PCAPFILE = $PCAP!""
+assert PCAPFILE
+print("Target PCAP file: %s" %(PCAPFILE))
+burst_size=int($BESS_BURST!'32')
+tag_offset = 72
+pcie0, offset0="82:00.0", 0
+
+pcap_file = '{}'.format(PCAPFILE)
+
+pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
+src = PortInc(port=pcap_port)
+queue = Queue(size=pow(2,24))
+replayer = Replayer(offset=tag_offset)
+
+pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+pout0::PortOut(port=pmd_port0)
+pinc0::PortInc(port=pmd_port0)
+
+src -> queue -> replayer -> Timestamp(offset=tag_offset) -> pout0
+pinc0 -> Measure(offset=tag_offset) -> Sink()
+
+queue.set_burst(burst=2)
+pinc0.set_burst(burst=burst_size)
+
+bess.add_worker(wid=1, core=1+offset0)
+bess.add_worker(wid=2, core=2+offset0)
+bess.add_worker(wid=3, core=3+offset0)
+src.attach_task(wid=1)
+queue.attach_task(wid=2)
+pinc0.attach_task(wid=3)
+
+bess.resume_all()

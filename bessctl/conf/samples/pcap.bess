@@ -14,13 +14,14 @@ print("Target PCAP file: %s" %(PCAPFILE))
 tag_offset = 72
 pcap_file = '{}'.format(PCAPFILE)
 
-pmd_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
-src = PortInc(port=pmd_port)
+pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
+src = PortInc(port=pcap_port)
 queue = Queue(size=pow(2,24))
-queue.set_burst(burst=2)
 replayer = Replayer(offset=tag_offset)
 
 src -> queue -> replayer -> Sink()
+
+queue.set_burst(burst=2)
 
 bess.add_worker(wid=1, core=1)
 bess.add_worker(wid=2, core=2)
