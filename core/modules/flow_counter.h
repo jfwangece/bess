@@ -7,10 +7,13 @@
 
 #include "../module.h"
 #include "../utils/endian.h"
+#include "../utils/flow.h"
 #include "../utils/mcslock.h"
 
-using bess::utils::be32_t;
 using bess::utils::be16_t;
+using bess::utils::be32_t;
+using bess::utils::Flow;
+using bess::utils::FlowHash;
 
 class FlowCounter final: public Module {
 public:
@@ -35,7 +38,7 @@ private:
   // If true, this module is actively counting packets.
   bool is_active_ = false;
   // The local flow counter cache.
-  std::set<std::tuple<be32_t, be32_t, uint8_t, be16_t, be16_t>> flow_cache_;
+  std::unordered_map<Flow, uint64_t, FlowHash> flow_cache_;
 
   mcslock lock_;
 };

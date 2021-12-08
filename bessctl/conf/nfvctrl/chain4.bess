@@ -1,0 +1,42 @@
+#
+# Test NF chain #4: a state-heavy NF chain
+# ACL/Firewall -> LB -> Monitor
+#
+
+nic=int($BESS_NIC!'0')
+burst_size=int($BESS_BURST!'32')
+acl_cnt=int($BESS_ACL!'2000')
+lb_cnt=int($BESS_LB!'100')
+
+# By default, pick Intel NICs
+pcie0, offset0="af:00.0", 7
+if nic != 0:
+    pcie0, offset0="5e:00.1", 1
+
+port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+pinc0::PortInc(port=port0)
+pout0::PortOut(port=port0)
+
+acl_rules = []
+for i in range(acl_cnt / 50):
+    for j in range(50):
+        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
+acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
+
+nat_hosts = []
+for i in range(lb_cnt / 20):
+    for j in range(20):
+        nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
+
+fw::FlowACL(rules=acl_rules)
+lb::FlowLB(endpoints=nat_hosts)
+monitor::FlowCounter()
+
+pinc0 -> fw -> lb -> monitor -> MACSwap() -> pout0
+pinc0.set_burst(burst=burst_size)
+
+# core ID starts at the offset core
+bess.add_worker(wid=0, core=offset0)
+pinc0.attach_task(wid=0)
+
+bess.resume_all()

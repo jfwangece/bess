@@ -1,0 +1,41 @@
+#
+# Test NF chain #3: a stateful NF chain
+# ACL/Firewall -> NAT
+#
+
+nic=int($BESS_NIC!'0')
+burst_size=int($BESS_BURST!'32')
+acl_cnt=int($BESS_ACL!'2000')
+nat_cnt=int($BESS_NAT!'100')
+
+# By default, pick Intel NICs
+pcie0, offset0="af:00.0", 7
+if nic != 0:
+    pcie0, offset0="5e:00.1", 1
+
+port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+pinc0::PortInc(port=port0)
+pout0::PortOut(port=port0)
+
+acl_rules = []
+for i in range(acl_cnt / 50):
+    for j in range(50):
+        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
+acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
+
+nat_hosts = []
+for i in range(nat_cnt / 50):
+    for j in range(50):
+        nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
+
+fw::FlowACL(rules=acl_rules)
+nat::FlowLB(endpoints=nat_hosts)
+
+pinc0 -> fw -> nat -> MACSwap() -> pout0
+pinc0.set_burst(burst=burst_size)
+
+# core ID starts at the offset core
+bess.add_worker(wid=0, core=offset0)
+pinc0.attach_task(wid=0)
+
+bess.resume_all()

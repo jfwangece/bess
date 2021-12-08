@@ -11,8 +11,6 @@
 using bess::utils::Ethernet;
 using bess::utils::Ipv4;
 using bess::utils::Tcp;
-using bess::utils::Udp;
-using bess::utils::be32_t;
 
 const Commands FlowCounter::cmds = {
   {"clear", "EmptyArg", MODULE_CMD_FUNC(&FlowCounter::CommandClear),
@@ -35,33 +33,42 @@ void FlowCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     return;
   }
 
-  // uint64_t now = rdtsc();
   int cnt = batch->cnt();
-  be16_t sport, dport;
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
 
     Ethernet *eth = pkt->head_data<Ethernet *>();
     Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
-    size_t ip_bytes = ip->header_length << 2;
-    if (ip->protocol == Ipv4::Proto::kTcp) {
-      Tcp *tcp = reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
-      sport = tcp->src_port;
-      dport = tcp->dst_port;
-    } else if (ip->protocol == Ipv4::Proto::kUdp) {
-      Udp *udp = reinterpret_cast<Udp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
-      sport = udp->src_port;
-      dport = udp->dst_port;
-    } else {
+
+    if (ip->protocol != Ipv4::Proto::kTcp) {
+      EmitPacket(ctx, pkt, 0);
       continue;
     }
 
-    auto curr_flow = std::make_tuple(ip->src, ip->dst, ip->protocol, sport, dport);
-    bool found = flow_cache_.find(curr_flow) != flow_cache_.end();
-    if (found) { // No need to update.
-      continue;
+    size_t ip_bytes = ip->header_length << 2;
+    Tcp *tcp =
+        reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
+
+    Flow flow;
+    flow.src_ip = ip->src;
+    flow.dst_ip = ip->dst;
+    flow.src_port = tcp->src_port;
+    flow.dst_port = tcp->dst_port;
+
+    // Find existing flow, if we have one.
+    std::unordered_map<Flow, uint64_t, FlowHash>::iterator it =
+        flow_cache_.find(flow);
+
+    if (it != flow_cache_.end()) { // an existing flow
+      it->second += 1;
+
+      if (tcp->flags & Tcp::Flag::kFin) {
+        flow_cache_.erase(it);
+      }
     } else {
-      flow_cache_.insert(curr_flow);
+      std::tie(it, std::ignore) = flow_cache_.emplace(
+          std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
+      it->second = 1;
     }
   }
 
