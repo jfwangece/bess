@@ -24,7 +24,7 @@ pinc0::PortInc(port=pmd_port0)
 acl::ACL(rules=[
     {'src_ip': '168.123.253.24/32', 'dst_ip': '131.196.174.19/32', 'drop': False}])
 
-src -> acl -> queue -> replayer -> Timestamp(offset=tag_offset) -> IPChecksum() ->  -> pout0
+src -> acl -> queue -> replayer -> Timestamp(offset=tag_offset) -> IPChecksum() -> pout0
 pinc0 -> Measure(offset=tag_offset) -> Sink()
 
 queue.set_burst(burst=2)
