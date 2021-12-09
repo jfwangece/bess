@@ -11,7 +11,7 @@ using bess::utils::be16_t;
 
 class PCAPReader final : public Port {
  public:
-  static const int MAX_TEMPLATE_SIZE = 1536;
+  static const int MAX_TEMPLATE_SIZE = 1500;
 
   CommandResponse Init(const bess::pb::PCAPReaderArg &arg);
 

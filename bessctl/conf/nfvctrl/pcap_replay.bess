@@ -28,10 +28,15 @@ queue.set_burst(burst=2)
 pinc0.set_burst(burst=burst_size)
 
 bess.add_worker(wid=1, core=1+offset0)
-bess.add_worker(wid=2, core=2+offset0)
-bess.add_worker(wid=3, core=3+offset0)
-src.attach_task(wid=2)
-queue.attach_task(wid=1)
+bess.add_worker(wid=2, core=3+offset0)
+bess.add_worker(wid=3, core=5+offset0)
+bess.add_tc('rl',
+            policy='rate_limit',
+            resource='packet',
+            limit={'packet': 10000},
+            wid=2)
+src.attach_task(wid=1)
+queue.attach_task(parent='rl')
 pinc0.attach_task(wid=3)
 
 bess.resume_all()
