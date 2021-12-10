@@ -55,7 +55,6 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
 
     init_tsec_ = pkthdr_.ts.tv_sec;
     init_tusec_ = pkthdr_.ts.tv_usec;
-    global_init_ts_ = tsc_to_us(rdtsc());
   }
 
   // Initialize payload template
@@ -152,7 +151,7 @@ alloc:
       // Tag packet: to calculate the global timestamp (in usec) of this packet
       uint64_t tsec = pkthdr_.ts.tv_sec;
       uint64_t tusec = pkthdr_.ts.tv_usec;
-      uint64_t ts = global_init_ts_ + ((tsec - init_tsec_) * 1000000 + tusec - init_tusec_);
+      uint64_t ts = ((tsec - init_tsec_) * 1000000 + tusec - init_tusec_);
       tag_packet(pkt, offset_, ts);
     }
   }

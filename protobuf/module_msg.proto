@@ -1112,6 +1112,9 @@ message RandomUpdateArg {
 
 message ReplayerArg {
   uint64 offset = 1;
+  double speed = 2;
+  double rate_mpps = 3;
+  double rate_mbps = 4;
 }
 
 /**

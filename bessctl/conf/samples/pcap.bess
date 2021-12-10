@@ -8,6 +8,9 @@
 #
 
 PCAPFILE = $PCAP!""
+playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
+playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
+playback_speed = float($BESS_SPEED!"1")
 assert PCAPFILE
 print("Target PCAP file: %s" %(PCAPFILE))
 
@@ -17,20 +20,23 @@ pcap_file = '{}'.format(PCAPFILE)
 pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
 src = PortInc(port=pcap_port)
 queue = Queue(size=pow(2,24))
-replayer = Replayer(offset=tag_offset)
+if playback_rate_mpps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
+elif playback_rate_mbps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
+else:
+    replayer = Replayer(offset=tag_offset, speed=playback_speed)
 
 src -> queue -> replayer -> Sink()
 
-queue.set_burst(burst=2)
+queue.set_burst(burst=8)
 
 bess.add_worker(wid=1, core=1)
 bess.add_worker(wid=2, core=2)
-bess.add_tc('rl',
-            policy='rate_limit',
-            resource='packet',
-            limit={'packet': 1000000},
-            wid=2)
 src.attach_task(wid=1)
-queue.attach_task(parent='rl')
+
+queue.attach_task(wid=2)
+#bess.add_tc('rl', policy='rate_limit', resource='packet', limit={'packet': 100000000}, wid=2)
+#queue.attach_task(parent='rl')
 
 bess.resume_all()
