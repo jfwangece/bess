@@ -41,6 +41,7 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
   char msg_buf[PCAP_ERRBUF_SIZE];
   pcap_handle_ = pcap_open_offline(dev.c_str(), msg_buf);
 
+  is_eth_missing_ = false;
   if (pcap_handle_ == nullptr) {
     return CommandFailure(EINVAL, "Error initializing the pcap handle.");
   } else {
@@ -48,6 +49,10 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
     if (!pkt_) {
       return CommandFailure(EINVAL, "Error reading an empty pcap file.");
     }
+
+    // Decide whether the Ethernet header has been removed
+    is_eth_missing_ = *(uint16_t*)pkt_ == 0x0045 || *(uint16_t*)pkt_ == 0x0845 || *(uint16_t*)pkt_ == 0x4845 || *(uint16_t*)pkt_ == 0x0a14;
+
     init_tsec_ = pkthdr_.ts.tv_sec;
     init_tusec_ = pkthdr_.ts.tv_usec;
     global_init_ts_ = tsc_to_us(rdtsc());
@@ -55,9 +60,9 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
 
   // Initialize payload template
   memset(tmpl_, 1, MAX_TEMPLATE_SIZE);
-
-  eth_template_.src_addr = Ethernet::Address("11:22:33:44:55:66");
-  eth_template_.dst_addr = Ethernet::Address("0A:14:69:37:5F:F2");
+  // Initialize Ethernet header template
+  eth_template_.src_addr = Ethernet::Address("ec:0d:9a:67:ff:68");
+  eth_template_.dst_addr = Ethernet::Address("0a:14:69:37:5f:f2");
   eth_template_.ether_type = be16_t(Ethernet::Type::kIpv4);
 
   return CommandSuccess();
@@ -87,6 +92,11 @@ int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
     }
     int caplen = pkthdr_.caplen;
     int totallen = pkthdr_.len;
+
+    if (is_eth_missing_) {
+      totallen += sizeof(Ethernet);
+    }
+    // Maintain a minimal and a maximum packet size
     if (totallen > MAX_TEMPLATE_SIZE) {
       totallen = MAX_TEMPLATE_SIZE;
     }
@@ -100,38 +110,39 @@ alloc:
       goto alloc;
     }
 
+    // Leave a headroom for prepending data
+    char *p = pkt->buffer<char *>() + SNBUF_HEADROOM;
+    pkt->set_data_off(SNBUF_HEADROOM);
+    pkt->set_total_len(totallen);
+    pkt->set_data_len(totallen);
+
     int total_copy_len = 0;
-    int copy_len = std::min(caplen, static_cast<int>(pkt->tailroom()));
+    int copy_len = 0;
 
-    if (*(uint16_t*)pkt_ == 0x0045 || *(uint16_t*)pkt_ == 0x0845 || *(uint16_t*)pkt_ == 0x4845 || *(uint16_t*)pkt_ == 0x0a14) {
-      bess::utils::CopyInlined(pkt->append(sizeof(eth_template_)), &eth_template_, sizeof(eth_template_), true);
-      total_copy_len += sizeof(eth_template_);
-    }
-    bess::utils::CopyInlined(pkt->append(copy_len), pkt_, copy_len, true);
-    Ethernet *eth = pkt->head_data<Ethernet *>();
+    // Note: for NIC ether scoping, always use a fake Ethernet header
+    Ethernet *eth = reinterpret_cast<Ethernet *>(p);
     eth->dst_addr = eth_template_.dst_addr;
+    eth->src_addr = eth_template_.src_addr;
+    eth->ether_type = eth_template_.ether_type;
+    total_copy_len += sizeof(Ethernet);
 
-    pkt_ += copy_len;
+    if (is_eth_missing_) {    
+      copy_len = caplen;
+      bess::utils::Copy(p + total_copy_len, pkt_, copy_len, true);
+    } else {
+      copy_len = caplen - sizeof(Ethernet);
+      if (copy_len > 0) {
+        bess::utils::Copy(p + total_copy_len, pkt_ + sizeof(Ethernet), copy_len, true);
+      }
+    }
     total_copy_len += copy_len;
-    bess::Packet* m = pkt;
 
-    int nb_segs = 1;
-    while (total_copy_len < caplen) {
-      m->set_next(current_worker.packet_pool()->Alloc());
-      m = m->next();
-      nb_segs++;
-
-      copy_len = std::min(totallen, static_cast<int>(m->tailroom()));
-      bess::utils::Copy(m->append(copy_len), pkt_, copy_len, true);
-
-      pkt_ += copy_len;
+    // Copy payload (not a necessary step)
+    if (totallen > total_copy_len) {
+      copy_len = totallen - total_copy_len;
+      bess::utils::Copy(p + total_copy_len, tmpl_, copy_len, true);
       total_copy_len += copy_len;
     }
-    pkt->set_nb_segs(nb_segs);
-
-    // Append the packet payload
-    copy_len = totallen - caplen;
-    bess::utils::CopyInlined(pkt->append(copy_len), tmpl_, copy_len, true);
 
     pkts[recv_cnt] = pkt;
     recv_cnt++;
