@@ -24,7 +24,7 @@ CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
   if (arg.speed() >= 0.5) {
     playback_speed_ = arg.speed();
   }
-  playback_rate_mpps_ = 0.8;
+  playback_rate_mpps_ = 0.0;
   if (arg.rate_mpps() > 0) {
     playback_rate_mpps_ = arg.rate_mpps();
   }
@@ -33,50 +33,63 @@ CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
     playback_rate_mbps_ = arg.rate_mbps();
   }
 
+  use_trace_time_ = !(playback_rate_mpps_ > 0 || playback_rate_mbps_ > 0);
+
   // Record the startup timestamp
   startup_ts_ = tsc_to_us(rdtsc());
   temp_pkt_cnt_ = 0;
   last_rate_calc_ts_ = startup_ts_;
 
+  if (use_trace_time_) {
+    curr_time_ = tsc_to_us(rdtsc());
+  } else {
+    curr_time_ = tsc_to_ns(rdtsc());
+  }
+  next_pkt_time_ = startup_ts_;
+
   return CommandSuccess();
 }
 
 void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
-  // uint64_t now_us = tsc_to_us(rdtsc());
-  // Read the timestamp in the TCP header.
-  uint64_t curr_time, pkt_time = 0;
-  double time_diff;
+  uint64_t time_diff = 0;
+
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
-    pkt_time = 0;
-    GetTimestamp(batch->pkts()[i], offset_, &pkt_time);
+    if (use_trace_time_) {
+      // Read the timestamp in the TCP header.
+      time_diff = 0;
+      GetTimestamp(batch->pkts()[i], offset_, &time_diff);
 
-    if (pkt_time) {
-      if (playback_speed_ >= 0.1) {
-        pkt_time /= playback_speed_;
-      }
-checktime:
-      curr_time = tsc_to_us(rdtsc());
-
-      // Calculate packet rate and update the playback speed if necessary
-      time_diff = curr_time - last_rate_calc_ts_;
-      if (time_diff > kDefaultRateCalcPeriodUs) {
-        temp_rate_mpps_ = (double)temp_pkt_cnt_ / time_diff;
-        temp_pkt_cnt_ = 1;
-        last_rate_calc_ts_ = curr_time;
-
-        if (playback_rate_mpps_ > 0) {
-          playback_speed_ = playback_rate_mpps_ / temp_rate_mpps_;
+      if (time_diff) {
+        if (playback_speed_ >= 0.1) {
+          time_diff /= playback_speed_;
         }
-        std::cout << playback_rate_mpps_ << temp_rate_mpps_ << playback_speed_;
       }
+      next_pkt_time_ = startup_ts_ + time_diff;
+    }
 
-      if (curr_time > startup_ts_ + pkt_time) {
-        EmitPacket(ctx, batch->pkts()[i], 0);
-        temp_pkt_cnt_ += 1;
-      } else {
-        goto checktime;
+// Emit a packet only if |curr_time_| passes the calculated packet timestamp
+checktime:
+    if (use_trace_time_) {
+      curr_time_ = tsc_to_us(rdtsc());
+    } else {
+      curr_time_ = tsc_to_ns(rdtsc());
+    }
+
+    if (curr_time_ > next_pkt_time_) {
+      EmitPacket(ctx, batch->pkts()[i], 0);
+      temp_pkt_cnt_ += 1;
+      temp_bit_cnt_ += batch->pkts()[i]->total_len() * 8;
+
+      if (playback_rate_mpps_ > 0) {
+        // Replay at a certain packet rate
+        next_pkt_time_ = curr_time_ + 1000 / playback_rate_mpps_;
+      } else if (playback_rate_mbps_ > 0) {
+        // Replay at a certain bit rate
+        next_pkt_time_ = curr_time_ + batch->pkts()[i]->total_len() * 8000 / playback_rate_mbps_;
       }
+    } else {
+      goto checktime;
     }
   }
 }

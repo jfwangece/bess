@@ -34,7 +34,8 @@ package bess.pb;
 message PCAPReaderArg {
   string dev = 1;
   bool timestamp = 2;
-  uint64 offset = 3; 
+  bool reset_payload = 3;
+  uint64 offset = 4;
 }
 
 message PCAPPortArg {

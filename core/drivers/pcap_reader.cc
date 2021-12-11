@@ -32,6 +32,9 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
   if (arg.timestamp()) {
     is_timestamp_ = true;
   }
+  if (arg.reset_payload()) {
+    is_reset_payload_ = true;
+  }
   if (arg.offset()) {
     offset_ = arg.offset();
   } else {
@@ -137,7 +140,7 @@ alloc:
     total_copy_len += copy_len;
 
     // Copy payload (not a necessary step)
-    if (totallen > total_copy_len) {
+    if (is_reset_payload_ && totallen > total_copy_len) {
       copy_len = totallen - total_copy_len;
       bess::utils::Copy(p + total_copy_len, tmpl_, copy_len, true);
       total_copy_len += copy_len;
@@ -163,6 +166,8 @@ int PCAPReader::SendPackets(queue_t, bess::Packet** pkts, int cnt) {
   if (pcap_handle_ == nullptr) {
     CHECK(0);  // raise an error
   }
+  // Just release the set of packet buffers.
+  bess::Packet::Free(pkts, cnt);
 
   return 0;
 }

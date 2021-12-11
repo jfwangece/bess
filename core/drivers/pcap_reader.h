@@ -28,6 +28,7 @@ class PCAPReader final : public Port {
   unsigned char tmpl_[MAX_TEMPLATE_SIZE] = {};
 
   bool is_timestamp_ = false;
+  bool is_reset_payload_ = false;
   size_t offset_;
   // The module's packet counter
   uint64_t pkt_counter_ = 0;

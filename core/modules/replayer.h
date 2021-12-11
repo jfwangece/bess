@@ -15,6 +15,7 @@ class Replayer final : public Module {
   // The offset / attribute ID of the per-packet timestamp
   size_t offset_;
   // Playback parameters:
+  bool use_trace_time_;
   // |playback_speed_| accelerates the trace to speed up the packet rate;
   // |playback_rate_| tunes to |playback_speed_| dynamically so that the
   // actual packet rate matches the |playback_rate_|. If zero, no effect.
@@ -29,6 +30,9 @@ class Replayer final : public Module {
   uint64_t last_rate_calc_ts_;
   double temp_rate_mpps_;
   double temp_rate_mbps_;
+  // Timestamp info
+  uint64_t curr_time_;
+  uint64_t next_pkt_time_;
 };
 
 #endif // BESS_MODULES_REPLAYER_H_
