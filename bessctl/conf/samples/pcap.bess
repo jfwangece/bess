@@ -8,12 +8,13 @@
 #
 
 PCAPFILE = $PCAP!""
-playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
-playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
-playback_speed = float($BESS_SPEED!"1")
 assert PCAPFILE
 print("Target PCAP file: %s" %(PCAPFILE))
 
+playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
+playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
+playback_speed = float($BESS_SPEED!"1")
+burst_size=int($BESS_BURST!'32')
 tag_offset = 72
 pcap_file = '{}'.format(PCAPFILE)
 
@@ -29,7 +30,7 @@ else:
 
 src -> queue -> replayer -> Sink()
 
-queue.set_burst(burst=8)
+queue.set_burst(burst=burst_size)
 
 bess.add_worker(wid=1, core=1)
 bess.add_worker(wid=2, core=2)

@@ -6,6 +6,10 @@ import scapy.all as scapy
 PCAPFILE = $PCAP!""
 assert PCAPFILE
 print("Target PCAP file: %s" %(PCAPFILE))
+
+playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
+playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
+playback_speed = float($BESS_SPEED!"1")
 burst_size=int($BESS_BURST!'32')
 tag_offset = 72
 pcie0, offset0="82:00.0", 0
@@ -15,7 +19,12 @@ pcap_file = '{}'.format(PCAPFILE)
 pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
 src = PortInc(port=pcap_port)
 queue = Queue(size=pow(2,24))
-replayer = Replayer(offset=tag_offset)
+if playback_rate_mpps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
+elif playback_rate_mbps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
+else:
+    replayer = Replayer(offset=tag_offset, speed=playback_speed)
 
 pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
 pout0::PortOut(port=pmd_port0)
