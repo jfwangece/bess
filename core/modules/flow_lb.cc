@@ -2,6 +2,7 @@
 
 #include "../utils/checksum.h"
 #include "../utils/ether.h"
+#include "../utils/format.h"
 #include "../utils/ip.h"
 #include "../utils/tcp.h"
 
@@ -69,6 +70,7 @@ void FlowLB::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       size_t hashed = rte_hash_crc(&ip->src, sizeof(be32_t), 0);
       size_t endpoint_index = hashed % endpoints_.size();
       it->second = endpoints_[endpoint_index];
+      active_flows_ += 1;
     }
 
     // Modify the packet's destination endpoint, and update IP checksum.
@@ -85,8 +87,13 @@ void FlowLB::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     if (tcp->flags & Tcp::Flag::kFin) {
       flow_cache_.erase(it);
+      active_flows_ -= 1;
     }
   }
+}
+
+std::string FlowLB::GetDesc() const {
+  return bess::utils::Format("%d flows", active_flows_);
 }
 
 ADD_MODULE(FlowLB, "flow_lb", "Load Balancer with a per-flow hash table")

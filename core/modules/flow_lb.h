@@ -3,6 +3,7 @@
 
 #include <map>
 #include <vector>
+#include <string>
 
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
@@ -16,11 +17,13 @@ using bess::utils::FlowHash;
 
 class FlowLB final : public Module {
  public:
-  FlowLB() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; }
+  FlowLB() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; active_flows_ = 0; }
 
   CommandResponse Init(const bess::pb::FlowLBArg &arg);
 
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
+
+  std::string GetDesc() const override;
 
  private:
   // The global server pool table:
@@ -28,6 +31,8 @@ class FlowLB final : public Module {
   std::vector<be32_t> endpoints_;
   // Per-flow connection table
   std::unordered_map<Flow, be32_t, FlowHash> flow_cache_;
+  // Total number of active flows in the flow cache (connection table)
+  int active_flows_ = 0;
 };
 
 #endif  // BESS_MODULES_FLOW_LB_H_
