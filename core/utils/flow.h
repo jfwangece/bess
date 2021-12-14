@@ -55,16 +55,23 @@ struct FlowHash {
 // Used by snort_ids, url_filter
 class FlowRecord {
  public:
-  FlowRecord() : done_analyzing_(false), buffer_(128), expiry_time_(0) {}
+  FlowRecord() : pkt_cnt_(0), done_analyzing_(false), acl_pass_(false), buffer_(128), expiry_time_(0) {}
 
   bool IsAnalyzed() { return done_analyzing_; }
   void SetAnalyzed() { done_analyzing_ = true; }
+  bool IsACLPass() { return acl_pass_; }
+  void SetACLPass() { acl_pass_ = true; }
+  be32_t DstIP() { return dst_ip_; }
+  void SetDstIP(be32_t dst_ip) { dst_ip_ = dst_ip; }
   TcpFlowReconstruct &GetBuffer() { return buffer_; }
   uint64_t ExpiryTime() { return expiry_time_; }
   void SetExpiryTime(uint64_t time) { expiry_time_ = time; }
 
+  uint64_t pkt_cnt_;
  private:
   bool done_analyzing_;
+  bool acl_pass_;
+  be32_t dst_ip_;
   TcpFlowReconstruct buffer_;
   uint64_t expiry_time_;
 };

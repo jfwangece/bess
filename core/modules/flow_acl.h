@@ -14,6 +14,7 @@ using bess::utils::be32_t;
 using bess::utils::Ipv4Prefix;
 using bess::utils::Flow;
 using bess::utils::FlowHash;
+using bess::utils::FlowRecord;
 
 class FlowACL final : public Module {
  public:
@@ -43,8 +44,12 @@ class FlowACL final : public Module {
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
 
  private:
+  // The global ACL rule table
   std::vector<ACLRule> rules_;
-  std::unordered_map<Flow, bool, FlowHash> flow_cache_;
+  // Per-flow connection table
+  std::unordered_map<Flow, FlowRecord, FlowHash> flow_cache_;
+  // Total number of active flows in the flow cache
+  int active_flows_ = 0;
 };
 
 #endif  // BESS_MODULES_FLOW_ACL_H_

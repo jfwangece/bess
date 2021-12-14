@@ -12,6 +12,10 @@ using bess::utils::Ethernet;
 using bess::utils::Ipv4;
 using bess::utils::Tcp;
 
+namespace {
+const uint64_t TIME_OUT_NS = 10ull * 1000 * 1000 * 1000; // 10 seconds
+}
+
 const Commands FlowCounter::cmds = {
   {"clear", "EmptyArg", MODULE_CMD_FUNC(&FlowCounter::CommandClear),
    Command::THREAD_SAFE},
@@ -55,20 +59,32 @@ void FlowCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     flow.src_port = tcp->src_port;
     flow.dst_port = tcp->dst_port;
 
+    uint64_t now = ctx->current_ns;
+
     // Find existing flow, if we have one.
-    std::unordered_map<Flow, uint64_t, FlowHash>::iterator it =
+    std::unordered_map<Flow, FlowRecord, FlowHash>::iterator it =
         flow_cache_.find(flow);
 
-    if (it != flow_cache_.end()) { // an existing flow
-      it->second += 1;
-
-      if (tcp->flags & Tcp::Flag::kFin) {
+    if (it != flow_cache_.end()) {
+      if (now >= it->second.ExpiryTime()) { // an outdated flow
         flow_cache_.erase(it);
+        active_flows_ -= 1;
+        it = flow_cache_.end();
       }
-    } else {
+    }
+
+    if (it == flow_cache_.end()) {
       std::tie(it, std::ignore) = flow_cache_.emplace(
           std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
-      it->second = 1;
+      active_flows_ += 1;
+    }
+
+    it->second.pkt_cnt_ += 1;
+    it->second.SetExpiryTime(now + TIME_OUT_NS);
+
+    if (tcp->flags & Tcp::Flag::kFin) {
+      flow_cache_.erase(it);
+      active_flows_ -= 1;
     }
   }
 

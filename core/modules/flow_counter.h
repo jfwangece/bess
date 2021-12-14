@@ -14,6 +14,7 @@ using bess::utils::be16_t;
 using bess::utils::be32_t;
 using bess::utils::Flow;
 using bess::utils::FlowHash;
+using bess::utils::FlowRecord;
 
 class FlowCounter final: public Module {
 public:
@@ -38,7 +39,9 @@ private:
   // If true, this module is actively counting packets.
   bool is_active_ = false;
   // The local flow counter cache.
-  std::unordered_map<Flow, uint64_t, FlowHash> flow_cache_;
+  std::unordered_map<Flow, FlowRecord, FlowHash> flow_cache_;
+  // Total number of active flows in the flow cache
+  int active_flows_ = 0;
 
   mcslock lock_;
 };

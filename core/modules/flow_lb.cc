@@ -11,6 +11,10 @@ using bess::utils::ChecksumIncrement32;
 using bess::utils::UpdateChecksumWithIncrement;
 using bess::utils::UpdateChecksum16;
 
+namespace {
+const uint64_t TIME_OUT_NS = 10ull * 1000 * 1000 * 1000; // 10 seconds
+}
+
 CommandResponse FlowLB::Init(const bess::pb::FlowLBArg &arg) {
   endpoints_.clear();
 
@@ -32,8 +36,6 @@ void FlowLB::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   using bess::utils::Ethernet;
   using bess::utils::Ipv4;
   using bess::utils::Tcp;
-
-  gate_idx_t incoming_gate = ctx->current_igate;
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
@@ -57,26 +59,36 @@ void FlowLB::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     flow.src_port = tcp->src_port;
     flow.dst_port = tcp->dst_port;
 
+    uint64_t now = ctx->current_ns;
+
     // Find existing flow, if we have one.
-    std::unordered_map<Flow, be32_t, FlowHash>::iterator it =
+    std::unordered_map<Flow, FlowRecord, FlowHash>::iterator it =
         flow_cache_.find(flow);
 
-    if (it != flow_cache_.end()) { // an existing flow
-      EmitPacket(ctx, pkt, incoming_gate);
-    } else { // by default, drop a new flow.
+    if (it != flow_cache_.end()) {
+      if (now >= it->second.ExpiryTime()) { // an outdated flow
+        flow_cache_.erase(it);
+        active_flows_ -= 1;
+        it = flow_cache_.end();
+      }
+    }
+
+    if (it == flow_cache_.end()) {
       std::tie(it, std::ignore) = flow_cache_.emplace(
           std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
       
       size_t hashed = rte_hash_crc(&ip->src, sizeof(be32_t), 0);
       size_t endpoint_index = hashed % endpoints_.size();
-      it->second = endpoints_[endpoint_index];
+      it->second.SetDstIP(endpoints_[endpoint_index]);
       active_flows_ += 1;
     }
 
+    it->second.SetExpiryTime(now + TIME_OUT_NS);
+
     // Modify the packet's destination endpoint, and update IP checksum.
     be32_t before = ip->dst;
-    be32_t after = it->second;
-    ip->dst = it->second;
+    be32_t after = it->second.DstIP();
+    ip->dst = it->second.DstIP();
 
     uint32_t l3_increment =
       ChecksumIncrement32(before.raw_value(), after.raw_value());
@@ -90,6 +102,8 @@ void FlowLB::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       active_flows_ -= 1;
     }
   }
+
+  RunNextModule(ctx, batch);
 }
 
 std::string FlowLB::GetDesc() const {

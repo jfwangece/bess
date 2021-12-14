@@ -4,6 +4,10 @@
 #include "../utils/ip.h"
 #include "../utils/tcp.h"
 
+namespace {
+const uint64_t TIME_OUT_NS = 10ull * 1000 * 1000 * 1000; // 10 seconds
+}
+
 const Commands FlowACL::cmds = {
     {"add", "FlowACLArg", MODULE_CMD_FUNC(&FlowACL::CommandAdd),
      Command::THREAD_UNSAFE},
@@ -62,39 +66,52 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     flow.src_port = tcp->src_port;
     flow.dst_port = tcp->dst_port;
 
+    uint64_t now = ctx->current_ns;
+
     // Find existing flow, if we have one.
-    std::unordered_map<Flow, bool, FlowHash>::iterator it =
+    std::unordered_map<Flow, FlowRecord, FlowHash>::iterator it =
         flow_cache_.find(flow);
 
     bool emitted = false;
-    if (it != flow_cache_.end()) { // an existing flow
-      if (!it->second) { // if not drop
-        emitted = true;
-        EmitPacket(ctx, pkt, incoming_gate);
-      }
-
-      if (tcp->flags & Tcp::Flag::kFin) {
+    if (it != flow_cache_.end()) {
+      if (now >= it->second.ExpiryTime()) { // an outdated flow
         flow_cache_.erase(it);
+        active_flows_ -= 1;
+        it = flow_cache_.end();
+      } else { // an existing flow
+        if (it->second.IsACLPass()) {
+          emitted = true;
+          EmitPacket(ctx, pkt, incoming_gate);
+        }
       }
-    } else { // by default, drop a new flow.
+    }
+
+    if (it == flow_cache_.end()) {
       std::tie(it, std::ignore) = flow_cache_.emplace(
           std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
-      it->second = true;
 
       for (const auto &rule : rules_) {
         if (rule.Match(ip->src, ip->dst, tcp->src_port, tcp->dst_port)) {
           if (!rule.drop) {
             emitted = true;
             EmitPacket(ctx, pkt, incoming_gate);
-            it->second = false;
+            it->second.SetACLPass();
           }
           break;  // Stop matching other rules
         }
       }
+      active_flows_ += 1;
     }
+
+    it->second.SetExpiryTime(now + TIME_OUT_NS);
 
     if (!emitted) {
       DropPacket(ctx, pkt);
+    }
+
+    if (tcp->flags & Tcp::Flag::kFin) {
+      flow_cache_.erase(it);
+      active_flows_ -= 1;
     }
   }
 }

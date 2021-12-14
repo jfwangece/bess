@@ -14,6 +14,7 @@ using bess::utils::be16_t;
 using bess::utils::be32_t;
 using bess::utils::Flow;
 using bess::utils::FlowHash;
+using bess::utils::FlowRecord;
 
 class FlowLB final : public Module {
  public:
@@ -30,7 +31,7 @@ class FlowLB final : public Module {
   // A set of available endpoints (IPs) for a certain service
   std::vector<be32_t> endpoints_;
   // Per-flow connection table
-  std::unordered_map<Flow, be32_t, FlowHash> flow_cache_;
+  std::unordered_map<Flow, FlowRecord, FlowHash> flow_cache_;
   // Total number of active flows in the flow cache (connection table)
   int active_flows_ = 0;
 };
