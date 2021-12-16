@@ -5,12 +5,13 @@
 #include "../utils/udp.h"
 #include "../utils/tcp.h"
 
-static const std::string kDefaultFaaSServicePort = "10515";
-static const std::string kDefaultSwitchServicePort = "10516";
-static const int kDefaultRedisServicePort = 6379;
-static const int kDefaultFaaSIngressStoreSize = 1600;
-static const uint64_t kDefaultRuleDelayMilliseconds = 0;
-
+namespace {
+const std::string kDefaultFaaSServicePort = "10515";
+const std::string kDefaultSwitchServicePort = "10516";
+const int kDefaultRedisServicePort = 6379;
+const int kDefaultFaaSIngressStoreSize = 1600;
+const uint64_t kDefaultRuleDelayMilliseconds = 0;
+}
 
 const Commands FaaSIngress::cmds = {
   {"add", "FaaSIngressArg", MODULE_CMD_FUNC(&FaaSIngress::CommandAdd),

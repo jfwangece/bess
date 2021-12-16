@@ -20,9 +20,11 @@ class alignas(16) Flow {
   be32_t dst_ip;
   be16_t src_port;
   be16_t dst_port;
-  uint32_t padding;
+  uint8_t proto_ip;
+  uint8_t padding0;
+  uint16_t padding1;
 
-  Flow() : padding(0) {}
+  Flow() : proto_ip(0), padding0(0), padding1(0) {}
 
   bool operator==(const Flow &other) const {
     return memcmp(this, &other, sizeof(*this)) == 0;
@@ -74,6 +76,17 @@ class FlowRecord {
   be32_t dst_ip_;
   TcpFlowReconstruct buffer_;
   uint64_t expiry_time_;
+};
+
+// The ingress handles subsequent packet arrivals before the OpenFLow
+// rule is installed.
+enum FlowAction {
+  // Drop
+  kDrop = 0,
+  // Queue
+  kQueue,
+  // Forward with the same rule.
+  kForward,
 };
 
 } // namespace utils

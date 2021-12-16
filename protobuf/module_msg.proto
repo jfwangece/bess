@@ -955,6 +955,10 @@ message NATArg {
   repeated ExternalAddress ext_addrs = 1; /// list of external IP addresses
 }
 
+message NFVIngressArg {
+  bool local_decision = 12;
+}
+
 /**
  * Static NAT module implements one-to-one translation of source/destination
  * IPv4 addresses. No port number is translated.

@@ -1,5 +1,5 @@
-#ifndef BESS_MODULES_FAASINGRESS_H_
-#define BESS_MODULES_FAASINGRESS_H_
+#ifndef BESS_MODULES_FAAS_INGRESS_H_
+#define BESS_MODULES_FAAS_INGRESS_H_
 
 #include <grpc++/grpc++.h>
 #include <hiredis/hiredis.h>
@@ -12,6 +12,7 @@
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
 #include "../utils/ether.h"
+#include "../utils/flow.h"
 #include "../utils/ip.h"
 #include "../utils/mcslock.h"
 
@@ -19,21 +20,12 @@ using bess::utils::be16_t;
 using bess::utils::be32_t;
 using bess::utils::Ethernet;
 using bess::utils::Ipv4Prefix;
-
+using bess::utils::FlowAction;
+using bess::utils::kDrop;
+using bess::utils::kForward;
 
 class FaaSIngress final : public Module {
  public:
-  // The ingress handles subsequent packet arrivals before the OpenFLow
-  // rule is installed.
-  enum FlowAction {
-    // Drop
-    kDrop = 0,
-    // Queue
-    kQueue,
-    // Forward with the same rule.
-    kForward,
-  };
-
   struct FlowRule {
   bool Match(be32_t sip, be32_t dip, uint8_t pip, be16_t sport, be16_t dport) const {
     return src_ip.Match(sip) && dst_ip.Match(dip) &&
@@ -128,4 +120,4 @@ class FaaSIngress final : public Module {
   mcslock lock_;
 };
 
-#endif  // BESS_MODULES_FAASINGRESS_H_
+#endif  // BESS_MODULES_FAAS_INGRESS_H_
