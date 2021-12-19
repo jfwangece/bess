@@ -96,7 +96,7 @@ CommandResponse FaaSIngress::Init(const bess::pb::FaaSIngressArg &arg) {
   }
 
   for (const auto &rule : arg.rules()) {
-    FlowRule new_rule = {
+    FlowLpmRule new_rule = {
         .src_ip = Ipv4Prefix(rule.src_ip()),
         .dst_ip = Ipv4Prefix(rule.dst_ip()),
         .proto_ip = Ipv4::Proto::kTcp,
@@ -236,7 +236,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     }
 
     if (!emitted) { // A new flow: no matched rule.
-      FlowRule new_rule = {
+      FlowLpmRule new_rule = {
         .src_ip = Ipv4Prefix(ToIpv4Address(ip->src) + "/32"),
         .dst_ip = Ipv4Prefix(ToIpv4Address(ip->dst) + "/32"),
         .proto_ip = ip->protocol,
@@ -263,7 +263,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   }
 }
 
-bool FaaSIngress::process_new_flow(FlowRule &rule) {
+bool FaaSIngress::process_new_flow(FlowLpmRule &rule) {
   grpc::ClientContext ctx1, ctx2;
 
   if (local_decision_) {
@@ -336,7 +336,7 @@ bool FaaSIngress::process_new_flow(FlowRule &rule) {
   return true;
 }
 
-std::string FaaSIngress::convert_rule_to_string(FlowRule &rule) {
+std::string FaaSIngress::convert_rule_to_string(FlowLpmRule &rule) {
   return "assign," +
          ToIpv4Address(rule.src_ip.addr) + "," +
          ToIpv4Address(rule.dst_ip.addr) + "," +
@@ -347,7 +347,7 @@ std::string FaaSIngress::convert_rule_to_string(FlowRule &rule) {
          rule.egress_mac;
 }
 
-void FaaSIngress::convert_rule_to_of_request(FlowRule &rule, bess::pb::InsertFlowEntryRequest &req) {
+void FaaSIngress::convert_rule_to_of_request(FlowLpmRule &rule, bess::pb::InsertFlowEntryRequest &req) {
   req.set_ipv4_src(ToIpv4Address(rule.src_ip.addr));
   req.set_ipv4_dst(ToIpv4Address(rule.dst_ip.addr));
   req.set_ipv4_protocol(rule.proto_ip);

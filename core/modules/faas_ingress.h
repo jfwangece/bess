@@ -21,48 +21,16 @@ using bess::utils::be32_t;
 using bess::utils::Ethernet;
 using bess::utils::Ipv4Prefix;
 using bess::utils::FlowAction;
+using bess::utils::FlowLpmRule;
 using bess::utils::kDrop;
 using bess::utils::kForward;
 
 class FaaSIngress final : public Module {
  public:
-  struct FlowRule {
-  bool Match(be32_t sip, be32_t dip, uint8_t pip, be16_t sport, be16_t dport) const {
-    return src_ip.Match(sip) && dst_ip.Match(dip) &&
-       (proto_ip == pip) &&
-       (src_port == be16_t(0) || src_port == sport) &&
-       (dst_port == be16_t(0) || dst_port == dport);
-  }
-
-  void set_action(uint o_port, const std::string& o_mac) {
-    egress_port = o_port;
-    egress_mac = o_mac;
-    encoded_mac.FromString(o_mac);
-    encoded_mac.bytes[0] = o_port & 0xff;
-  }
-
-  // Match
-  Ipv4Prefix src_ip;
-  Ipv4Prefix dst_ip;
-  uint8_t proto_ip;
-  be16_t src_port;
-  be16_t dst_port;
-
-  // Action for subsequent packets.
-  FlowAction action;
-  uint egress_port;
-  std::string egress_mac;
-
-  Ethernet::Address encoded_mac;
-  uint64_t active_ts = 0;
-  };
-
   static const Commands cmds;
 
   FaaSIngress() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; }
-
   CommandResponse Init(const bess::pb::FaaSIngressArg &arg);
-
   void Clear();
 
   // This function handles the system ingress for FaaS-NFV.
@@ -77,9 +45,9 @@ class FaaSIngress final : public Module {
   CommandResponse CommandUpdate(const bess::pb::FaaSIngressCommandUpdateArg &arg);
 
  private:
-  bool process_new_flow(FlowRule &rule);
-  void convert_rule_to_of_request(FlowRule &rule, bess::pb::InsertFlowEntryRequest &req);
-  std::string convert_rule_to_string(FlowRule &rule);
+  bool process_new_flow(FlowLpmRule &rule);
+  void convert_rule_to_of_request(FlowLpmRule &rule, bess::pb::InsertFlowEntryRequest &req);
+  std::string convert_rule_to_string(FlowLpmRule &rule);
 
   FlowAction default_action_ = kDrop;
 
@@ -109,8 +77,8 @@ class FaaSIngress final : public Module {
   redisReply* redis_reply_;
 
   long unsigned int max_rules_count_;
-  std::vector<FlowRule> rules_vector_;
-  std::deque<FlowRule> rules_;
+  std::vector<FlowLpmRule> rules_vector_;
+  std::deque<FlowLpmRule> rules_;
 
   // Local decision parameters
   bool local_decision_;

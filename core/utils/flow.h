@@ -13,6 +13,16 @@ using bess::utils::be32_t;
 namespace bess {
 namespace utils {
 
+// Actions for handling subsequent packets before an OpenFLow rule is installed.
+enum FlowAction {
+  // Drop
+  kDrop = 0,
+  // Queue
+  kQueue,
+  // Forward with the same rule.
+  kForward,
+};
+
 // A helper class that defines a TCP flow
 class alignas(16) Flow {
  public:
@@ -54,6 +64,38 @@ struct FlowHash {
   }
 };
 
+class FlowLpmRule {
+ public:
+  bool Match(be32_t sip, be32_t dip, uint8_t pip, be16_t sport, be16_t dport) const {
+    return src_ip.Match(sip) && dst_ip.Match(dip) &&
+       (proto_ip == pip) &&
+       (src_port == be16_t(0) || src_port == sport) &&
+       (dst_port == be16_t(0) || dst_port == dport);
+  }
+
+  void set_action(uint o_port, const std::string& o_mac) {
+    egress_port = o_port;
+    egress_mac = o_mac;
+    encoded_mac.FromString(o_mac);
+    encoded_mac.bytes[0] = o_port & 0xff;
+  }
+
+  // Match
+  Ipv4Prefix src_ip;
+  Ipv4Prefix dst_ip;
+  uint8_t proto_ip;
+  be16_t src_port;
+  be16_t dst_port;
+
+  // Action for subsequent packets.
+  FlowAction action;
+  uint egress_port;
+  std::string egress_mac;
+
+  Ethernet::Address encoded_mac;
+  uint64_t active_ts = 0;
+};
+
 // Used by snort_ids, url_filter
 class FlowRecord {
  public:
@@ -78,15 +120,18 @@ class FlowRecord {
   uint64_t expiry_time_;
 };
 
-// The ingress handles subsequent packet arrivals before the OpenFLow
-// rule is installed.
-enum FlowAction {
-  // Drop
-  kDrop = 0,
-  // Queue
-  kQueue,
-  // Forward with the same rule.
-  kForward,
+class FlowRoutingRule {
+ public:
+  FlowRoutingRule(uint o_port, const std::string& o_mac)
+      : action_(kForward),
+        egress_port_(o_port) {
+    encoded_mac_.FromString(o_mac);
+    encoded_mac_.bytes[0] = o_port & 0xff;
+  }
+
+  FlowAction action_;
+  uint egress_port_;
+  Ethernet::Address encoded_mac_;
 };
 
 } // namespace utils
