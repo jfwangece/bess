@@ -14,7 +14,7 @@ using bess::utils::be32_t;
 using bess::utils::Ipv4Prefix;
 using bess::utils::Flow;
 using bess::utils::FlowHash;
-using bess::utils::FlowRecord;
+using bess::utils::FlowRoutingRule;
 
 class NFVIngress final : public Module {
  public:
@@ -31,7 +31,7 @@ class NFVIngress final : public Module {
 
  private:
   // Per-flow connection table
-  std::unordered_map<Flow, FlowRecord, FlowHash> flow_cache_;
+  std::unordered_map<Flow, FlowRoutingRule, FlowHash> flow_cache_;
   // Total number of active flows in the flow cache
   int active_flows_ = 0;
 };

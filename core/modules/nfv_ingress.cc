@@ -38,6 +38,8 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   Flow flow;
   Tcp *tcp = nullptr;
   Udp *udp = nullptr;
+
+  uint64_t now = ctx->current_ns;
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
@@ -65,10 +67,8 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       continue;
     }
 
-    uint64_t now = ctx->current_ns;
-
     // Find existing flow, if we have one.
-    std::unordered_map<Flow, FlowRecord, FlowHash>::iterator it =
+    std::unordered_map<Flow, FlowRoutingRule, FlowHash>::iterator it =
         flow_cache_.find(flow);
 
     bool emitted = false;
@@ -78,24 +78,28 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         active_flows_ -= 1;
         it = flow_cache_.end();
       } else { // an existing flow
-        if (it->second.IsACLPass()) {
-          emitted = true;
-          EmitPacket(ctx, pkt, 0);
-        }
+        emitted = true;
+        eth->dst_addr = it->second.encoded_mac_;
       }
     }
 
     if (it == flow_cache_.end()) {
+      FlowRoutingRule new_rule(1, "02:42:01:c2:02:fe");
+      //process_new_flow(new_rule);
+
       std::tie(it, std::ignore) = flow_cache_.emplace(
-          std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
-
+          std::piecewise_construct, std::make_tuple(flow), std::make_tuple(new_rule));
       active_flows_ += 1;
-    }
 
+      emitted = true;
+      eth->dst_addr = it->second.encoded_mac_;
+    }
     it->second.SetExpiryTime(now + TIME_OUT_NS);
 
     if (!emitted) {
       DropPacket(ctx, pkt);
+    } else {
+      EmitPacket(ctx, pkt, 0);
     }
 
     if (tcp != nullptr && tcp->flags & Tcp::Flag::kFin) {

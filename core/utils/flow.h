@@ -129,9 +129,15 @@ class FlowRoutingRule {
     encoded_mac_.bytes[0] = o_port & 0xff;
   }
 
+  uint64_t ExpiryTime() { return expiry_time_; }
+  void SetExpiryTime(uint64_t time) { expiry_time_ = time; }
+
   FlowAction action_;
   uint egress_port_;
   Ethernet::Address encoded_mac_;
+
+ private:
+  uint64_t expiry_time_;
 };
 
 } // namespace utils
