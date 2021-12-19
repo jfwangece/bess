@@ -30,6 +30,8 @@ public:
 
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
+  std::string GetDesc() const override;
+
 private:
   void Start();
   void Stop();

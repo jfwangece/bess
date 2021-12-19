@@ -4,6 +4,7 @@
 
 #include "../utils/endian.h"
 #include "../utils/ether.h"
+#include "../utils/format.h"
 #include "../utils/ip.h"
 #include "../utils/tcp.h"
 #include "../utils/udp.h"
@@ -147,6 +148,10 @@ CommandResponse FlowCounter::CommandGetSummary(const bess::pb::EmptyArg &) {
   r.set_flow_count(flow_cache_.size());
   Start();
   return CommandSuccess(r);
+}
+
+std::string FlowCounter::GetDesc() const {
+  return bess::utils::Format("%d flows", active_flows_);
 }
 
 ADD_MODULE(FlowCounter, "flow_counter",
