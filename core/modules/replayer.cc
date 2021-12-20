@@ -61,6 +61,9 @@ void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       GetTimestamp(batch->pkts()[i], offset_, &time_diff);
 
       if (time_diff) {
+        if (time_diff > 60000000) {
+          time_diff = 0;
+        }
         if (playback_speed_ >= 0.1) {
           time_diff /= playback_speed_;
         }

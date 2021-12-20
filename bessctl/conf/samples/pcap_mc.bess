@@ -1,0 +1,51 @@
+#
+# This script is used to read a packet trace from a pcap file,
+# and generates packets in a busy loop.
+#
+# Requirements:
+# (1) set CONFIG_RTE_LIBRTE_PMD_PCAP=y and recompile DPDK, see https://doc.dpdk.org/guides/nics/pcap_ring.html
+# (2) increase Queue size in queue.cc and recompile BESS:
+#
+
+PCAPFILE = $PCAP!""
+assert PCAPFILE
+print("Target PCAP file: %s" %(PCAPFILE))
+
+playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
+playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
+playback_speed = float($BESS_SPEED!"1")
+burst_size=int($BESS_BURST!'32')
+tag_offset = 72
+pcap_file = '{}'.format(PCAPFILE)
+
+pcap_port = {}
+src = {}
+queue = {}
+replayer = {}
+q::Queue(size=4096)
+fc::FlowCounter()
+
+for i in range(2):
+    pcap_port[i] = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
+    src[i] = PortInc(port=pcap_port[i])
+    queue[i] = Queue(size=pow(2,24))
+    if playback_rate_mpps > 0:
+        replayer[i] = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
+    elif playback_rate_mbps > 0:
+        replayer[i] = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
+    else:
+        replayer[i] = Replayer(offset=tag_offset, speed=playback_speed)
+
+    src[i] -> queue[i] -> replayer[i] -> q
+    queue[i].set_burst(burst=burst_size)
+q -> fc -> Sink()
+
+for i in range(2):
+    bess.add_worker(wid=2*i, core=2*i+1)
+    bess.add_worker(wid=2*i+1, core=2*i+2)
+    src[i].attach_task(wid=2*i)
+    queue[i].attach_task(wid=2*i+1)
+bess.add_worker(wid=2*3, core=2*3+i)
+q.attach_task(wid=2*3)
+
+bess.resume_all()

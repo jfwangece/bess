@@ -67,6 +67,9 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
   eth_template_.dst_addr = Ethernet::Address("0a:14:69:37:5f:f2");
   eth_template_.ether_type = be16_t(Ethernet::Type::kIpv4);
 
+  // Record the startup timestamp in usec
+  startup_ts_ = tsc_to_us(rdtsc());
+
   return CommandSuccess();
 }
 
@@ -152,10 +155,17 @@ alloc:
 
     if (is_timestamp_) {
       // Tag packet: to calculate the global timestamp (in usec) of this packet
-      uint64_t tsec = pkthdr_.ts.tv_sec;
-      uint64_t tusec = pkthdr_.ts.tv_usec;
-      uint64_t ts = ((tsec - init_tsec_) * 1000000 + tusec - init_tusec_);
+      long tsec = pkthdr_.ts.tv_sec;
+      long tusec = pkthdr_.ts.tv_usec;
+      uint64_t ts = uint64_t(tsec - init_tsec_) * 1000000;
+      if (tusec > init_tusec_) {
+        ts += uint64_t(tusec - init_tusec_);
+      } else {
+        ts -= uint64_t(init_tusec_ - tusec);
+      }
       tag_packet(pkt, offset_, ts);
+
+      //while (startup_ts_ + ts > 1000000 + tsc_to_us(rdtsc())) {}
     }
   }
 
