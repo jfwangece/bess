@@ -11,6 +11,7 @@ PCAPFILE = $PCAP!""
 assert PCAPFILE
 print("Target PCAP file: %s" %(PCAPFILE))
 
+num_cores = int($BESS_CORE!"3")
 playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
 playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
 playback_speed = float($BESS_SPEED!"1")
@@ -23,9 +24,8 @@ src = {}
 queue = {}
 replayer = {}
 q::Queue(size=4096)
-fc::FlowCounter()
 
-for i in range(2):
+for i in range(num_cores):
     pcap_port[i] = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
     src[i] = PortInc(port=pcap_port[i])
     queue[i] = Queue(size=pow(2,24))
@@ -38,14 +38,17 @@ for i in range(2):
 
     src[i] -> queue[i] -> replayer[i] -> q
     queue[i].set_burst(burst=burst_size)
-q -> fc -> Sink()
+q -> Sink()
 
-for i in range(2):
+#q -> fc -> Sink()
+#fc::FlowCounter()
+
+for i in range(num_cores):
     bess.add_worker(wid=2*i, core=2*i+1)
     bess.add_worker(wid=2*i+1, core=2*i+2)
     src[i].attach_task(wid=2*i)
     queue[i].attach_task(wid=2*i+1)
-bess.add_worker(wid=2*3, core=2*3+i)
-q.attach_task(wid=2*3)
+bess.add_worker(wid=2*num_cores, core=2*num_cores+1)
+q.attach_task(wid=2*num_cores)
 
 bess.resume_all()

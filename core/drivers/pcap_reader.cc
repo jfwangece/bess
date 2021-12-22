@@ -3,6 +3,13 @@
 
 #include <string>
 
+// static
+int PCAPReader::total_pcaps_ = 0;
+std::mutex PCAPReader::mtx_;
+uint64_t PCAPReader::per_pcap_counters_[4] = {0,0,0,0};
+uint64_t PCAPReader::per_pcap_max_cnt_ = 0;
+uint64_t PCAPReader::per_pcap_min_cnt_ = 0;
+
 namespace {
 const int kDefaultTagOffset = 64;
 
@@ -70,6 +77,15 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
   // Record the startup timestamp in usec
   startup_ts_ = tsc_to_us(rdtsc());
 
+  // Initialize the multi-core pcap packet counters
+  mtx_.lock();
+  if (pcap_index_ == -1) {
+    pcap_index_ = total_pcaps_;
+    total_pcaps_ += 1;
+  }
+  per_pcap_counters_[pcap_index_] = 0;
+  mtx_.unlock();
+
   return CommandSuccess();
 }
 
@@ -85,14 +101,22 @@ int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
     return 0;
   }
 
+  if (!ShouldAllocPkts()) {
+    return 0;
+  }
+
   int recv_cnt = 0;
-
-  DCHECK_EQ(qid, 0);
-
   while(recv_cnt < cnt) {
+    // Try to allocate a packet buffer
+    bess::Packet* pkt = current_worker.packet_pool()->Alloc();
+    if (!pkt) {
+      break;
+    }
+
     // read one packet from the pcap file
     pkt_ = pcap_next(pcap_handle_, &pkthdr_);
     if (!pkt_) {
+      bess::Packet::Free(pkt);
       break;
     }
     int caplen = pkthdr_.caplen;
@@ -107,13 +131,7 @@ int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
     }
     if (totallen < (int)offset_ + 8) {
       totallen = (int)offset_ + 8;
-    }
-
-alloc:
-    bess::Packet* pkt = current_worker.packet_pool()->Alloc();
-    if (!pkt) {
-      goto alloc;
-    }
+    }    
 
     // Leave a headroom for prepending data
     char *p = pkt->buffer<char *>() + SNBUF_HEADROOM;
@@ -164,10 +182,12 @@ alloc:
         ts -= uint64_t(init_tusec_ - tusec);
       }
       tag_packet(pkt, offset_, ts);
-
-      //while (startup_ts_ + ts > 1000000 + tsc_to_us(rdtsc())) {}
     }
   }
+
+  mtx_.lock();
+  per_pcap_counters_[pcap_index_] += recv_cnt;
+  mtx_.unlock();
 
   return recv_cnt;
 }

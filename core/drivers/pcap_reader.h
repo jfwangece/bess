@@ -3,6 +3,7 @@
 
 #include <pcap.h>
 #include <glog/logging.h>
+#include <mutex>
 
 #include "../utils/ether.h"
 #include "../utils/ip.h"
@@ -15,6 +16,11 @@ using bess::utils::be32_t;
 class PCAPReader final : public Port {
  public:
   static const int MAX_TEMPLATE_SIZE = 1514;
+  static uint64_t per_pcap_counters_[4];
+  static uint64_t per_pcap_max_cnt_;
+  static uint64_t per_pcap_min_cnt_;
+  static int total_pcaps_;
+  static std::mutex mtx_;
 
   CommandResponse Init(const bess::pb::PCAPReaderArg &arg);
 
@@ -24,11 +30,38 @@ class PCAPReader final : public Port {
   // Ditto above: quid is ignored.
   int RecvPackets(queue_t qid, bess::Packet **pkts, int cnt) override;
 
+  bool ShouldAllocPkts() {
+    bool should = true;
+    mtx_.lock();
+    if (pcap_index_ == 0) {
+      per_pcap_max_cnt_ = per_pcap_counters_[0];
+      per_pcap_min_cnt_ = per_pcap_counters_[0];
+      for (int i = 1; i < total_pcaps_; i++) {
+        if (per_pcap_counters_[i] > per_pcap_max_cnt_) {
+          per_pcap_max_cnt_ = per_pcap_counters_[i];
+        }
+        if (per_pcap_counters_[i] < per_pcap_min_cnt_) {
+          per_pcap_min_cnt_ = per_pcap_counters_[i];
+        }
+      }
+    }
+
+    if (per_pcap_counters_[pcap_index_] == per_pcap_max_cnt_ &&
+        per_pcap_max_cnt_ > per_pcap_min_cnt_ + 10000) {
+      should = false;
+    }
+    mtx_.unlock();
+    return should;
+  }
+
  private:
   unsigned char tmpl_[MAX_TEMPLATE_SIZE] = {};
 
+  int pcap_index_ = -1;
+
   bool is_timestamp_ = false;
   bool is_reset_payload_ = false;
+  // Timestamp offset
   size_t offset_;
   // The module's packet counter
   uint64_t pkt_counter_ = 0;
