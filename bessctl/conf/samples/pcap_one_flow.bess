@@ -12,7 +12,6 @@ playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
 playback_speed = float($BESS_SPEED!"1")
 burst_size=int($BESS_BURST!'32')
 tag_offset = 72
-pcie0, offset0="82:00.0", 0
 
 pcap_file = '{}'.format(PCAPFILE)
 
@@ -26,24 +25,16 @@ elif playback_rate_mbps > 0:
 else:
     replayer = Replayer(offset=tag_offset, speed=playback_speed)
 
-pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
-pout0::PortOut(port=pmd_port0)
-pinc0::PortInc(port=pmd_port0)
-
 acl::ACL(rules=[
     {'src_ip': '168.123.253.24/32', 'dst_ip': '131.196.174.19/32', 'drop': False}])
 
-src -> acl -> queue -> replayer -> Timestamp(offset=tag_offset) -> pout0
-pinc0 -> Measure(offset=tag_offset) -> Sink()
+src -> acl -> queue -> replayer -> Timestamp(offset=tag_offset) -> Sink()
 
 queue.set_burst(burst=burst_size)
-pinc0.set_burst(burst=burst_size)
 
-bess.add_worker(wid=1, core=1+offset0)
-bess.add_worker(wid=2, core=3+offset0)
-bess.add_worker(wid=3, core=5+offset0)
+bess.add_worker(wid=1, core=1)
+bess.add_worker(wid=2, core=2)
 src.attach_task(wid=1)
 queue.attach_task(wid=2)
-pinc0.attach_task(wid=3)
 
 bess.resume_all()
