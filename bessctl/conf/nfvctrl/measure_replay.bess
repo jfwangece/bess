@@ -12,7 +12,7 @@ pkt_size=int($BESS_PKT_SIZE!'1500')
 pkt_rate=int($BESS_PKT_RATE!'1000000')
 extra_cycles=int($BESS_PKT_CYCLE!'0')
 
-playback_rate_mpps = pkt_rate
+playback_rate_mpps = pkt_rate / 1000000.0
 tag_offset = 72
 PACKET_OVERHEAD=24
 

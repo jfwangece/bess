@@ -101,33 +101,33 @@ void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 void Replayer::WaitToSendPkt(bess::Packet *pkt) {
   uint64_t time_diff = 0;
   if (use_trace_time_) {
-      // Read the timestamp in the TCP header.
-      GetTimestamp(pkt, offset_, &time_diff);
+    // Read the timestamp in the TCP header.
+    GetTimestamp(pkt, offset_, &time_diff);
 
-      if (time_diff) {
-        if (time_diff > 60000000) {
-          time_diff = 0;
-        }
-        if (playback_speed_ >= 0.1) {
-          time_diff /= playback_speed_;
-        }
+    if (time_diff) {
+      if (time_diff > 60000000) {
+        time_diff = 0;
       }
-      next_pkt_time_ = startup_ts_ + time_diff;
+      if (playback_speed_ >= 0.1) {
+        time_diff /= playback_speed_;
+      }
     }
+    next_pkt_time_ = startup_ts_ + time_diff;
+  }
 
 // Emit a packet only if |curr_time_| passes the calculated packet timestamp
 checktime:
-    if (use_trace_time_) {
-      curr_time_ = tsc_to_us(rdtsc());
-    } else {
-      curr_time_ = tsc_to_ns(rdtsc());
-    }
+  if (use_trace_time_) {
+    curr_time_ = tsc_to_us(rdtsc());
+  } else {
+    curr_time_ = tsc_to_ns(rdtsc());
+  }
 
-    if (curr_time_ > next_pkt_time_) {
-      return;
-    } else {
-      goto checktime;
-    }
+  if (curr_time_ >= next_pkt_time_) {
+    return;
+  } else {
+    goto checktime;
+  }
 }
 
 ADD_MODULE(Replayer, "replayer",
