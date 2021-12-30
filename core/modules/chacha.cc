@@ -187,7 +187,11 @@ CommandResponse CHACHA::Init(const bess::pb::CHACHAArg &arg) {
     chacha_rounds_ = DEFAULT_CHACHA_ROUNDS;
   }
 
-  chacha_offset_ = 24; // marker=4x2, ts=8, (unused=4)
+  // Eth (14) + IP (20) + TCP (20) = 54
+  // Then, CHACHA's payload offset: 54 + 30 = 84
+  // TS size (marker=4, ts=8) = 12
+  // ts ends at: start (72) + 12 = 84
+  chacha_offset_ = 30;
 
   memcpy(tc_key_, DEFAULT_CHACHA_KEY, sizeof(DEFAULT_CHACHA_KEY));
   memcpy(tc_iv_, DEFAULT_CHACHA_IV, sizeof(DEFAULT_CHACHA_IV));
