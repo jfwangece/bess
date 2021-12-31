@@ -956,7 +956,8 @@ message NATArg {
 }
 
 message NFVIngressArg {
-  bool local_decision = 12;
+  repeated string core_addrs = 1; /// list of routing addresses for available CPU cores in the cluster
+  bool local_decision = 2;
 }
 
 /**

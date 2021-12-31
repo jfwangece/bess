@@ -16,6 +16,11 @@ const Commands NFVIngress::cmds = {
      Command::THREAD_UNSAFE}};
 
 CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &arg) {
+  core_count_ = arg.core_addrs_size();
+  for (int i = 0; i < core_count_; i++) {
+    core_addrs_.push_back(arg.core_addrs(i));
+  }
+
   return CommandSuccess();
 }
 
@@ -84,8 +89,9 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     }
 
     if (it == flow_cache_.end()) {
-      FlowRoutingRule new_rule(1, "02:42:01:c2:02:fe");
-      //process_new_flow(new_rule);
+      FlowRoutingRule new_rule("02:42:01:c2:02:fe");
+      // Assign this flow to a CPU core
+      process_new_flow(new_rule);
 
       std::tie(it, std::ignore) = flow_cache_.emplace(
           std::piecewise_construct, std::make_tuple(flow), std::make_tuple(new_rule));
@@ -107,6 +113,16 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       active_flows_ -= 1;
     }
   }
+}
+
+bool NFVIngress::process_new_flow(FlowRoutingRule &rule) {
+  if (next_core_ < 0 || next_core_ >= core_count_) {
+    return false;
+  }
+
+  rule.encoded_mac_.FromString(core_addrs_[next_core_]);
+  next_core_ = (next_core_ + 1) % core_count_;
+  return true;
 }
 
 ADD_MODULE(NFVIngress, "nfv_ingress", "NFV controller with a per-flow hash table")

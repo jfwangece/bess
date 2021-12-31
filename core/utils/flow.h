@@ -122,6 +122,11 @@ class FlowRecord {
 
 class FlowRoutingRule {
  public:
+  FlowRoutingRule(const std::string& o_mac)
+      : action_(kForward),
+        egress_port_(0) {
+    encoded_mac_.FromString(o_mac);
+  }
   FlowRoutingRule(uint o_port, const std::string& o_mac)
       : action_(kForward),
         egress_port_(o_port) {

@@ -30,6 +30,11 @@ class NFVIngress final : public Module {
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
 
  private:
+  bool process_new_flow(FlowRoutingRule &rule);
+  // Available per-core packet queues in the cluster
+  std::vector<std::string> core_addrs_;
+  int core_count_ = 0;
+  int next_core_ = 0;
   // Per-flow connection table
   std::unordered_map<Flow, FlowRoutingRule, FlowHash> flow_cache_;
   // Total number of active flows in the flow cache
