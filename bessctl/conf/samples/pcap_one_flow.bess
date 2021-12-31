@@ -1,0 +1,40 @@
+#
+# The traffic generator that replays a PCAP packet trace.
+#
+import scapy.all as scapy
+
+PCAPFILE = $PCAP!""
+assert PCAPFILE
+print("Target PCAP file: %s" %(PCAPFILE))
+
+playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
+playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
+playback_speed = float($BESS_SPEED!"1")
+burst_size=int($BESS_BURST!'32')
+tag_offset = 72
+
+pcap_file = '{}'.format(PCAPFILE)
+
+pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
+src = PortInc(port=pcap_port)
+queue = Queue(size=pow(2,24))
+if playback_rate_mpps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
+elif playback_rate_mbps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
+else:
+    replayer = Replayer(offset=tag_offset, speed=playback_speed)
+
+acl::ACL(rules=[
+    {'src_ip': '168.123.253.24/32', 'dst_ip': '131.196.174.19/32', 'drop': False}])
+
+src -> acl -> queue -> replayer -> Timestamp(offset=tag_offset) -> Sink()
+
+queue.set_burst(burst=burst_size)
+
+bess.add_worker(wid=1, core=1)
+bess.add_worker(wid=2, core=2)
+src.attach_task(wid=1)
+queue.attach_task(wid=2)
+
+bess.resume_all()

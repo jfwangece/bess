@@ -1,0 +1,34 @@
+#
+# This script is used to read a packet trace from a pcap file,
+# and generates packets in a busy loop.
+#
+# Requirements:
+# (1) set CONFIG_RTE_LIBRTE_PMD_PCAP=y and recompile DPDK, see https://doc.dpdk.org/guides/nics/pcap_ring.html
+# (2) increase Queue size in queue.cc and recompile BESS:
+#
+
+PCAPFILE = $PCAP!""
+assert PCAPFILE
+print("Target PCAP file: %s" %(PCAPFILE))
+
+playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
+playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
+playback_speed = float($BESS_SPEED!"1")
+tag_offset = 72
+pcap_file = '{}'.format(PCAPFILE)
+
+pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
+src = PortInc(port=pcap_port)
+if playback_rate_mpps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
+elif playback_rate_mbps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
+else:
+    replayer = Replayer(offset=tag_offset, speed=playback_speed)
+
+src -> replayer -> Sink()
+
+bess.add_worker(wid=1, core=1)
+src.attach_task(wid=1)
+
+bess.resume_all()

@@ -1,0 +1,65 @@
+#
+# Measure the per-packet cycle cost for NF chain #4: a state-heavy NF chain
+# ACL/Firewall -> LB -> Monitor
+#
+import scapy.all as scapy
+
+PACKET_OVERHEAD=24
+
+burst_size=int($BESS_BURST!'32')
+acl_cnt=int($BESS_ACL!'2000')
+lb_cnt=int($BESS_LB!'100')
+pkt_size=int($BESS_PKT_SIZE!'1500')
+pkt_rate=int($BESS_PKT_RATE!'1000000')
+extra_cycles=int($BESS_PKT_CYCLE!'0')
+
+# Create a "template" packet to use for generated flows.
+src_ether = '00:15:4d:12:2b:f4'
+dst_ether = '00:00:00:00:00:01'
+src_ip = '10.0.0.1'
+dst_ip = '192.0.0.1'
+src_port = 10001
+dst_port = 8080
+eth = scapy.Ether(src=src_ether, dst=dst_ether)
+ip = scapy.IP(src=src_ip, dst=dst_ip)
+tcp = scapy.TCP(sport=src_port, dport=dst_port)
+payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+pkt = eth/ip/tcp/payload
+pkt_data = bytes(pkt)
+print("Packet size = %d bytes" %(len(pkt_data)))
+
+acl_rules = []
+for i in range(acl_cnt / 50):
+    for j in range(50):
+        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
+acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
+
+nat_hosts = []
+for i in range(lb_cnt / 20):
+    for j in range(20):
+        nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
+
+src::Source()
+q::Queue()
+fw::FlowACL(rules=acl_rules)
+lb::FlowLB(endpoints=nat_hosts)
+monitor::FlowCounter()
+
+src -> Rewrite(templates=[pkt_data]) -> q
+q -> fw -> lb -> monitor -> MACSwap() -> Bypass(cycles_per_packet=extra_cycles) -> Sink()
+
+src.set_burst(burst=burst_size)
+q.set_burst(burst=burst_size)
+
+# core ID starts at the offset core
+bess.add_worker(wid=1, core=1)
+bess.add_worker(wid=2, core=2)
+bess.add_tc('rl',
+            policy='rate_limit',
+            resource='packet',
+            limit={'packet': pkt_rate},
+            wid=1)
+src.attach_task(parent='rl')
+q.attach_task(wid=2)
+
+bess.resume_all()

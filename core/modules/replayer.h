@@ -10,12 +10,14 @@ class Replayer final : public Module {
 
   CommandResponse Init(const bess::pb::ReplayerArg &arg);
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
+  void WaitToSendPkt(bess::Packet *pkt);
 
  private:
   // The offset / attribute ID of the per-packet timestamp
   size_t offset_;
   // Playback parameters:
   bool use_trace_time_;
+  bool use_batching_;
   // |playback_speed_| accelerates the trace to speed up the packet rate;
   // |playback_rate_| tunes to |playback_speed_| dynamically so that the
   // actual packet rate matches the |playback_rate_|. If zero, no effect.

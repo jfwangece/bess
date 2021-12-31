@@ -187,7 +187,11 @@ CommandResponse CHACHA::Init(const bess::pb::CHACHAArg &arg) {
     chacha_rounds_ = DEFAULT_CHACHA_ROUNDS;
   }
 
-  chacha_offset_ = 20; // marker=4x2, ts=8, (unused=4)
+  // Eth (14) + IP (20) + TCP (20) = 54
+  // Then, CHACHA's payload offset: 54 + 30 = 84
+  // TS size (marker=4, ts=8) = 12
+  // ts ends at: start (72) + 12 = 84
+  chacha_offset_ = 30;
 
   memcpy(tc_key_, DEFAULT_CHACHA_KEY, sizeof(DEFAULT_CHACHA_KEY));
   memcpy(tc_iv_, DEFAULT_CHACHA_IV, sizeof(DEFAULT_CHACHA_IV));
@@ -210,12 +214,12 @@ void CHACHA::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     if (ip->protocol == Ipv4::Proto::kTcp) {
       Tcp *tcp = reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_hdr_len);
       hdr_length = sizeof(*eth) + sizeof(*ip) + sizeof(*tcp);
-      payload = reinterpret_cast<char*>(tcp + 1 + chacha_offset_);
+      payload = reinterpret_cast<char*>(tcp + 1) + chacha_offset_;
       payload_size = pkt->data_len() - hdr_length - chacha_offset_;
     } else if (ip->protocol == Ipv4::Proto::kUdp) {
       Udp *udp = reinterpret_cast<Udp *>(reinterpret_cast<uint8_t *>(ip) + ip_hdr_len);
       hdr_length = sizeof(*eth) + sizeof(*ip) + sizeof(*udp);
-      payload = reinterpret_cast<char*>(udp + 1 + chacha_offset_);
+      payload = reinterpret_cast<char*>(udp + 1) + chacha_offset_;
       payload_size = pkt->data_len() - hdr_length - chacha_offset_;
     } else {
       continue;

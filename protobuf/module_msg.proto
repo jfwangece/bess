@@ -1120,6 +1120,7 @@ message ReplayerArg {
   double speed = 2;
   double rate_mpps = 3;
   double rate_mbps = 4;
+  bool use_batching = 5;
 }
 
 /**
