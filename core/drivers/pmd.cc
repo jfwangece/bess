@@ -56,6 +56,7 @@ static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
   ret.link_speeds = ETH_LINK_SPEED_AUTONEG;
   ret.rxmode.mq_mode = (nb_rxq > 1) ? ETH_MQ_RX_RSS : ETH_MQ_RX_NONE;
   ret.rxmode.offloads = 0;
+  ret.rxmode.max_rx_pkt_len = 1514; // MTU + 14
 
   ret.rx_adv_conf.rss_conf = {
       .rss_key = nullptr,
