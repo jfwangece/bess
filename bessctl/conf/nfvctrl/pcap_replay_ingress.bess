@@ -14,7 +14,8 @@ burst_size=int($BESS_BURST!'32')
 tag_offset = 72
 pcie0, offset0="82:00.0", 0
 
-core_addrs = ['0a:14:69:37:5f:f2',
+# 5e:00.1: '0a:14:69:37:5f:f2',
+core_addrs = [
             '82:a3:ae:74:72:30',
             'a2:87:fd:f8:72:21',
             '2e:c7:8b:7b:8d:a8',

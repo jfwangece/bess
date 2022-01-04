@@ -9,7 +9,7 @@ acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 
 # By default, pick Intel NICs
-pcie0 = ['5e:00.%d' %(i) for i in range(1, 8)]
+pcie0 = ['5e:00.%d' %(i) for i in range(2, 8)]
 offset0 = 1
 
 acl_rules = []
@@ -32,18 +32,18 @@ monitor = {}
 
 for i in range(len(pcie0)):
     port0[i] = PMDPort(pci=pcie0[i], num_inc_q=1, num_out_q=1)
-    pinc0[i] = PortInc(port=port0)
-    pout0[i] = PortOut(port=port0)
+    pinc0[i] = PortInc(port=port0[i])
+    pout0[i] = PortOut(port=port0[i])
     fw[i] = FlowACL(rules=acl_rules)
     lb[i] = FlowLB(endpoints=nat_hosts)
     monitor[i] = FlowCounter()
 
     pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> pout0[i]
-    pinc0.set_burst(burst=burst_size)
+    pinc0[i].set_burst(burst=burst_size)
 
 # core ID starts at the offset core
 for i in range(len(pcie0)):
     bess.add_worker(wid=i, core=i+offset0)
-    pinc0.attach_task(wid=i)
+    pinc0[i].attach_task(wid=i)
 
 bess.resume_all()
