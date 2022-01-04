@@ -124,12 +124,14 @@ class FlowRoutingRule {
  public:
   FlowRoutingRule(const std::string& o_mac)
       : action_(kForward),
-        egress_port_(0) {
+        egress_port_(0),
+        packet_count_(0) {
     encoded_mac_.FromString(o_mac);
   }
   FlowRoutingRule(uint o_port, const std::string& o_mac)
       : action_(kForward),
-        egress_port_(o_port) {
+        egress_port_(o_port),
+        packet_count_(0) {
     encoded_mac_.FromString(o_mac);
     encoded_mac_.bytes[0] = o_port & 0xff;
   }
@@ -140,6 +142,7 @@ class FlowRoutingRule {
   FlowAction action_;
   uint egress_port_;
   Ethernet::Address encoded_mac_;
+  uint64_t packet_count_;
 
  private:
   uint64_t expiry_time_;

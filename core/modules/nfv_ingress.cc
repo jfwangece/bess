@@ -101,8 +101,9 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       eth->dst_addr = it->second.encoded_mac_;
     }
     it->second.SetExpiryTime(now + TIME_OUT_NS);
+    it->second.packet_count_ += 1;
 
-    if (!emitted) {
+    if (!emitted && it->second.packet_count_ > 1000) {
       DropPacket(ctx, pkt);
     } else {
       EmitPacket(ctx, pkt, 0);
