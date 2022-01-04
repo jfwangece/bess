@@ -1,5 +1,8 @@
 #
 # The traffic generator that replays a PCAP packet trace.
+# Note: the sender pipeline works with the NFV Ingress module, which slows
+# down the sender pipeline a little bit. Thus, the actual packet rate is
+# smaller than the specified |playback_rate_mpps| or |playback_rate_mbps|.
 #
 import scapy.all as scapy
 

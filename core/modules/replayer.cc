@@ -53,7 +53,8 @@ CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
   last_rate_calc_ts_ = startup_ts_;
   next_pkt_time_ = startup_ts_;
 
-  std::cout << tsc_to_ns(1);
+  // CPU freq in GHz
+  std::cout << 1000.0 / double(tsc_to_ns(1000));
 
   return CommandSuccess();
 }
