@@ -123,6 +123,7 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     } else if (it->second.packet_count_ > packet_count_thresh_) {
       if (idle_core_count_) {
         eth->dst_addr.FromString(idle_core_addrs_[0]);
+        EmitPacket(ctx, pkt, 0);
       } else {
         DropPacket(ctx, pkt);
       }

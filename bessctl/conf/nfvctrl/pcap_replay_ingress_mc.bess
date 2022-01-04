@@ -24,6 +24,7 @@ core_addrs = [
             '06:8a:62:fb:51:51']
 
 num_cores = int($BESS_CORE!"3")
+flow_pkt_cnt_thresh = int($BESS_PKT_THRESH!"10000000")
 playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
 playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
 playback_speed = float($BESS_SPEED!"1")
@@ -51,7 +52,7 @@ for i in range(num_cores):
         replayer[i] = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
     else:
         replayer[i] = Replayer(offset=tag_offset, speed=playback_speed)
-    nfv[i] = NFVIngress(core_addrs=core_addrs, local_decision=True)
+    nfv[i] = NFVIngress(core_addrs=core_addrs, local_decision=True, idle_core_count=1, packet_count_thresh=flow_pkt_cnt_thresh)
 
     src[i] -> queue[i] -> replayer[i] -> nfv[i] -> Timestamp(offset=tag_offset) -> QueueOut(port=pmd_port0, qid=i)
 
