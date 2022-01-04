@@ -48,10 +48,12 @@ CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
     startup_ts_ = tsc_to_us(rdtsc()) + 2000000;
   } else {
     curr_time_ = tsc_to_ns(rdtsc());
-    startup_ts_ = tsc_to_us(rdtsc()) + 2000000000;
+    startup_ts_ = tsc_to_ns(rdtsc()) + 2000000000;
   }
   last_rate_calc_ts_ = startup_ts_;
   next_pkt_time_ = startup_ts_;
+
+  std::cout << tsc_to_ns(1);
 
   return CommandSuccess();
 }
@@ -85,10 +87,10 @@ void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       temp_bit_cnt_ += batch->pkts()[i]->total_len() * 8;
 
       if (playback_rate_mpps_ > 0) {
-        // Replay at a certain packet rate
+        // Replay at a certain packet rate (time unit: us)
         next_pkt_time_ = curr_time_ + 1000 / playback_rate_mpps_;
       } else if (playback_rate_mbps_ > 0) {
-        // Replay at a certain bit rate
+        // Replay at a certain bit rate (time unit: ns)
         next_pkt_time_ = curr_time_ + batch->pkts()[i]->total_len() * 8000 / playback_rate_mbps_;
       }
     }

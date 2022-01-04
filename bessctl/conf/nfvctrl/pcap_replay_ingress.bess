@@ -43,7 +43,7 @@ nfv::NFVIngress(core_addrs=core_addrs, local_decision=True)
 src -> queue -> replayer -> nfv -> Timestamp(offset=tag_offset) -> pout0
 pinc0 -> Measure(offset=tag_offset) -> Sink()
 
-queue.set_burst(burst=2)
+queue.set_burst(burst=burst_size)
 pinc0.set_burst(burst=burst_size)
 
 bess.add_worker(wid=1, core=1+offset0)

@@ -1,0 +1,73 @@
+#
+# The traffic generator that replays a PCAP packet trace.
+#
+import scapy.all as scapy
+
+PCAPFILE = $PCAP!""
+assert PCAPFILE
+print("Target PCAP file: %s" %(PCAPFILE))
+
+SOCKET0_CPU = [0,2,4,6,8,10,12,14,16,18]
+SOCKET1_CPU = [1,3,5,7,9,11,13,15,17,19]
+pcie0, socket0 ="82:00.0", SOCKET1_CPU
+
+# 5e:00.1: '0a:14:69:37:5f:f2',
+core_addrs = [
+            '82:a3:ae:74:72:30',
+            'a2:87:fd:f8:72:21',
+            '2e:c7:8b:7b:8d:a8',
+            '2a:9d:fd:13:15:01',
+            '32:a5:0f:e0:04:0b',
+            '06:8a:62:fb:51:51']
+
+num_cores = int($BESS_CORE!"3")
+playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
+playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
+playback_speed = float($BESS_SPEED!"1")
+burst_size=int($BESS_BURST!'32')
+tag_offset = 72
+
+pcap_file = '{}'.format(PCAPFILE)
+
+pcap_port = {}
+src = {}
+queue = {}
+replayer = {}
+nfv = {}
+
+pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=num_cores)
+pinc0::PortInc(port=pmd_port0)
+
+for i in range(num_cores):
+    pcap_port[i] = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
+    src[i] = PortInc(port=pcap_port[i])
+    queue[i] = Queue(size=pow(2,24))
+    if playback_rate_mpps > 0:
+        replayer[i] = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
+    elif playback_rate_mbps > 0:
+        replayer[i] = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
+    else:
+        replayer[i] = Replayer(offset=tag_offset, speed=playback_speed)
+    nfv[i] = NFVIngress(core_addrs=core_addrs, local_decision=True)
+
+    src[i] -> queue[i] -> replayer[i] -> nfv[i] -> Timestamp(offset=tag_offset) -> QueueOut(port=pmd_port0, qid=i)
+
+# (outdated) the single core pipeline
+# src -> queue -> replayer -> nfv -> Timestamp(offset=tag_offset) -> pout0
+
+pinc0 -> Measure(offset=tag_offset) -> Sink()
+
+# Configure DPDK burst setting
+for i in range(num_cores):
+    queue[i].set_burst(burst=burst_size)
+pinc0.set_burst(burst=burst_size)
+
+for i in range(num_cores):
+    bess.add_worker(wid=2*i, core=socket0[2*i+1])
+    bess.add_worker(wid=2*i+1, core=socket0[2*i+2])
+    src[i].attach_task(wid=2*i)
+    queue[i].attach_task(wid=2*i+1)
+bess.add_worker(wid=2*num_cores, core=socket0[2*num_cores+1])
+pinc0.attach_task(wid=2*num_cores)
+
+bess.resume_all()
