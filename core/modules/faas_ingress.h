@@ -82,6 +82,7 @@ class FaaSIngress final : public Module {
 
   // Local decision parameters
   bool local_decision_;
+  bool mac_encoded_;
   uint egress_port_;
   std::string egress_mac_;
 

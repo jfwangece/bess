@@ -745,6 +745,7 @@ message FaaSIngressArg {
   uint64 rule_delay_ms = 10;
   string flow_action = 11;
   bool local_decision = 12;
+  bool mac_encoded = 13;
 }
 
 /*

@@ -73,11 +73,13 @@ class FlowLpmRule {
        (dst_port == be16_t(0) || dst_port == dport);
   }
 
-  void set_action(uint o_port, const std::string& o_mac) {
+  void set_action(bool mac_encoded, uint o_port, const std::string& o_mac) {
     egress_port = o_port;
     egress_mac = o_mac;
     encoded_mac.FromString(o_mac);
-    encoded_mac.bytes[0] = o_port & 0xff;
+    if (mac_encoded) {
+      encoded_mac.bytes[0] = o_port & 0xff;
+    }
   }
 
   // Match

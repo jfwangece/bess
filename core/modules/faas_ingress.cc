@@ -122,6 +122,14 @@ CommandResponse FaaSIngress::Init(const bess::pb::FaaSIngressArg &arg) {
     local_decision_ = true;
   }
 
+  // For a multi-server sertting, this module encodes both egress
+  // port and MAC addr in the packet's destination egress MAC addr.
+  // Note: the first 2-byte field is replaced with the switch port #.
+  mac_encoded_ = true;
+  if (!arg.mac_encoded()) {
+    mac_encoded_ = false;
+  }
+
   return CommandSuccess();
 }
 
@@ -182,7 +190,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   using bess::utils::Udp;
   using bess::utils::Tcp;
 
-  if (faas_service_addr_.empty()) {
+  if (!local_decision_ && faas_service_addr_.empty()) {
     RunNextModule(ctx, batch);
     return;
   }
@@ -271,7 +279,7 @@ bool FaaSIngress::process_new_flow(FlowLpmRule &rule) {
     mcslock_node_t mynode;
     mcs_lock(&lock_, &mynode);
 
-    rule.set_action(egress_port_, egress_mac_);
+    rule.set_action(mac_encoded_, egress_port_, egress_mac_);
 
     mcs_unlock(&lock_, &mynode);
   } else {
@@ -286,7 +294,7 @@ bool FaaSIngress::process_new_flow(FlowLpmRule &rule) {
       return false;
     }
 
-    rule.set_action(flow_response_.switch_port(), flow_response_.dmac());
+    rule.set_action(mac_encoded_, flow_response_.switch_port(), flow_response_.dmac());
     if (rule.dst_port.value() < 2000) {
       std::cout << flow_response_.switch_port();
       std::cout << rule.encoded_mac.ToString();
@@ -301,8 +309,9 @@ bool FaaSIngress::process_new_flow(FlowLpmRule &rule) {
     }
   }
 
-  bool rule_inserted = false;
+  // Update the switch flow table only if the switch Redis channel is ready
   if (redis_ctx_ != nullptr) {
+    bool rule_inserted = false;
     std::string tmp_flow_msg = convert_rule_to_string(rule);
 
     for (int i = 0; i < 3; ++i) {
@@ -317,11 +326,12 @@ bool FaaSIngress::process_new_flow(FlowLpmRule &rule) {
         break;
       }
     }
-  }
 
-  if (!rule_inserted) {
-    LOG(ERROR) << "Failed to send a flow request";
-    return false;
+    // Print an error message after 3 trials
+    if (!rule_inserted) {
+      LOG(ERROR) << "Failed to send a flow request";
+      return false;
+    }
   }
 
   // Update the active timestamp for the new rule.

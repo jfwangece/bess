@@ -5,17 +5,19 @@
 import scapy.all as scapy
 
 PACKET_OVERHEAD=24
+SOCKET0_CPU = [0,2,4,6,8,10,12,14,16,18]
+SOCKET1_CPU = [1,3,5,7,9,11,13,15,17,19]
 
 # This script generates a number of flows at a specified packet rate.
-pcie_addr=str($BESS_PCIE!'06:00.1')
+pcie_addr=str($BESS_PCIE!'82:00.0')
 num_cores=int($BESS_CORES!'1')
 pkt_size=int($BESS_PKT_SIZE!'1500')
 num_flows=int($BESS_FLOWS!'200')
 flow_time=int($BESS_FLOW_TIME!'60') # in Seconds
 base_pkt_rate=int($BESS_INIT_RATE!'1000000')
 base_bit_rate=int($BESS_INIT_RATE!'9500000000')
-ts_offset=int($BESS_TS_OFFSET!'68')
-rule_delay=int($FAAS_RULE_DELAY!'0')
+ts_offset=int($BESS_TS_OFFSET!'72')
+rule_delay=int($FAAS_RULE_DELAY!'60')
 
 assert(pcie_addr)
 assert(1 <= num_cores <= 16)
@@ -46,7 +48,7 @@ print("Packet size = %d bytes" %(len(pkt_data)))
 
 port0::PMDPort(pci=pcie_addr, num_inc_q=1, num_out_q=num_cores)
 port_inc::PortInc(port=port0)
-ingress::FaaSIngress(faas_service_ip="128.105.145.134", redis_service_ip="128.105.145.253", redis_password="faas-nfv-cool", max_rules_count=330, rule_delay_ms=rule_delay)
+ingress::FaaSIngress(local_decision=True, mac_encoded=False, max_rules_count=5000, rule_delay_ms=rule_delay)
 
 flowgens = dict()
 queues = dict()
@@ -62,10 +64,10 @@ for i in range(num_cores):
 
 port_inc -> Measure(offset=ts_offset) -> Sink()
 
-bess.add_worker(wid=1, core=1)
+bess.add_worker(wid=1, core=SOCKET1_CPU[0])
 port_inc.attach_task(wid=1)
 for wid in range(num_cores):
-    bess.add_worker(wid=2*wid+2, core=2*wid+2)
-    bess.add_worker(wid=2*wid+3, core=2*wid+3)
+    bess.add_worker(wid=2*wid+2, core=SOCKET1_CPU[2*wid+2])
+    bess.add_worker(wid=2*wid+3, core=SOCKET1_CPU[2*wid+3])
     flowgens[wid].attach_task(wid=2*wid+2)
     queues[wid].attach_task(wid=2*wid+3)
