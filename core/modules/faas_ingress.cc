@@ -154,7 +154,8 @@ CommandResponse FaaSIngress::CommandUpdate(const bess::pb::FaaSIngressCommandUpd
 
   egress_port_ = arg.egress_port();
   egress_mac_ = arg.egress_mac();
-  map_chain_to_flow_.emplace(egress_mac_, std::deque<Flow>());
+  egress_chain_unique_id_ = std::to_string(egress_port_) + "/" + egress_mac_;
+  map_chain_to_flow_.emplace(egress_chain_unique_id_, std::deque<Flow>());
   return CommandSuccess();
 }
 
@@ -374,7 +375,7 @@ bool FaaSIngress::process_new_flow(Flow &flow, FlowRoutingRule &rule) {
     // use the local decision updated locally.
     mu_.lock();
     rule.set_action(mac_encoded_, egress_port_, egress_mac_);
-    map_chain_to_flow_[egress_mac_].emplace_front(flow);
+    map_chain_to_flow_[egress_chain_unique_id_].emplace_front(flow);
     mu_.unlock();
   } else {
     // query the FaaS controller for a remote decison.

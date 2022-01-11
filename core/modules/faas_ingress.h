@@ -104,6 +104,7 @@ class FaaSIngress final : public Module {
   bool mac_encoded_;
   uint egress_port_;
   std::string egress_mac_;
+  std::string egress_chain_unique_id_;
 
   mcslock lock_;
   std::mutex mu_;
