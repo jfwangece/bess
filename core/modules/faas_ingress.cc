@@ -6,6 +6,8 @@
 #include "../utils/tcp.h"
 
 namespace {
+const uint64_t TIME_OUT_NS = 10ull * 1000 * 1000 * 1000; // 10 seconds
+
 const std::string kDefaultFaaSServicePort = "10515";
 const std::string kDefaultSwitchServicePort = "10516";
 const int kDefaultRedisServicePort = 6379;
@@ -144,21 +146,24 @@ CommandResponse FaaSIngress::CommandClear(const bess::pb::EmptyArg &) {
 }
 
 CommandResponse FaaSIngress::CommandUpdate(const bess::pb::FaaSIngressCommandUpdateArg &arg) {
-  mcslock_node_t mynode;
-  mcs_lock(&lock_, &mynode);
+  const std::lock_guard<std::mutex> lock(mu_);
 
   egress_port_ = arg.egress_port();
   egress_mac_ = arg.egress_mac();
+  map_chain_to_flow_.emplace(egress_mac_, std::set<Flow>());
+  return CommandSuccess();
+}
 
-  mcs_unlock(&lock_, &mynode);
+CommandResponse FaaSIngress::CommandMigrate(const bess::pb::FaaSIngressCommandMigrateArg &arg) {
+  std::cout << arg.rate_diff();
   return CommandSuccess();
 }
 
 void FaaSIngress::Clear() {
-  mcslock_node_t mynode;
-  mcs_lock(&lock_, &mynode);
+  const std::lock_guard<std::mutex> lock(mu_);
 
   rules_.clear();
+  active_flows_ = 0;
 
   // Clear remote if necessary.
   if (redis_ctx_ != nullptr) {
@@ -180,8 +185,6 @@ void FaaSIngress::Clear() {
       LOG(ERROR) << "Failed to reset the OpenFlow switch";
     }
   }
-
-  mcs_unlock(&lock_, &mynode);
 }
 
 void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
@@ -196,6 +199,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   }
 
   now_ = rdtsc();
+  uint64_t now = ctx->current_ns;
   int cnt = batch->cnt();
   be16_t sport, dport;
   for (int i = 0; i < cnt; i++) {
@@ -204,21 +208,81 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     Ethernet *eth = pkt->head_data<Ethernet *>();
     Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
     size_t ip_bytes = ip->header_length << 2;
+    Tcp *tcp = nullptr;
+    Udp *udp = nullptr;
     if (ip->protocol == Ipv4::Proto::kTcp) {
-      Tcp *tcp = reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
+      tcp = reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
       sport = tcp->src_port;
       dport = tcp->dst_port;
     } else if (ip->protocol == Ipv4::Proto::kUdp) {
-      Udp *udp = reinterpret_cast<Udp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
+      udp = reinterpret_cast<Udp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
       sport = udp->src_port;
       dport = udp->dst_port;
     } else {
+      DropPacket(ctx, pkt);
       continue;
     }
 
+    // Maintain per-flow counters
+    Flow flow;
+    flow.src_ip = ip->src;
+    flow.dst_ip = ip->dst;
+    flow.src_port = sport;
+    flow.dst_port = dport;
+
+    // Find existing flow, if we have one.
+    std::unordered_map<Flow, FlowRoutingRule, FlowHash>::iterator it =
+        flow_cache_.find(flow);
+
     bool emitted = false;
+    if (it != flow_cache_.end()) {
+      if (now >= it->second.ExpiryTime()) { // an outdated flow
+        flow_cache_.erase(it);
+        active_flows_ -= 1;
+        it = flow_cache_.end();
+      } else { // an existing flow
+        emitted = true;
+        eth->dst_addr = it->second.encoded_mac_;
+      }
+    }
+
+    if (it == flow_cache_.end()) {
+      FlowRoutingRule new_rule("02:42:01:c2:02:fe");
+
+      if (local_decision_ && egress_port_ == 0) {
+        // The controller decides to drop all new flows.
+        emitted = false;
+      } else if (!process_new_flow(flow, new_rule)) {
+        emitted = false;
+      } else {
+        std::tie(it, std::ignore) = flow_cache_.emplace(
+            std::piecewise_construct,
+            std::make_tuple(flow), std::make_tuple(new_rule));
+        active_flows_ += 1;
+
+        eth->dst_addr = it->second.encoded_mac_;
+        it->second.packet_count_ += 1;
+        it->second.SetExpiryTime(now + TIME_OUT_NS);
+        emitted = true;
+      }
+    }
+
+    // To send or to drop ..
+    if (!emitted) {
+      DropPacket(ctx, pkt);
+    } else {
+      EmitPacket(ctx, pkt, 0);
+    }
+
+    if (tcp != nullptr && tcp->flags & Tcp::Flag::kFin) {
+      flow_cache_.erase(it);
+      active_flows_ -= 1;
+    }
+
+    /*
+    // (Outdated) LPM flow rules
     for (const auto &rule : rules_) {
-      if (rule.Match(ip->src, ip->dst, ip->protocol, sport, dport)) { // An in-progress flow.
+      if (rule.Match(ip->src, ip->dst, ip->protocol, sport, dport)) {
         emitted = true;
 
         if (now_ > rule.active_ts) {
@@ -237,6 +301,11 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
           } else if (rule.action == kDrop) {
             DropPacket(ctx, pkt);
           }
+        }
+
+        auto it = map_flow_to_counter_.find(flow);
+        if (it != map_flow_to_counter_.end()) {
+          it->second.temp_pkt_cnt += 1;
         }
 
         break;  // Stop matching other rules
@@ -260,7 +329,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       if (local_decision_ && egress_port_ == 0) {
         // The controller decides to drop all new flows.
         DropPacket(ctx, pkt);
-      } else if (!process_new_flow(new_rule)) {
+      } else if (!process_new_flow(flow, new_rule)) {
         DropPacket(ctx, pkt);
       } else {
         // The rule is ready.. Emit the first packet of this flow!
@@ -268,51 +337,38 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         EmitPacket(ctx, pkt, 0);
       }
     }
+    */
   }
 }
 
-bool FaaSIngress::process_new_flow(FlowLpmRule &rule) {
+bool FaaSIngress::process_new_flow(Flow &flow, FlowRoutingRule &rule) {
   grpc::ClientContext ctx1, ctx2;
 
   if (local_decision_) {
     // use the local decision updated locally.
-    mcslock_node_t mynode;
-    mcs_lock(&lock_, &mynode);
-
+    mu_.lock();
     rule.set_action(mac_encoded_, egress_port_, egress_mac_);
-
-    mcs_unlock(&lock_, &mynode);
+    map_chain_to_flow_[egress_mac_].emplace(flow);
+    mu_.unlock();
   } else {
     // query the FaaS controller for a remote decison.
-    flow_request_.set_ipv4_src(ToIpv4Address(rule.src_ip.addr));
-    flow_request_.set_ipv4_dst(ToIpv4Address(rule.dst_ip.addr));
-    flow_request_.set_ipv4_protocol(rule.proto_ip);
-    flow_request_.set_tcp_sport(rule.src_port.value());
-    flow_request_.set_tcp_dport(rule.dst_port.value());
+    flow_request_.set_ipv4_src(ToIpv4Address(flow.src_ip));
+    flow_request_.set_ipv4_dst(ToIpv4Address(flow.dst_ip));
+    flow_request_.set_ipv4_protocol(flow.proto_ip);
+    flow_request_.set_tcp_sport(flow.src_port.value());
+    flow_request_.set_tcp_dport(flow.dst_port.value());
     status_ = faas_stub_->UpdateFlow(&ctx1, flow_request_, &flow_response_);
     if (!status_.ok()) {
       return false;
     }
 
     rule.set_action(mac_encoded_, flow_response_.switch_port(), flow_response_.dmac());
-    if (rule.dst_port.value() < 2000) {
-      std::cout << flow_response_.switch_port();
-      std::cout << rule.encoded_mac.ToString();
-    }
-  }
-
-  if (!switch_service_addr_.empty()) {
-    convert_rule_to_of_request(rule, flowrule_request_);
-    status_ = switch_stub_->InsertFlowEntry(&ctx2, flowrule_request_, &flowrule_response_);
-    if (!status_.ok()) {
-      return false;
-    }
   }
 
   // Update the switch flow table only if the switch Redis channel is ready
   if (redis_ctx_ != nullptr) {
     bool rule_inserted = false;
-    std::string tmp_flow_msg = convert_rule_to_string(rule);
+    std::string tmp_flow_msg = convert_rule_to_string(flow, rule);
 
     for (int i = 0; i < 3; ++i) {
       redis_reply_ = (redisReply*)redisCommand(redis_ctx_, "PUBLISH %s %s", "faasctl", tmp_flow_msg.c_str());
@@ -335,36 +391,26 @@ bool FaaSIngress::process_new_flow(FlowLpmRule &rule) {
   }
 
   // Update the active timestamp for the new rule.
-  now_ = rdtsc();
-  rule.active_ts = now_ + rule_delay_ts_;
+  // now_ = rdtsc();
+  // rule.active_ts = now_ + rule_delay_ts_;
 
-  rules_.emplace_front(rule);
-  while (rules_.size() > max_rules_count_) {
-    rules_.pop_back();
-  }
+  // rules_.emplace_front(rule);
+  // while (rules_.size() > max_rules_count_) {
+  //   rules_.pop_back();
+  // }
 
   return true;
 }
 
-std::string FaaSIngress::convert_rule_to_string(FlowLpmRule &rule) {
+std::string FaaSIngress::convert_rule_to_string(Flow &flow, FlowRoutingRule &rule) {
   return "assign," +
-         ToIpv4Address(rule.src_ip.addr) + "," +
-         ToIpv4Address(rule.dst_ip.addr) + "," +
-         std::to_string(rule.proto_ip) + "," +
-         std::to_string(rule.src_port.value()) + "," +
-         std::to_string(rule.dst_port.value()) + "," +
-         std::to_string(rule.egress_port) + "," +
-         rule.egress_mac;
-}
-
-void FaaSIngress::convert_rule_to_of_request(FlowLpmRule &rule, bess::pb::InsertFlowEntryRequest &req) {
-  req.set_ipv4_src(ToIpv4Address(rule.src_ip.addr));
-  req.set_ipv4_dst(ToIpv4Address(rule.dst_ip.addr));
-  req.set_ipv4_protocol(rule.proto_ip);
-  req.set_tcp_sport(rule.src_port.value());
-  req.set_tcp_dport(rule.dst_port.value());
-  req.set_switch_port(rule.egress_port);
-  req.set_dmac(rule.egress_mac);
+         ToIpv4Address(flow.src_ip) + "," +
+         ToIpv4Address(flow.dst_ip) + "," +
+         std::to_string(flow.proto_ip) + "," +
+         std::to_string(flow.src_port.value()) + "," +
+         std::to_string(flow.dst_port.value()) + "," +
+         std::to_string(rule.egress_port_) + "," +
+         rule.egress_mac_;
 }
 
 ADD_MODULE(FaaSIngress, "FaaSIngress",

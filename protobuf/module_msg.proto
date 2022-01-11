@@ -756,6 +756,12 @@ message FaaSIngressCommandUpdateArg {
   string egress_mac = 2;
 }
 
+message FaaSIngressCommandMigrateArg {
+  uint32 rate_diff = 1;
+  string from_sg = 2;
+  string to_sg = 3;
+}
+
 /**
  * The FlowGen module generates simulated TCP flows of packets with correct SYN/FIN flags and sequence numbers.
  * This module is useful for testing, e.g., a NAT module or other flow-aware code.

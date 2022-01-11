@@ -4,6 +4,7 @@
 #include <grpc++/grpc++.h>
 #include <hiredis/hiredis.h>
 #include <deque>
+#include <mutex>
 #include <vector>
 #include <string>
 
@@ -20,6 +21,11 @@ using bess::utils::be16_t;
 using bess::utils::be32_t;
 using bess::utils::Ethernet;
 using bess::utils::Ipv4Prefix;
+// For migration
+using bess::utils::Flow;
+using bess::utils::FlowHash;
+using bess::utils::FlowRoutingRule;
+// For routing
 using bess::utils::FlowAction;
 using bess::utils::FlowLpmRule;
 using bess::utils::kDrop;
@@ -28,6 +34,11 @@ using bess::utils::kForward;
 class FaaSIngress final : public Module {
  public:
   static const Commands cmds;
+  struct PerFlowCounter {
+    uint64_t rate;
+    uint64_t temp_pkt_cnt;
+    uint64_t last_rate_tsc;
+  };
 
   FaaSIngress() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; }
   CommandResponse Init(const bess::pb::FaaSIngressArg &arg);
@@ -43,11 +54,17 @@ class FaaSIngress final : public Module {
   CommandResponse CommandAdd(const bess::pb::FaaSIngressArg &arg);
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
   CommandResponse CommandUpdate(const bess::pb::FaaSIngressCommandUpdateArg &arg);
+  CommandResponse CommandMigrate(const bess::pb::FaaSIngressCommandMigrateArg &arg);
 
  private:
-  bool process_new_flow(FlowLpmRule &rule);
-  void convert_rule_to_of_request(FlowLpmRule &rule, bess::pb::InsertFlowEntryRequest &req);
-  std::string convert_rule_to_string(FlowLpmRule &rule);
+  bool process_new_flow(Flow &flow, FlowRoutingRule &rule);
+
+  std::string convert_rule_to_string(Flow &flow, FlowRoutingRule &rule);
+
+  // For monitoring per-flow packet rates
+  std::unordered_map<Flow, FlowRoutingRule, FlowHash> flow_cache_;
+  // For tracking flow-to-chain mapping
+  std::unordered_map<std::string, std::set<Flow>> map_chain_to_flow_;
 
   FlowAction default_action_ = kDrop;
 
@@ -76,9 +93,11 @@ class FaaSIngress final : public Module {
 
   redisReply* redis_reply_;
 
+  // (Outdated) LPM flow rules
   long unsigned int max_rules_count_;
-  std::vector<FlowLpmRule> rules_vector_;
   std::deque<FlowLpmRule> rules_;
+
+  int active_flows_ = 0;
 
   // Local decision parameters
   bool local_decision_;
@@ -87,6 +106,7 @@ class FaaSIngress final : public Module {
   std::string egress_mac_;
 
   mcslock lock_;
+  std::mutex mu_;
 };
 
 #endif  // BESS_MODULES_FAAS_INGRESS_H_

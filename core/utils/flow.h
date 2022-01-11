@@ -39,6 +39,9 @@ class alignas(16) Flow {
   bool operator==(const Flow &other) const {
     return memcmp(this, &other, sizeof(*this)) == 0;
   }
+  bool operator<(const Flow &other) const {
+    return memcmp(this, &other, sizeof(*this));
+  }
 };
 
 static_assert(sizeof(Flow) == 16, "Flow must be 16 bytes.");
@@ -66,6 +69,8 @@ struct FlowHash {
 
 class FlowLpmRule {
  public:
+  FlowLpmRule() = default;
+
   bool Match(be32_t sip, be32_t dip, uint8_t pip, be16_t sport, be16_t dport) const {
     return src_ip.Match(sip) && dst_ip.Match(dip) &&
        (proto_ip == pip) &&
@@ -98,6 +103,44 @@ class FlowLpmRule {
   uint64_t active_ts = 0;
 };
 
+class FlowRoutingRule {
+ public:
+  FlowRoutingRule(const std::string& o_mac)
+      : action_(kForward),
+        egress_port_(0),
+        packet_count_(0) {
+    encoded_mac_.FromString(o_mac);
+  }
+  FlowRoutingRule(uint o_port, const std::string& o_mac)
+      : action_(kForward),
+        egress_port_(o_port),
+        packet_count_(0) {
+    encoded_mac_.FromString(o_mac);
+    encoded_mac_.bytes[0] = o_port & 0xff;
+  }
+  void set_action(bool mac_encoded, uint o_port, const std::string& o_mac) {
+    egress_port_ = o_port;
+    egress_mac_ = o_mac;
+    encoded_mac_.FromString(o_mac);
+    if (mac_encoded) {
+      encoded_mac_.bytes[0] = o_port & 0xff;
+    }
+  }
+
+  uint64_t ExpiryTime() { return expiry_time_; }
+  void SetExpiryTime(uint64_t time) { expiry_time_ = time; }
+
+  FlowAction action_;
+  uint egress_port_;
+  std::string egress_mac_;
+
+  Ethernet::Address encoded_mac_;
+  uint64_t packet_count_;
+
+ private:
+  uint64_t expiry_time_;
+};
+
 // Used by snort_ids, url_filter
 class FlowRecord {
  public:
@@ -119,34 +162,6 @@ class FlowRecord {
   bool acl_pass_;
   be32_t dst_ip_;
   TcpFlowReconstruct buffer_;
-  uint64_t expiry_time_;
-};
-
-class FlowRoutingRule {
- public:
-  FlowRoutingRule(const std::string& o_mac)
-      : action_(kForward),
-        egress_port_(0),
-        packet_count_(0) {
-    encoded_mac_.FromString(o_mac);
-  }
-  FlowRoutingRule(uint o_port, const std::string& o_mac)
-      : action_(kForward),
-        egress_port_(o_port),
-        packet_count_(0) {
-    encoded_mac_.FromString(o_mac);
-    encoded_mac_.bytes[0] = o_port & 0xff;
-  }
-
-  uint64_t ExpiryTime() { return expiry_time_; }
-  void SetExpiryTime(uint64_t time) { expiry_time_ = time; }
-
-  FlowAction action_;
-  uint egress_port_;
-  Ethernet::Address encoded_mac_;
-  uint64_t packet_count_;
-
- private:
   uint64_t expiry_time_;
 };
 
