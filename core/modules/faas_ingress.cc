@@ -22,7 +22,11 @@ const Commands FaaSIngress::cmds = {
    Command::THREAD_SAFE},
   {"update", "FaaSIngressCommandUpdateArg",
    MODULE_CMD_FUNC(&FaaSIngress::CommandUpdate),
-   Command::THREAD_SAFE}};
+   Command::THREAD_SAFE},
+  {"migrate", "FaaSIngressCommandMigrateArg",
+   MODULE_CMD_FUNC(&FaaSIngress::CommandMigrate),
+   Command::THREAD_SAFE},
+};
 
 CommandResponse FaaSIngress::Init(const bess::pb::FaaSIngressArg &arg) {
   using bess::utils::Ethernet;
@@ -150,12 +154,33 @@ CommandResponse FaaSIngress::CommandUpdate(const bess::pb::FaaSIngressCommandUpd
 
   egress_port_ = arg.egress_port();
   egress_mac_ = arg.egress_mac();
-  map_chain_to_flow_.emplace(egress_mac_, std::set<Flow>());
+  map_chain_to_flow_.emplace(egress_mac_, std::deque<Flow>());
   return CommandSuccess();
 }
 
 CommandResponse FaaSIngress::CommandMigrate(const bess::pb::FaaSIngressCommandMigrateArg &arg) {
-  std::cout << arg.rate_diff();
+  const std::lock_guard<std::mutex> lock(mu_);
+
+  std::string from = arg.from_sg();
+  std::string to = arg.to_sg();
+  auto from_it = map_chain_to_flow_.find(from);
+  auto to_it = map_chain_to_flow_.find(to);
+  if (from_it == map_chain_to_flow_.end() || to_it == map_chain_to_flow_.end()) {
+    return CommandSuccess();
+  }
+
+  // |from_it->second| is a std::deque
+  double sum_rate = 0.0;
+  while (from_it->second.size() > 0 && sum_rate < arg.rate_diff()) {
+    auto head = from_it->second.front();
+    auto flow_it = flow_cache_.find(head);
+    if (flow_it == flow_cache_.end()) { continue; }
+
+    from_it->second.pop_front();
+    to_it->second.emplace_front(head);
+    sum_rate += flow_it->second.pkt_rate_;
+    flow_it->second.set_action(mac_encoded_, egress_port_, to);
+  }
   return CommandSuccess();
 }
 
@@ -263,6 +288,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         eth->dst_addr = it->second.encoded_mac_;
         it->second.packet_count_ += 1;
         it->second.SetExpiryTime(now + TIME_OUT_NS);
+        it->second.UpdateRate(now);
         emitted = true;
       }
     }
@@ -348,7 +374,7 @@ bool FaaSIngress::process_new_flow(Flow &flow, FlowRoutingRule &rule) {
     // use the local decision updated locally.
     mu_.lock();
     rule.set_action(mac_encoded_, egress_port_, egress_mac_);
-    map_chain_to_flow_[egress_mac_].emplace(flow);
+    map_chain_to_flow_[egress_mac_].emplace_front(flow);
     mu_.unlock();
   } else {
     // query the FaaS controller for a remote decison.

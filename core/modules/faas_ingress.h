@@ -64,7 +64,7 @@ class FaaSIngress final : public Module {
   // For monitoring per-flow packet rates
   std::unordered_map<Flow, FlowRoutingRule, FlowHash> flow_cache_;
   // For tracking flow-to-chain mapping
-  std::unordered_map<std::string, std::set<Flow>> map_chain_to_flow_;
+  std::unordered_map<std::string, std::deque<Flow>> map_chain_to_flow_;
 
   FlowAction default_action_ = kDrop;
 

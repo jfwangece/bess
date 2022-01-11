@@ -108,13 +108,17 @@ class FlowRoutingRule {
   FlowRoutingRule(const std::string& o_mac)
       : action_(kForward),
         egress_port_(0),
-        packet_count_(0) {
+        packet_count_(0),
+        last_packet_count_(0),
+        last_ts_us_(0) {
     encoded_mac_.FromString(o_mac);
   }
   FlowRoutingRule(uint o_port, const std::string& o_mac)
       : action_(kForward),
         egress_port_(o_port),
-        packet_count_(0) {
+        packet_count_(0),
+        last_packet_count_(0),
+        last_ts_us_(0) {
     encoded_mac_.FromString(o_mac);
     encoded_mac_.bytes[0] = o_port & 0xff;
   }
@@ -126,6 +130,13 @@ class FlowRoutingRule {
       encoded_mac_.bytes[0] = o_port & 0xff;
     }
   }
+  void UpdateRate(uint64_t now_us) {
+    double time_diff = now_us - last_ts_us_;
+    if (time_diff > 500000) {
+      pkt_rate_ = (packet_count_ - last_packet_count_) / 1024 / time_diff; // in (kpps)
+      last_ts_us_ = now_us;
+    }
+  }
 
   uint64_t ExpiryTime() { return expiry_time_; }
   void SetExpiryTime(uint64_t time) { expiry_time_ = time; }
@@ -135,7 +146,11 @@ class FlowRoutingRule {
   std::string egress_mac_;
 
   Ethernet::Address encoded_mac_;
+
+  double pkt_rate_;
   uint64_t packet_count_;
+  uint64_t last_packet_count_;
+  uint64_t last_ts_us_;
 
  private:
   uint64_t expiry_time_;
