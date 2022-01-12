@@ -9,13 +9,14 @@ SOCKET0_CPU = [0,2,4,6,8,10,12,14,16,18]
 SOCKET1_CPU = [1,3,5,7,9,11,13,15,17,19]
 
 # This script generates a number of flows at a specified packet rate.
+target_pkt_cnt = 1e8
 pcie_addr=str($BESS_PCIE!'82:00.0')
 num_cores=int($BESS_CORES!'1')
 pkt_size=int($BESS_PKT_SIZE!'1500')
 num_flows=int($BESS_FLOWS!'600')
 flow_time=int($BESS_FLOW_TIME!'60') # in Seconds
-base_pkt_rate=int($BESS_INIT_RATE!'2000000')
-base_bit_rate=int($BESS_INIT_RATE!'20000000000')
+base_pkt_rate=int($BESS_PKT_RATE!'1000000')
+base_bit_rate=int($BESS_BIT_RATE!'10000000000')
 ts_offset=int($BESS_TS_OFFSET!'72')
 rule_delay=int($FAAS_RULE_DELAY!'60000')
 
@@ -61,7 +62,8 @@ for i in range(num_cores):
         flow_duration = flow_time, \
         arrival = 'uniform', duration='uniform', \
         quick_rampup=False, \
-        ip_src_range = 100, ip_dst_range = 100)
+        ip_src_range = 100, ip_dst_range = 100, \
+        pkt_cnt_limit=target_pkt_cnt)
     queues[i] = Queue()
     flowgens[i] -> queues[i] -> ingress -> Timestamp(offset=ts_offset) -> QueueOut(port=port0, qid=i)
     queues[i].set_burst(burst=8)
