@@ -275,10 +275,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     if (it == flow_cache_.end()) {
       FlowRoutingRule new_rule("02:42:01:c2:02:fe");
 
-      if (local_decision_ && egress_port_ == 0) {
-        // The controller decides to drop all new flows.
-        emitted = false;
-      } else if (!process_new_flow(flow, new_rule)) {
+      if (!process_new_flow(flow, new_rule)) {
         emitted = false;
       } else {
         std::tie(it, std::ignore) = flow_cache_.emplace(
@@ -302,7 +299,7 @@ void FaaSIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     }
 
     if (tcp != nullptr && tcp->flags & Tcp::Flag::kFin) {
-      flow_cache_.erase(it);
+      //flow_cache_.erase(it);
       active_flows_ -= 1;
     }
 
@@ -372,11 +369,14 @@ bool FaaSIngress::process_new_flow(Flow &flow, FlowRoutingRule &rule) {
   grpc::ClientContext ctx1, ctx2;
 
   if (local_decision_) {
+    const std::lock_guard<std::mutex> lock(mu_);
+    if (egress_port_ == 0) {
+      return false;
+    }
+
     // use the local decision updated locally.
-    mu_.lock();
     rule.set_action(mac_encoded_, egress_port_, egress_mac_);
     map_chain_to_flow_[egress_chain_unique_id_].emplace_front(flow);
-    mu_.unlock();
   } else {
     // query the FaaS controller for a remote decison.
     flow_request_.set_ipv4_src(ToIpv4Address(flow.src_ip));
