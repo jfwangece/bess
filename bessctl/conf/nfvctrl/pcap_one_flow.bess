@@ -1,6 +1,9 @@
 #
 # The traffic generator that replays a PCAP packet trace.
 #
+# Example:
+# $ run nfvctrl/pcap_one_flow PCAP="./equinix-nyc.dirA.20190117-125910.UTC.short.pcap",BESS_SPEED=32
+#
 import scapy.all as scapy
 
 PCAPFILE = $PCAP!""

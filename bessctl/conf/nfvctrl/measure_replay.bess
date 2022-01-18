@@ -3,6 +3,8 @@
 # The downstream pipeline does not read/write a packet.
 # In the end, the overhead of passing a packet's point is about 50 cycles / packet.
 #
+# $ run nfvctrl/measure_replay BESS_PKT_SIZE=100,BESS_PKT_CYCLE=2000,BESS_PKT_RATE=10000000
+#
 import scapy.all as scapy
 
 burst_size=int($BESS_BURST!'32')

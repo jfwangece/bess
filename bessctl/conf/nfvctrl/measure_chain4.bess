@@ -2,6 +2,9 @@
 # Measure the per-packet cycle cost for NF chain #4: a state-heavy NF chain
 # ACL/Firewall -> LB -> Monitor
 #
+# Example:
+# $ run nfvctrl/measure_chain4 BESS_PKT_SIZE=100,BESS_PKT_CYCLE=2000
+#
 import scapy.all as scapy
 
 PACKET_OVERHEAD=24

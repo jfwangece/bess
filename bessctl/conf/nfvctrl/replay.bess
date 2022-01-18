@@ -1,0 +1,27 @@
+#
+# Test Replay chain: run PCAPReplay module to measure its
+# per-packet cycle cost
+#
+
+nic=int($BESS_NIC!'0')
+burst_size=int($BESS_BURST!'32')
+pkt_rate=int($BESS_PKT_RATE!'1000000')
+
+# By default, pick Intel NICs
+pcie0, offset0="af:00.0", 8
+if nic != 0:
+    pcie0, offset0="5e:00.1", 1
+
+port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+pinc0::PortInc(port=port0)
+pout0::PortOut(port=port0)
+replayer = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
+
+pinc0 -> replayer -> MACSwap() -> pout0
+pinc0.set_burst(burst=burst_size)
+
+# core ID starts at the offset core
+bess.add_worker(wid=0, core=offset0)
+pinc0.attach_task(wid=0)
+
+bess.resume_all()
