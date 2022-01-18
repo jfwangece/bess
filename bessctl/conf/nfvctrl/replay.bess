@@ -6,6 +6,8 @@
 nic=int($BESS_NIC!'0')
 burst_size=int($BESS_BURST!'32')
 pkt_rate=int($BESS_PKT_RATE!'1000000')
+tag_offset = 72
+playback_rate_mpps = pkt_rate / 1000000.0
 
 # By default, pick Intel NICs
 pcie0, offset0="af:00.0", 8
