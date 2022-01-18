@@ -164,6 +164,8 @@ CommandResponse FaaSIngress::CommandMigrate(const bess::pb::FaaSIngressCommandMi
 
   std::string from = arg.from_sg();
   std::string to = arg.to_sg();
+  double rate_diff = (double)arg.rate_diff();
+
   auto from_it = map_chain_to_flow_.find(from);
   auto to_it = map_chain_to_flow_.find(to);
   if (from_it == map_chain_to_flow_.end() || to_it == map_chain_to_flow_.end()) {
@@ -172,7 +174,7 @@ CommandResponse FaaSIngress::CommandMigrate(const bess::pb::FaaSIngressCommandMi
 
   // |from_it->second| is a std::deque
   double sum_rate = 0.0;
-  while (from_it->second.size() > 0 && sum_rate < arg.rate_diff()) {
+  while (from_it->second.size() > 0 && sum_rate < rate_diff) {
     auto head = from_it->second.front();
     auto flow_it = flow_cache_.find(head);
     if (flow_it == flow_cache_.end()) { continue; }

@@ -9,7 +9,7 @@ SOCKET0_CPU = [0,2,4,6,8,10,12,14,16,18]
 SOCKET1_CPU = [1,3,5,7,9,11,13,15,17,19]
 
 # This script generates a number of flows at a specified packet rate.
-target_pkt_cnt = 1e8
+target_pkt_cnt = 100000000
 pcie_addr=str($BESS_PCIE!'82:00.0')
 num_cores=int($BESS_CORES!'1')
 pkt_size=int($BESS_PKT_SIZE!'1500')

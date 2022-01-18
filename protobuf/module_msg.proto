@@ -757,7 +757,7 @@ message FaaSIngressCommandUpdateArg {
 }
 
 message FaaSIngressCommandMigrateArg {
-  uint32 rate_diff = 1;
+  int32 rate_diff = 1;
   string from_sg = 2;
   string to_sg = 3;
 }
