@@ -1,0 +1,86 @@
+#
+# This script is a profiling pipeline that studies the
+# per-packet cost of NFVIngress module under different
+# (concurrent flows, total packet rate).
+#
+# Example:
+# # run nfvctrl/profile_nfv_ingress BESS_PKT_RATE=1000000,BESS_FLOW=1000
+#
+
+import copy
+import scapy.all as scapy
+
+SOCKET0_CPU = [0,2,4,6,8,10,12,14,16,18]
+SOCKET1_CPU = [1,3,5,7,9,11,13,15,17,19]
+PACKET_OVERHEAD=24
+
+# the set of available cores for NFVIngress
+core_addrs = ['0a:14:69:37:5f:f2',
+            '82:a3:ae:74:72:30',
+            'a2:87:fd:f8:72:21',
+            '2e:c7:8b:7b:8d:a8',
+            '2a:9d:fd:13:15:01',
+            '32:a5:0f:e0:04:0b',
+            '06:8a:62:fb:51:51']
+
+# This script generates a number of flows at a specified packet rate.
+pcie0, socket0 = '82:00.0', SOCKET1_CPU
+burst_size = int($BESS_BURST!'32')
+num_cores = int($BESS_CORE!'2')
+pkt_limit=int($BESS_PKT_LIMIT!'10000000')
+pkt_size=int($BESS_PKT_SIZE!'100')
+num_flows=int($BESS_FLOW!'1000')
+flow_time=int($BESS_FLOW_TIME!'10') # in Seconds
+base_pkt_rate=int($BESS_PKT_RATE!'10000000')
+base_bit_rate=int($BESS_BIT_RATE!'100000000000')
+ts_offset = 72
+
+assert(pcie0)
+assert(1 <= num_cores <= 16)
+assert(60 <= pkt_size <= 1522)
+assert(64 <= ts_offset <= 100)
+
+pkt_size = min(pkt_size, base_bit_rate / base_pkt_rate / 8)
+
+src_ether = 'ec:0d:9a:67:ff:68'
+dst_ether = '0a:14:69:37:5f:f2'
+src_ip = '204.57.0.1'
+dst_ip = '68.128.0.1'
+src_port = 10001
+dst_port = 8080
+# Create a "template" packet to use for generated flows.
+# All packets in flow will follow this formula; flowgen
+# changes dst IP to generate new connections.
+eth = scapy.Ether(src=src_ether, dst=dst_ether)
+ip = scapy.IP(src=src_ip, dst=dst_ip)
+tcp = scapy.TCP(sport=src_port, dport=dst_port)
+payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+pkt = eth/ip/tcp/payload
+pkt_data = bytes(pkt)
+print("Packet size = %d bytes" %(len(pkt_data)))
+
+flowgens = dict()
+queue::Queue()
+
+for i in range(num_cores):
+    flowgens[i] = FlowGen(template = pkt_data, \
+        pps = base_pkt_rate / num_cores, \
+        flow_rate = num_flows / flow_time / num_cores, \
+        flow_duration = flow_time, \
+        arrival = 'uniform', duration='uniform', \
+        quick_rampup=True, \
+        ip_src_range = 255, ip_dst_range = 255, \
+        ignore_synfin=False)
+    flowgens[i] -> queue
+
+nfv::NFVIngress(idle_core_count=0, core_addrs=core_addrs, local_decision=True)
+queue -> nfv -> Sink()
+
+# configure burst size
+queue.set_burst(burst=burst_size)
+
+for wid in range(num_cores):
+    bess.add_worker(wid=wid, core=socket0[wid+1])
+    flowgens[wid].attach_task(wid=wid)
+bess.add_worker(wid=num_cores, core=socket0[num_cores+1])
+queue.attach_task(wid=num_cores)
