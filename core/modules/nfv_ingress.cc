@@ -31,6 +31,10 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
     core_addrs_.push_back(arg.core_addrs(idle_core_count_ + i));
   }
 
+  for (int i = 0; i < arg.core_addrs_size(); i++) {
+    per_core_stats_.emplace(arg.core_addrs(i), WorkerCore{});
+  }
+
   packet_count_thresh_ = 10000000;
   if (arg.packet_count_thresh() > 0) {
     packet_count_thresh_ = (uint64_t)arg.packet_count_thresh();
@@ -99,7 +103,6 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         it = flow_cache_.end();
       } else { // an existing flow
         emitted = true;
-        eth->dst_addr = it->second.encoded_mac_;
       }
     }
 
@@ -107,28 +110,31 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       FlowRoutingRule new_rule("02:42:01:c2:02:fe");
       // Assign this flow to a CPU core
       process_new_flow(new_rule);
-
       std::tie(it, std::ignore) = flow_cache_.emplace(
           std::piecewise_construct, std::make_tuple(flow), std::make_tuple(new_rule));
       active_flows_ += 1;
 
       emitted = true;
-      eth->dst_addr = it->second.encoded_mac_;
     }
     it->second.SetExpiryTime(now + TIME_OUT_NS);
     it->second.packet_count_ += 1;
 
-    if (!emitted) {
-      DropPacket(ctx, pkt);
-    } else if (it->second.packet_count_ > packet_count_thresh_) {
-      if (idle_core_count_) {
-        eth->dst_addr.FromString(idle_core_addrs_[0]);
-        EmitPacket(ctx, pkt, 0);
+    // Handle bursty flows
+    if (it->second.packet_count_ > packet_count_thresh_) {
+      if (idle_core_count_ <= 0) { // No reserved cores
+        emitted = false;
       } else {
-        DropPacket(ctx, pkt);
+        it->second.set_action(false, 0, idle_core_addrs_[0]);
+        emitted = true;
       }
-    } else {
+    }
+
+    if (emitted) {
+      eth->dst_addr = it->second.encoded_mac_;
+      per_core_stats_[it->second.egress_mac_].active_flows.emplace(it->first, 1);
       EmitPacket(ctx, pkt, 0);
+    } else {
+      DropPacket(ctx, pkt);
     }
 
     if (tcp != nullptr && tcp->flags & Tcp::Flag::kFin) {
@@ -139,13 +145,18 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 }
 
 bool NFVIngress::process_new_flow(FlowRoutingRule &rule) {
-  if (next_core_ < 0 || next_core_ >= work_core_count_) {
+  pick_next_work_core();
+
+  if (next_work_core_ < 0 || next_work_core_ >= work_core_count_) {
     return false;
   }
 
-  rule.encoded_mac_.FromString(core_addrs_[next_core_]);
-  next_core_ = (next_core_ + 1) % work_core_count_;
+  rule.set_action(false, 0, core_addrs_[next_work_core_]);
   return true;
+}
+
+void NFVIngress::pick_next_work_core() {
+  next_work_core_ = (next_work_core_ + 1) % work_core_count_;
 }
 
 CommandResponse NFVIngress::CommandGetSummary(const bess::pb::EmptyArg &) {
@@ -158,6 +169,7 @@ CommandResponse NFVIngress::CommandGetSummary(const bess::pb::EmptyArg &) {
   }
   std::cout << total_flows;
   std::cout << num_flows;
+  std::cout << active_flows_;
   return CommandResponse();
 }
 
