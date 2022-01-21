@@ -78,7 +78,7 @@ class FlowLpmRule {
        (dst_port == be16_t(0) || dst_port == dport);
   }
 
-  void set_action(bool mac_encoded, uint o_port, const std::string& o_mac) {
+  void SetAction(bool mac_encoded, uint o_port, const std::string& o_mac) {
     egress_port = o_port;
     egress_mac = o_mac;
     encoded_mac.FromString(o_mac);
@@ -122,7 +122,7 @@ class FlowRoutingRule {
     encoded_mac_.FromString(o_mac);
     encoded_mac_.bytes[0] = o_port & 0xff;
   }
-  void set_action(bool mac_encoded, uint o_port, const std::string& o_mac) {
+  void SetAction(bool mac_encoded, uint o_port, const std::string& o_mac) {
     egress_port_ = o_port;
     egress_mac_ = o_mac;
     encoded_mac_.FromString(o_mac);
@@ -136,6 +136,9 @@ class FlowRoutingRule {
       pkt_rate_ = (packet_count_ - last_packet_count_) / 1024 / time_diff; // in (kpps)
       last_ts_us_ = now_us;
     }
+  }
+  bool IsActive() {
+    return false;
   }
 
   uint64_t ExpiryTime() { return expiry_time_; }

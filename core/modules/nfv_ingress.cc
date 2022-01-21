@@ -124,7 +124,7 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       if (idle_core_count_ <= 0) { // No reserved cores
         emitted = false;
       } else {
-        it->second.set_action(false, 0, idle_core_addrs_[0]);
+        it->second.SetAction(false, 0, idle_core_addrs_[0]);
         emitted = true;
       }
     }
@@ -151,7 +151,7 @@ bool NFVIngress::process_new_flow(FlowRoutingRule &rule) {
     return false;
   }
 
-  rule.set_action(false, 0, core_addrs_[next_work_core_]);
+  rule.SetAction(false, 0, core_addrs_[next_work_core_]);
   return true;
 }
 

@@ -9,7 +9,7 @@ acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 
 # By default, pick Intel NICs
-pcie0 = ['5e:00.%d' %(i) for i in range(2, 8)]
+pcie0 = ['5e:00.%d' %(i) for i in range(2, 8)] + ['5e:01.%d' %(i) for i in range(2, 4)]
 offset0 = 1
 
 acl_rules = []

@@ -182,7 +182,7 @@ CommandResponse FaaSIngress::CommandMigrate(const bess::pb::FaaSIngressCommandMi
     from_it->second.pop_front();
     to_it->second.emplace_front(head);
     sum_rate += flow_it->second.pkt_rate_;
-    flow_it->second.set_action(mac_encoded_, egress_port_, to);
+    flow_it->second.SetAction(mac_encoded_, egress_port_, to);
   }
   return CommandSuccess();
 }
@@ -377,7 +377,7 @@ bool FaaSIngress::process_new_flow(Flow &flow, FlowRoutingRule &rule) {
     }
 
     // use the local decision updated locally.
-    rule.set_action(mac_encoded_, egress_port_, egress_mac_);
+    rule.SetAction(mac_encoded_, egress_port_, egress_mac_);
     map_chain_to_flow_[egress_chain_unique_id_].emplace_front(flow);
   } else {
     // query the FaaS controller for a remote decison.
@@ -391,7 +391,7 @@ bool FaaSIngress::process_new_flow(Flow &flow, FlowRoutingRule &rule) {
       return false;
     }
 
-    rule.set_action(mac_encoded_, flow_response_.switch_port(), flow_response_.dmac());
+    rule.SetAction(mac_encoded_, flow_response_.switch_port(), flow_response_.dmac());
   }
 
   // Update the switch flow table only if the switch Redis channel is ready
