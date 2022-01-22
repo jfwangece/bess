@@ -967,6 +967,8 @@ message NFVIngressArg {
   bool local_decision = 2;
   int32 packet_count_thresh = 3;
   int32 idle_core_count = 4;
+  int32 lb = 5;
+  int32 scale = 6;
 }
 
 /**

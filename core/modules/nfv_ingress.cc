@@ -5,6 +5,9 @@
 #include "../utils/tcp.h"
 #include "../utils/udp.h"
 
+#define DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS 100000000
+#define DEFAULT_ACTIVE_FLOW_WINDOW_NS 2000000000
+
 namespace {
 const uint64_t TIME_OUT_NS = 10ull * 1000 * 1000 * 1000; // 10 seconds
 }
@@ -18,27 +21,43 @@ const Commands NFVIngress::cmds = {
      Command::THREAD_UNSAFE}};
 
 CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &arg) {
+  total_core_count_ = arg.core_addrs_size();
+  for (int i = 0; i < total_core_count_; i++) {
+    cpu_cores_.push_back(WorkerCore{
+        core_id: i, worker_port: 0, nic_addr: arg.core_addrs(i)});
+    routing_to_core_id_.emplace(arg.core_addrs(i), i);
+  }
+  assert(total_core_count_ == cpu_cores_.size());
+
   idle_core_count_ = 0;
   if (arg.idle_core_count() > 0) {
     idle_core_count_ = (int)arg.idle_core_count();
-  }
-  for (int i = 0; i < idle_core_count_; i++) {
-    idle_core_addrs_.push_back(arg.core_addrs(i));
-  }
-
-  work_core_count_ = arg.core_addrs_size() - idle_core_count_;
-  for (int i = 0; i < work_core_count_; i++) {
-    core_addrs_.push_back(arg.core_addrs(idle_core_count_ + i));
+    for (int i = 0; i < idle_core_count_; i++) {
+      idle_core_set_.push_back(i);
+    }
   }
 
-  for (int i = 0; i < arg.core_addrs_size(); i++) {
-    per_core_stats_.emplace(arg.core_addrs(i), WorkerCore{});
+  normal_core_count_ = total_core_count_ - idle_core_count_;
+  for (int i = 0; i < normal_core_count_; i++) {
+    normal_core_set_.push_back(idle_core_count_ + i);
   }
 
   packet_count_thresh_ = 10000000;
   if (arg.packet_count_thresh() > 0) {
     packet_count_thresh_ = (uint64_t)arg.packet_count_thresh();
   }
+
+  load_balancing_op_ = 0;
+  if (arg.lb() > 0) {
+    load_balancing_op_ = arg.lb();
+  }
+  scale_op_ = 0;
+  if (arg.scale() > 0) {
+    scale_op_ = arg.scale();
+  }
+
+  curr_ts_ns_ = 0;
+  last_core_assignment_ts_ns_ = 0;
 
   return CommandSuccess();
 }
@@ -63,7 +82,8 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   Tcp *tcp = nullptr;
   Udp *udp = nullptr;
 
-  uint64_t now = ctx->current_ns;
+  curr_ts_ns_ = ctx->current_ns;
+
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
@@ -97,7 +117,7 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     bool emitted = false;
     if (it != flow_cache_.end()) {
-      if (now >= it->second.ExpiryTime()) { // an outdated flow
+      if (curr_ts_ns_ >= it->second.ExpiryTime()) { // an outdated flow
         flow_cache_.erase(it);
         active_flows_ -= 1;
         it = flow_cache_.end();
@@ -111,12 +131,13 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       // Assign this flow to a CPU core
       process_new_flow(new_rule);
       std::tie(it, std::ignore) = flow_cache_.emplace(
-          std::piecewise_construct, std::make_tuple(flow), std::make_tuple(new_rule));
+          std::piecewise_construct,
+          std::make_tuple(flow), std::make_tuple(new_rule));
       active_flows_ += 1;
 
       emitted = true;
     }
-    it->second.SetExpiryTime(now + TIME_OUT_NS);
+    it->second.SetExpiryTime(curr_ts_ns_ + TIME_OUT_NS);
     it->second.packet_count_ += 1;
 
     // Handle bursty flows
@@ -124,14 +145,14 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       if (idle_core_count_ <= 0) { // No reserved cores
         emitted = false;
       } else {
-        it->second.set_action(false, 0, idle_core_addrs_[0]);
+        it->second.set_action(false, 0, cpu_cores_[idle_core_set_[0]].nic_addr);
         emitted = true;
       }
     }
 
     if (emitted) {
       eth->dst_addr = it->second.encoded_mac_;
-      per_core_stats_[it->second.egress_mac_].active_flows.emplace(it->first, 1);
+      cpu_cores_[routing_to_core_id_[it->second.egress_mac_]].active_flows.emplace(it->first, curr_ts_ns_);
       EmitPacket(ctx, pkt, 0);
     } else {
       DropPacket(ctx, pkt);
@@ -145,23 +166,67 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 }
 
 bool NFVIngress::process_new_flow(FlowRoutingRule &rule) {
-  pick_next_work_core();
-
-  if (next_work_core_ < 0 || next_work_core_ >= work_core_count_) {
+  pick_next_normal_core();
+  if (!is_normal_core(next_normal_core_)) {
     return false;
   }
 
-  rule.set_action(false, 0, core_addrs_[next_work_core_]);
+  rule.set_action(false, 0, cpu_cores_[next_normal_core_].nic_addr);
   return true;
 }
 
-void NFVIngress::pick_next_work_core() {
-  next_work_core_ = (next_work_core_ + 1) % work_core_count_;
+// Load balancing: 1) flow assignment; 2) load rebalancing;
+// Flow assignment
+void NFVIngress::pick_next_normal_core() {
+  // Round-robin
+  if (load_balancing_op_ == 0) {
+    default_lb();
+  } else if (load_balancing_op_ == 1) {
+    traffic_aware_lb();
+  } else {
+    default_lb();
+  }
 }
+
+void NFVIngress::default_lb() {
+  next_normal_core_ = (next_normal_core_ + 1) % normal_core_count_;
+}
+
+void NFVIngress::traffic_aware_lb() {
+  // Balance the number of active flows among cores
+  next_normal_core_ = 0;
+  size_t min_active_flow_count = 10000000;
+  for (auto &it : cpu_cores_) {
+    if (is_idle_core(it.core_id)) { continue; }
+
+    if (it.active_flows.size() > min_active_flow_count) {
+      min_active_flow_count = it.active_flows.size();
+      next_normal_core_ = it.core_id;
+    }
+  }
+
+  // Remove inactive flows every |traffic-stats-update| period
+  if (curr_ts_ns_ - last_core_assignment_ts_ns_ >= DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS) {
+    for (auto &it : cpu_cores_) {
+      auto flow_it = it.active_flows.begin();
+      while (flow_it != it.active_flows.end()) {
+        if (curr_ts_ns_ - flow_it->second >= DEFAULT_ACTIVE_FLOW_WINDOW_NS) {
+          flow_it = it.active_flows.erase(flow_it);
+        } else {
+          flow_it++;
+        }
+      }
+    }
+
+    last_core_assignment_ts_ns_ = curr_ts_ns_;
+  }
+}
+
+// Scaling: 1) overload detection; 2) CPU core set adjustment;
 
 CommandResponse NFVIngress::CommandGetSummary(const bess::pb::EmptyArg &) {
   int total_flows = flow_cache_.size();
-  int num_flows = 0;
+  int num_flows = 0; // Count # of bursty flows
   for (auto & x : flow_cache_) {
     if (x.second.packet_count_ > packet_count_thresh_) {
       num_flows += 1;
