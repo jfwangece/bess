@@ -56,13 +56,13 @@ class NFVIngress final : public Module {
   void traffic_aware_lb(); // lb op = 1 (traffic-awareness)
 
   bool is_idle_core(int core_id) {
-    for (auto &it : idle_core_set_) {
+    for (auto &it : idle_cores_) {
       if (it == core_id) { return true; }
     }
     return false;
   }
   bool is_normal_core(int core_id) {
-    for (auto &it : normal_core_set_) {
+    for (auto &it : normal_cores_) {
       if (it == core_id) { return true; }
     }
     return false;
@@ -80,8 +80,8 @@ class NFVIngress final : public Module {
   std::vector<WorkerCore> cpu_cores_;
   std::unordered_map<std::string, int> routing_to_core_id_;
 
-  std::vector<int> idle_core_set_;
-  std::vector<int> normal_core_set_;
+  std::vector<int> idle_cores_;
+  std::vector<int> normal_cores_;
   // The number of normal / reserved CPU cores
   int total_core_count_ = 0;
   int normal_core_count_ = 0;

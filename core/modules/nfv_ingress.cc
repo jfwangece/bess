@@ -33,13 +33,13 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
   if (arg.idle_core_count() > 0) {
     idle_core_count_ = (int)arg.idle_core_count();
     for (int i = 0; i < idle_core_count_; i++) {
-      idle_core_set_.push_back(i);
+      idle_cores_.push_back(i);
     }
   }
 
   normal_core_count_ = total_core_count_ - idle_core_count_;
   for (int i = 0; i < normal_core_count_; i++) {
-    normal_core_set_.push_back(idle_core_count_ + i);
+    normal_cores_.push_back(idle_core_count_ + i);
   }
 
   packet_count_thresh_ = 10000000;
@@ -145,7 +145,7 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       if (idle_core_count_ <= 0) { // No reserved cores
         emitted = false;
       } else {
-        it->second.SetAction(false, 0, cpu_cores_[idle_core_set_[0]].nic_addr);
+        it->second.SetAction(false, 0, cpu_cores_[idle_cores_[0]].nic_addr);
         emitted = true;
       }
     }
@@ -171,7 +171,7 @@ bool NFVIngress::process_new_flow(FlowRoutingRule &rule) {
     return false;
   }
 
-  rule.SetAction(false, 0, cpu_cores_[next_normal_core_].nic_addr);
+  rule.SetAction(false, 0, cpu_cores_[normal_cores_[next_normal_core_]].nic_addr);
   return true;
 }
 
