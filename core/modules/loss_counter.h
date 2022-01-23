@@ -1,6 +1,7 @@
 #ifndef BESS_MODULES_LOSS_COUNTER_H_
 #define BESS_MODULES_LOSS_COUNTER_H_
 
+#include <mutex>
 #include <set>
 
 #include "../module.h"
@@ -37,8 +38,13 @@ public:
     kIngress,
   };
 
+  // global packet counters
   static PerPortCounter per_port_counters_[64];
   static std::set<int> all_ports_;
+
+  // global lock for updating global packet counters
+  static mcslock lock_;
+  static std::mutex mu_;
 
   static const Commands cmds;
 
@@ -72,8 +78,6 @@ private:
   // The ingress/egress port at which this instance is monitoring.
   int port_index_ = 0;
   PortType port_type_ = kEgress;
-
-  static mcslock lock_;
 };
 
 #endif // BESS_MODULES_LOSS_COUNTER_H_

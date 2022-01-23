@@ -8,6 +8,7 @@ bool LossCounter::is_activated_ = false;
 uint64_t LossCounter::packet_count_offset_ = 0;
 uint64_t LossCounter::packet_count_target_ = 0;
 mcslock LossCounter::lock_;
+std::mutex LossCounter::mu_;
 
 const uint64_t kDefaultPacketCountTarget = 1000000;
 
@@ -21,6 +22,8 @@ const Commands LossCounter::cmds = {
 };
 
 CommandResponse LossCounter::Init(const bess::pb::LossCounterArg &arg) {
+  const std::lock_guard<std::mutex> lock(mu_);
+
   if (arg.offset() > 0) {
     offset_ = arg.offset();
   } else {
@@ -34,12 +37,7 @@ CommandResponse LossCounter::Init(const bess::pb::LossCounterArg &arg) {
   }
 
   // |all_ports| is a static class member.
-  mcslock_node_t mynode;
-  mcs_lock(&lock_, &mynode);
-
   all_ports_.emplace(port_index_);
-
-  mcs_unlock(&lock_, &mynode);
 
   if (arg.port_type() == 1) {
     port_type_ = kIngress;
@@ -78,8 +76,7 @@ void LossCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   int cnt = batch->cnt();
   size_t offset = offset_;
 
-  mcslock_node_t mynode;
-  mcs_lock(&lock_, &mynode);
+  const std::lock_guard<std::mutex> lock(mu_);
 
   if (port_type_ == kIngress) {
     for (int i = 0; i < cnt; i++) {
@@ -110,13 +107,10 @@ void LossCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         }
       } else {
         bess::Packet::Free(batch->pkts(), cnt);
-        mcs_unlock(&lock_, &mynode);
         return;
       }
     }
   }
-
-  mcs_unlock(&lock_, &mynode);
 
   RunNextModule(ctx, batch);
 }
@@ -138,36 +132,33 @@ uint64_t LossCounter::CountTotalPackets() {
 }
 
 void LossCounter::Clear() {
-  mcslock_node_t mynode;
-  mcs_lock(&lock_, &mynode);
+  const std::lock_guard<std::mutex> lock(mu_);
 
   // Clear all counters.
   for (int i = 0; i < 64; ++i) {
     per_port_counters_[i].Clear();
   }
-
-  mcs_unlock(&lock_, &mynode);
 }
 
 void LossCounter::Start() {
-  mcslock_node_t mynode;
-  mcs_lock(&lock_, &mynode);
+  const std::lock_guard<std::mutex> lock(mu_);
 
   // Clear all counters.
   for (int i = 0; i < 64; ++i) {
     per_port_counters_[i].Clear();
   }
   is_activated_ = true;
-
-  mcs_unlock(&lock_, &mynode);
 }
 
 CommandResponse LossCounter::CommandGetSummary(
     const bess::pb::LossCounterCommandGetSummaryArg &arg) {
   bess::pb::LossCounterCommandGetSummaryResponse r;
 
+  mu_.lock();
   uint64_t total_packets = CountTotalPackets();
   uint64_t total_losses = CountTotalLosses();
+  mu_.unlock();
+
   double avg_loss_rate = 0.0;
   if (total_packets > 0) {
     avg_loss_rate = double(total_losses) / total_packets;
@@ -178,6 +169,7 @@ CommandResponse LossCounter::CommandGetSummary(
   r.set_total_losses(total_losses);
   r.set_avg_loss_rate(avg_loss_rate);
 
+  mu_.lock();
   for (const auto& port : all_ports_) {
     bess::pb::LossCounterCommandGetSummaryResponse_PerPortLossCounterSummary* \
       p = r.add_per_port_summary();
@@ -185,6 +177,7 @@ CommandResponse LossCounter::CommandGetSummary(
     p->set_packets(per_port_counters_[port].egress_cnt);
     p->set_losses(per_port_counters_[port].CountPerPortLosses());
   }
+  mu_.unlock();
 
   if (arg.clear()) {
     Clear();
