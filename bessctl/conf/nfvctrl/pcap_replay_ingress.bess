@@ -15,7 +15,10 @@ print("Target PCAP file: %s" %(PCAPFILE))
 playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
 playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
 playback_speed = float($BESS_SPEED!"1")
+lb_op = int($BESS_LB!'0')
+scale_op = int($BESS_SCALE!'0')
 idle_num_cores = int($BESS_IDLE_CORE!'1')
+flow_pkt_cnt_thresh = int($BESS_PKT_THRESH!"1000")
 burst_size = int($BESS_BURST!'32')
 tag_offset = 72
 pcie0, offset0="82:00.0", 0
@@ -44,7 +47,12 @@ else:
 pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
 pout0::PortOut(port=pmd_port0)
 pinc0::PortInc(port=pmd_port0)
-nfv::NFVIngress(idle_core_count=idle_num_cores,core_addrs=core_addrs, local_decision=True)
+nfv::NFVIngress(core_addrs=core_addrs,
+    idle_core_count=idle_num_cores,
+    packet_count_thresh=flow_pkt_cnt_thresh,
+    lb=lb_op,
+    scale=scale_op,
+    local_decision=True)
 
 src -> queue -> replayer -> nfv -> Timestamp(offset=tag_offset) -> pout0
 pinc0 -> Measure(offset=tag_offset) -> Sink()
