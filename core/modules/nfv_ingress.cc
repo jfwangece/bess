@@ -148,14 +148,23 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       if (idle_core_count_ <= 0) { // No reserved cores
         emitted = false;
       } else {
-        it->second.SetAction(false, 0, cpu_cores_[idle_cores_[0]].nic_addr);
+        pick_next_idle_core();
+
+        it->second.SetAction(false, 0, cpu_cores_[next_idle_core_].nic_addr);
         emitted = true;
       }
     }
 
     if (emitted) {
       eth->dst_addr = it->second.encoded_mac_;
-      cpu_cores_[routing_to_core_id_[it->second.egress_mac_]].active_flows.emplace(it->first, curr_ts_ns_);
+      int cid = routing_to_core_id_[it->second.egress_mac_];
+      auto flow_it = cpu_cores_[cid].active_flows.find(it->first);
+      if (flow_it == cpu_cores_[cid].active_flows.end()) {
+        cpu_cores_[cid].active_flows.emplace(it->first, curr_ts_ns_);
+      } else {
+        flow_it->second = curr_ts_ns_;
+      }
+
       EmitPacket(ctx, pkt, 0);
     } else {
       DropPacket(ctx, pkt);
@@ -189,6 +198,12 @@ void NFVIngress::pick_next_normal_core() {
   } else {
     default_lb();
   }
+}
+
+void NFVIngress::pick_next_idle_core() {
+  // Round-robin
+  rr_idle_core_index_ = (rr_idle_core_index_ + 1) % idle_core_count_;
+  next_idle_core_ = idle_cores_[rr_idle_core_index_];
 }
 
 void NFVIngress::default_lb() {

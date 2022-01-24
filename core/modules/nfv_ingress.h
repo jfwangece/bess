@@ -52,6 +52,7 @@ class NFVIngress final : public Module {
   bool process_new_flow(FlowRoutingRule &rule);
 
   void pick_next_normal_core(); // Assign a normal flow to a normal core
+  void pick_next_idle_core(); // Assign a bursty flow to an reserved core
   void default_lb(); // default lb op = 0 (round-robin)
   void traffic_aware_lb(); // lb op = 1 (traffic-awareness)
 
@@ -100,6 +101,7 @@ class NFVIngress final : public Module {
   int next_normal_core_ = 0;
   int next_idle_core_ = 0;
   int rr_normal_core_index_ = 0;
+  int rr_idle_core_index_ = 0;
 
   // Packet rate threshold for identifying high-rate flows
   uint64_t packet_count_thresh_;
