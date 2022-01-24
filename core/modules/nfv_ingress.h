@@ -67,6 +67,16 @@ class NFVIngress final : public Module {
     }
     return false;
   }
+  void log_core_info() {
+    std::cout << "Idle cores:";
+    for (auto &it : idle_cores_) {
+      std::cout << it;
+    }
+    std::cout << "Normal cores:";
+    for (auto &it : normal_cores_) {
+      std::cout << it;
+    }
+  }
 
   // Timestamp
   uint64_t curr_ts_ns_;
@@ -89,6 +99,7 @@ class NFVIngress final : public Module {
   // The selected normal / reserved CPU core
   int next_normal_core_ = 0;
   int next_idle_core_ = 0;
+  int rr_normal_core_index_ = 0;
 
   // Packet rate threshold for identifying high-rate flows
   uint64_t packet_count_thresh_;

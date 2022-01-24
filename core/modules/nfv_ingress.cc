@@ -41,6 +41,9 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
   for (int i = 0; i < normal_core_count_; i++) {
     normal_cores_.push_back(idle_core_count_ + i);
   }
+  assert(normal_cores_.size() + idle_cores_.size() == cpu_cores_.size());
+
+  log_core_info();
 
   packet_count_thresh_ = 10000000;
   if (arg.packet_count_thresh() > 0) {
@@ -171,7 +174,7 @@ bool NFVIngress::process_new_flow(FlowRoutingRule &rule) {
     return false;
   }
 
-  rule.SetAction(false, 0, cpu_cores_[normal_cores_[next_normal_core_]].nic_addr);
+  rule.SetAction(false, 0, cpu_cores_[next_normal_core_].nic_addr);
   return true;
 }
 
@@ -189,7 +192,8 @@ void NFVIngress::pick_next_normal_core() {
 }
 
 void NFVIngress::default_lb() {
-  next_normal_core_ = (next_normal_core_ + 1) % normal_core_count_;
+  rr_normal_core_index_ = (rr_normal_core_index_ + 1) % normal_core_count_;
+  next_normal_core_ = normal_cores_[rr_normal_core_index_];
 }
 
 void NFVIngress::traffic_aware_lb() {
@@ -199,7 +203,7 @@ void NFVIngress::traffic_aware_lb() {
   for (auto &it : cpu_cores_) {
     if (is_idle_core(it.core_id)) { continue; }
 
-    if (it.active_flows.size() > min_active_flow_count) {
+    if (it.active_flows.size() < min_active_flow_count) {
       min_active_flow_count = it.active_flows.size();
       next_normal_core_ = it.core_id;
     }
