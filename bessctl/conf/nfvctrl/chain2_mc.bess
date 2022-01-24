@@ -1,0 +1,48 @@
+#
+# Test NF chain #2: a heavy stateful chain
+# ACL/Firewall -> Snort/IDS -> Encryption
+#
+
+nic=int($BESS_NIC!'0')
+burst_size=int($BESS_BURST!'32')
+acl_cnt=int($BESS_ACL!'2000')
+lb_cnt=int($BESS_LB!'100')
+
+# By default, pick Intel NICs
+pcie0 = ['5e:00.%d' %(i) for i in range(2, 8)] + ['5e:01.%d' %(i) for i in range(2, 4)]
+offset0 = 1
+
+acl_rules = []
+for i in range(acl_cnt / 50):
+    for j in range(50):
+        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
+acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
+
+ids_keywords = []
+for i in range(50):
+    ids_keywords.append("GET%s%s" %(chr(97+i/20), chr(97+i%20)))
+
+port0 = {}
+pinc0 = {}
+pout0 = {}
+fw = {}
+ids = {}
+chacha = {}
+
+for i in range(len(pcie0)):
+    port0[i] = PMDPort(pci=pcie0[i], num_inc_q=1, num_out_q=1)
+    pinc0[i] = PortInc(port=port0[i])
+    pout0[i] = PortOut(port=port0[i])
+    fw[i] = FlowACL(rules=acl_rules)
+    ids[i] = SnortIDS(keywords=ids_keywords)
+    chacha[i] = CHACHA()
+
+    pinc0[i] -> fw[i] -> ids[i] -> chacha[i] -> MACSwap() -> pout0[i]
+    pinc0[i].set_burst(burst=burst_size)
+
+# core ID starts at the offset core
+for i in range(len(pcie0)):
+    bess.add_worker(wid=i, core=i+offset0)
+    pinc0[i].attach_task(wid=i)
+
+bess.resume_all()

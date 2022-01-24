@@ -6,11 +6,24 @@
 #
 # Example:
 # $ run nfvctrl/pcap_replay_ingress PCAP="./equinix-nyc.dirA.20190117-125910.UTC.short.pcap",BESS_SPEED=32,BESS_IDLE_CORES=1
+#
 import scapy.all as scapy
 
 PCAPFILE = $PCAP!""
 assert PCAPFILE
 print("Target PCAP file: %s" %(PCAPFILE))
+
+# 5e:00.1: '0a:14:69:37:5f:f2',
+core_addrs = [
+        '82:a3:ae:74:72:30',
+        'a2:87:fd:f8:72:21',
+        '2e:c7:8b:7b:8d:a8',
+        '2a:9d:fd:13:15:01',
+        '32:a5:0f:e0:04:0b',
+        '06:8a:62:fb:51:51',
+        'ce:2e:14:c4:a0:cb',
+        '6e:af:01:7a:93:6f',
+]
 
 playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
 playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
@@ -23,22 +36,12 @@ burst_size = int($BESS_BURST!'32')
 tag_offset = 72
 pcie0, offset0="82:00.0", 0
 
-# 5e:00.1: '0a:14:69:37:5f:f2',
-core_addrs = [
-            '82:a3:ae:74:72:30',
-            'a2:87:fd:f8:72:21',
-            '2e:c7:8b:7b:8d:a8',
-            '2a:9d:fd:13:15:01',
-            '32:a5:0f:e0:04:0b',
-            '06:8a:62:fb:51:51',
-            'ce:2e:14:c4:a0:cb',
-            '6e:af:01:7a:93:6f']
-
 pcap_file = '{}'.format(PCAPFILE)
 
 pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
 src = PortInc(port=pcap_port)
 queue = Queue(size=pow(2,24))
+q = Queue()
 if playback_rate_mpps > 0:
     replayer = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
 elif playback_rate_mbps > 0:
@@ -56,7 +59,7 @@ nfv::NFVIngress(core_addrs=core_addrs,
     scale=scale_op,
     local_decision=True)
 
-src -> queue -> replayer -> nfv -> Timestamp(offset=tag_offset) -> pout0
+src -> queue -> replayer -> q -> nfv -> Timestamp(offset=tag_offset) -> pout0
 pinc0 -> Measure(offset=tag_offset) -> Sink()
 
 queue.set_burst(burst=burst_size)
@@ -65,13 +68,15 @@ pinc0.set_burst(burst=burst_size)
 bess.add_worker(wid=1, core=1+offset0)
 bess.add_worker(wid=2, core=3+offset0)
 bess.add_worker(wid=3, core=5+offset0)
+bess.add_worker(wid=4, core=7+offset0)
 bess.add_tc('rl',
             policy='rate_limit',
             resource='packet',
-            limit={'packet': 100000000},
+            limit={'packet': 1000000000},
             wid=2)
 src.attach_task(wid=1)
 queue.attach_task(parent='rl')
-pinc0.attach_task(wid=3)
+q.attach_task(wid=3)
+pinc0.attach_task(wid=4)
 
 bess.resume_all()
