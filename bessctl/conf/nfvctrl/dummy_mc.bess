@@ -1,0 +1,35 @@
+#
+# Test NF dummy chain: a bypass chain that can control the per-packet cycle cost
+#
+# Example:
+# $ run nfvctrl/dummy_mc BESS_NIC=1,BESS_PKT_CYCLE=1000
+#
+
+nic=int($BESS_NIC!'0')
+burst_size=int($BESS_BURST!'32')
+cycles_pp=int($BESS_PKT_CYCLE!'8500')
+
+# By default, pick Intel NICs
+pcie0 = ['5e:00.%d' %(i) for i in range(2, 8)] + ['5e:01.%d' %(i) for i in range(2, 4)]
+offset0 = 1
+
+port0 = {}
+pinc0 = {}
+pout0 = {}
+bypass = {}
+
+for i in range(len(pcie0)):
+    port0[i] = PMDPort(pci=pcie0[i], num_inc_q=1, num_out_q=1)
+    pinc0[i] = PortInc(port=port0[i])
+    pout0[i] = PortOut(port=port0[i])
+    bypass[i] = Bypass(cycles_per_packet=cycles_pp)
+
+    pinc0[i] -> bypass[i] -> MACSwap() -> pout0[i]
+    pinc0[i].set_burst(burst=burst_size)
+
+# core ID starts at the offset core
+for i in range(len(pcie0)):
+    bess.add_worker(wid=i, core=i+offset0)
+    pinc0[i].attach_task(wid=i)
+
+bess.resume_all()
