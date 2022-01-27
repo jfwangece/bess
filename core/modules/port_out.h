@@ -63,6 +63,13 @@ class PortOut final : public Module {
  private:
   Port *port_;
 
+  int monitor_delay_;
+  uint64_t curr_ts_ = 0;
+
+  // Samples in the past 1000 rounds;
+  std::deque<uint64_t> per_round_cycle_counts_;
+  uint64_t max_per_round_cycle_count_ = 0;
+
   int worker_queues_[Worker::kMaxWorkers];
 
   // Number of workers mapped to a given queue. Indexed by queue number

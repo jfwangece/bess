@@ -31,6 +31,10 @@
 #include "port_out.h"
 #include "../utils/format.h"
 
+static inline uint64_t get_timestamp(bess::Packet *pkt, size_t offset) {
+  return (*pkt->head_data<uint64_t *>(offset));
+}
+
 const Commands PortOut::cmds = {
     {"get_initial_arg", "EmptyArg", MODULE_CMD_FUNC(&PortOut::GetInitialArg),
      Command::THREAD_SAFE},
@@ -39,6 +43,10 @@ const Commands PortOut::cmds = {
 CommandResponse PortOut::Init(const bess::pb::PortOutArg &arg) {
   const char *port_name;
   int ret;
+
+  if (arg.monitor_delay()) {
+    monitor_delay_ = true;
+  }
 
   if (!arg.port().length()) {
     return CommandFailure(EINVAL, "'port' must be given as a string");
@@ -86,6 +94,10 @@ void PortOut::DeInit() {
 }
 
 std::string PortOut::GetDesc() const {
+  if (monitor_delay_) {
+    return bess::utils::Format("%s/%s/%lu", port_->name().c_str(),
+                             port_->port_builder()->class_name().c_str(), max_per_round_cycle_count_);
+  }
   return bess::utils::Format("%s/%s", port_->name().c_str(),
                              port_->port_builder()->class_name().c_str());
 }
@@ -131,6 +143,24 @@ void PortOut::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
   if (sent_pkts < batch->cnt()) {
     bess::Packet::Free(batch->pkts() + sent_pkts, batch->cnt() - sent_pkts);
+  }
+
+  if (monitor_delay_ && batch->cnt() > 0) {
+    curr_ts_ = rdtsc();
+    for (int i = 0; i < batch->cnt(); i++) {
+      per_round_cycle_counts_.push_back(curr_ts_ - get_timestamp(batch->pkts()[0], 90));
+    }
+    while (per_round_cycle_counts_.size() > 1000) {
+      per_round_cycle_counts_.pop_front();
+    }
+
+    // Update max
+    max_per_round_cycle_count_ = 1;
+    for (auto &it : per_round_cycle_counts_) {
+      if (it > max_per_round_cycle_count_) {
+        max_per_round_cycle_count_ = it;
+      }
+    }
   }
 }
 

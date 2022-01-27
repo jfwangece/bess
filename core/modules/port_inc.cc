@@ -31,6 +31,12 @@
 #include "port_inc.h"
 #include "../utils/format.h"
 
+static inline void timestamp_packet(bess::Packet *pkt, size_t offset,
+                                    uint64_t time) {
+  uint64_t *ts = pkt->head_data<uint64_t *>(offset);
+  *ts = time;
+}
+
 const Commands PortInc::cmds = {
     {"set_burst", "PortIncCommandSetBurstArg",
      MODULE_CMD_FUNC(&PortInc::CommandSetBurst), Command::THREAD_SAFE},
@@ -74,6 +80,10 @@ CommandResponse PortInc::Init(const bess::pb::PortIncArg &arg) {
     if (tid == INVALID_TASK_ID) {
       return CommandFailure(ENOMEM, "Context creation failed");
     }
+  }
+
+  if (arg.monitor_delay()) {
+    monitor_delay_ = 1;
   }
 
   if (arg.prefetch()) {
@@ -146,6 +156,10 @@ struct task_result PortInc::RunTask(Context *ctx, bess::PacketBatch *batch,
     for (uint32_t i = 0; i < cnt; i++) {
       received_bytes += batch->pkts()[i]->total_len();
     }
+  }
+
+  if (monitor_delay_) {
+    timestamp_packet(batch->pkts()[0], 90, rdtsc());
   }
 
   if (!(p->GetFlags() & DRIVER_FLAG_SELF_INC_STATS)) {

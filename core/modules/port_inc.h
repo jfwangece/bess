@@ -61,6 +61,7 @@ class PortInc final : public Module {
 
  private:
   Port *port_;
+  int monitor_delay_;
   int prefetch_;
   int burst_;
 };
