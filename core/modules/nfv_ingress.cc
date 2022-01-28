@@ -158,11 +158,11 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     if (emitted) {
       eth->dst_addr = it->second.encoded_mac_;
       int cid = routing_to_core_id_[it->second.egress_mac_];
-      auto flow_it = cpu_cores_[cid].active_flows.find(it->first);
-      if (flow_it == cpu_cores_[cid].active_flows.end()) {
-        cpu_cores_[cid].active_flows.emplace(it->first, curr_ts_ns_);
+      auto flow_it = cpu_cores_[cid].per_flow_packet_counter.find(it->first);
+      if (flow_it == cpu_cores_[cid].per_flow_packet_counter.end()) {
+        cpu_cores_[cid].per_flow_packet_counter.emplace(it->first, 1);
       } else {
-        flow_it->second = curr_ts_ns_;
+        flow_it->second += 1;
       }
 
       EmitPacket(ctx, pkt, 0);
@@ -192,7 +192,7 @@ bool NFVIngress::process_new_flow(FlowRoutingRule &rule) {
 void NFVIngress::pick_next_normal_core() {
   // Round-robin
   if (load_balancing_op_ == 0) {
-    default_lb();
+    quadrant_lb();
   } else if (load_balancing_op_ == 1) {
     traffic_aware_lb();
   } else {
@@ -211,33 +211,56 @@ void NFVIngress::default_lb() {
   next_normal_core_ = normal_cores_[rr_normal_core_index_];
 }
 
-void NFVIngress::traffic_aware_lb() {
-  // Balance the number of active flows among cores
+// For all CPU cores, this algorithm calculates a value that indicates
+// 'how far a CPU core is from violating latency SLOs'.
+void NFVIngress::quadrant_lb() {
+  // Greedy assignment and flow packing
   next_normal_core_ = 0;
-  size_t min_active_flow_count = 10000000;
+  size_t max_per_core_packet_rate = 0;
   for (auto &it : cpu_cores_) {
     if (is_idle_core(it.core_id)) { continue; }
+    if (it.packet_rate >= per_core_packet_rate_thresh_) { continue; }
 
-    if (it.active_flows.size() < min_active_flow_count) {
-      min_active_flow_count = it.active_flows.size();
+    if (it.packet_rate > max_per_core_packet_rate) {
+      max_per_core_packet_rate = it.packet_rate;
       next_normal_core_ = it.core_id;
     }
   }
 
-  // Remove inactive flows every |traffic-stats-update| period
-  if (curr_ts_ns_ - last_core_assignment_ts_ns_ >= DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS) {
-    for (auto &it : cpu_cores_) {
-      auto flow_it = it.active_flows.begin();
-      while (flow_it != it.active_flows.end()) {
-        if (curr_ts_ns_ - flow_it->second >= DEFAULT_ACTIVE_FLOW_WINDOW_NS) {
-          flow_it = it.active_flows.erase(flow_it);
-        } else {
-          flow_it++;
-        }
-      }
-    }
+  update_traffic_stats();
+}
 
-    last_core_assignment_ts_ns_ = curr_ts_ns_;
+void NFVIngress::traffic_aware_lb() {
+  // Balance the number of active flows among cores
+  next_normal_core_ = 0;
+  int min_active_flow_count = 10000000;
+  for (auto &it : cpu_cores_) {
+    if (is_idle_core(it.core_id)) { continue; }
+
+    if (it.active_flow_count < min_active_flow_count) {
+      min_active_flow_count = it.active_flow_count;
+      next_normal_core_ = it.core_id;
+    }
+  }
+
+  update_traffic_stats();
+}
+
+void NFVIngress::update_traffic_stats() {
+  if (curr_ts_ns_ - last_core_assignment_ts_ns_ < DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS) {
+    return;
+  }
+
+  last_core_assignment_ts_ns_ = curr_ts_ns_;
+
+  for (auto &it : cpu_cores_) {
+    it.active_flow_count = it.per_flow_packet_counter.size();
+    it.packet_rate = 0;
+    auto flow_it = it.per_flow_packet_counter.begin();
+    while (flow_it != it.per_flow_packet_counter.end()) {
+      it.packet_rate += flow_it->second;
+    }
+    it.per_flow_packet_counter.clear();
   }
 }
 

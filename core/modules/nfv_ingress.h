@@ -29,12 +29,18 @@ class NFVIngress final : public Module {
   struct WorkerCore {
     WorkerCore(int core, int port, std::string addr) {
       core_id = core; worker_port = port; nic_addr = addr;
+      active_flow_count = 0; packet_rate = 0;
+      per_flow_packet_counter.clear();
     };
 
+    // Core info
     int core_id;
     int worker_port;
     std::string nic_addr;
-    std::unordered_map<Flow, uint64_t, FlowHash> active_flows;
+    // Traffic statistics
+    int active_flow_count;
+    uint64_t packet_rate;
+    std::unordered_map<Flow, uint64_t, FlowHash> per_flow_packet_counter;
   };
 
   NFVIngress() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; }
@@ -53,8 +59,13 @@ class NFVIngress final : public Module {
 
   void pick_next_normal_core(); // Assign a normal flow to a normal core
   void pick_next_idle_core(); // Assign a bursty flow to an reserved core
-  void default_lb(); // default lb op = 0 (round-robin)
-  void traffic_aware_lb(); // lb op = 1 (traffic-awareness)
+
+  void default_lb(); // default (round-robin), lb op = -1
+  void quadrant_lb(); // Quadrant's algorithm, lb op = 0 (greedy packing)
+  void traffic_aware_lb(); // New, lb op = 1 (traffic-awareness)
+
+  // Remove inactive flows every |traffic-stats-update| period
+  void update_traffic_stats();
 
   bool is_idle_core(int core_id) {
     for (auto &it : idle_cores_) {
@@ -93,6 +104,7 @@ class NFVIngress final : public Module {
 
   std::vector<int> idle_cores_;
   std::vector<int> normal_cores_;
+
   // The number of normal / reserved CPU cores
   int total_core_count_ = 0;
   int normal_core_count_ = 0;
@@ -105,6 +117,7 @@ class NFVIngress final : public Module {
 
   // Packet rate threshold for identifying high-rate flows
   uint64_t packet_count_thresh_;
+  uint64_t per_core_packet_rate_thresh_;
 
   // Per-flow connection table
   std::unordered_map<Flow, FlowRoutingRule, FlowHash> flow_cache_;

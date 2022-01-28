@@ -20,8 +20,8 @@ bypass = {}
 
 for i in range(len(pcie0)):
     port0[i] = PMDPort(pci=pcie0[i], num_inc_q=1, num_out_q=1)
-    pinc0[i] = PortInc(port=port0[i])
-    pout0[i] = PortOut(port=port0[i])
+    pinc0[i] = PortInc(port=port0[i], monitor_delay=1)
+    pout0[i] = PortOut(port=port0[i], monitor_delay=1)
     bypass[i] = Bypass(cycles_per_packet=cycles_pp)
 
     pinc0[i] -> bypass[i] -> MACSwap() -> pout0[i]
