@@ -29,7 +29,7 @@ class NFVIngress final : public Module {
   struct WorkerCore {
     WorkerCore(int core, int port, std::string addr) {
       core_id = core; worker_port = port; nic_addr = addr;
-      active_flow_count = 0; packet_rate = 0;
+      active_flow_count = 0; packet_rate = 0; idle_period_count = 0;
       per_flow_packet_counter.clear();
     };
 
@@ -40,7 +40,20 @@ class NFVIngress final : public Module {
     // Traffic statistics
     int active_flow_count;
     uint64_t packet_rate;
+    int idle_period_count;
+
     std::unordered_map<Flow, uint64_t, FlowHash> per_flow_packet_counter;
+  };
+
+  struct Snapshot {
+    Snapshot(int t_id) {
+      epoch_id = t_id; active_core_count = 0; sum_packet_rate = 0;
+    };
+
+    int epoch_id; // Starting from 0
+    int active_core_count; // Number of CPU cores with traffic
+    uint64_t sum_packet_rate; // Sum of all CPU cores' packet rates
+    std::vector<uint64_t> per_core_packet_rate;
   };
 
   NFVIngress() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; }
@@ -93,6 +106,7 @@ class NFVIngress final : public Module {
   // Timestamp
   uint64_t curr_ts_ns_;
   uint64_t last_core_assignment_ts_ns_;
+  int next_epoch_id_; // Performance statistics recorded in Epoch
 
   // LB and scaling options
   int load_balancing_op_ = 0;
@@ -101,6 +115,8 @@ class NFVIngress final : public Module {
   // All available per-core packet queues in a cluster
   std::vector<WorkerCore> cpu_cores_;
   std::unordered_map<std::string, int> routing_to_core_id_;
+
+  std::vector<Snapshot> cluster_snapshots_;
 
   std::vector<int> idle_cores_;
   std::vector<int> normal_cores_;

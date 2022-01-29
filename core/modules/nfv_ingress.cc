@@ -5,8 +5,9 @@
 #include "../utils/tcp.h"
 #include "../utils/udp.h"
 
-#define DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS 100000000
-#define DEFAULT_ACTIVE_FLOW_WINDOW_NS 2000000000
+#define DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS 200000000 // 200 ms
+#define DEFAULT_ACTIVE_FLOW_WINDOW_NS 2000000000 // 2000 ms
+#define DEFAULT_PACKET_COUNT_THRESH 1000000
 
 namespace {
 const uint64_t TIME_OUT_NS = 10ull * 1000 * 1000 * 1000; // 10 seconds
@@ -45,7 +46,7 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
 
   log_core_info();
 
-  packet_count_thresh_ = 10000000;
+  packet_count_thresh_ = DEFAULT_PACKET_COUNT_THRESH;
   if (arg.packet_count_thresh() > 0) {
     packet_count_thresh_ = (uint64_t)arg.packet_count_thresh();
   }
@@ -61,6 +62,7 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
 
   curr_ts_ns_ = 0;
   last_core_assignment_ts_ns_ = 0;
+  next_epoch_id_ = 0;
 
   return CommandSuccess();
 }
@@ -251,17 +253,37 @@ void NFVIngress::update_traffic_stats() {
     return;
   }
 
-  last_core_assignment_ts_ns_ = curr_ts_ns_;
+  cluster_snapshots_.push_back(Snapshot{epoch_id: next_epoch_id_});
 
+  int sum_active_cores = 0;
+  uint64_t sum_rate = 0;
   for (auto &it : cpu_cores_) {
     it.active_flow_count = it.per_flow_packet_counter.size();
     it.packet_rate = 0;
     auto flow_it = it.per_flow_packet_counter.begin();
     while (flow_it != it.per_flow_packet_counter.end()) {
       it.packet_rate += flow_it->second;
+      ++flow_it;
     }
     it.per_flow_packet_counter.clear();
+
+    if (it.packet_rate > 0) {
+      sum_active_cores += 1;
+      sum_rate += it.packet_rate;
+    }
+    cluster_snapshots_[next_epoch_id_].per_core_packet_rate.push_back(it.packet_rate);
   }
+
+  if (sum_rate > 0) {
+    cluster_snapshots_[next_epoch_id_].active_core_count = sum_active_cores;
+    cluster_snapshots_[next_epoch_id_].sum_packet_rate = sum_rate;
+  } else {
+    // Do not record if the cluster is not processing any packets
+    cluster_snapshots_.pop_back();
+  }
+
+  ++next_epoch_id_;
+  last_core_assignment_ts_ns_ = curr_ts_ns_;
 }
 
 // Scaling: 1) overload detection; 2) CPU core set adjustment;
