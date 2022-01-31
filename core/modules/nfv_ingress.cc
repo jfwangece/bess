@@ -212,9 +212,9 @@ bool NFVIngress::process_new_flow(FlowRoutingRule &rule) {
 // Load balancing: 1) flow assignment; 2) load rebalancing;
 // Flow assignment
 void NFVIngress::pick_next_normal_core() {
-  if (load_balancing_op_ == 0) {
+  if (load_balancing_op_ == 1) {
     quadrant_lb();
-  } else if (load_balancing_op_ == 1) {
+  } else if (load_balancing_op_ == 2) {
     traffic_aware_lb();
   } else {
     default_lb(); // Round-robin

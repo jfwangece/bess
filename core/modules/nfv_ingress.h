@@ -75,15 +75,15 @@ class NFVIngress final : public Module {
   void pick_next_normal_core(); // Assign a normal flow to a normal core
   void pick_next_idle_core(); // Assign a bursty flow to an reserved core
 
-  // default (round-robin), lb op = -1
+  // default (round-robin), lb op = 0
   void default_lb();
 
-  // Quadrant's algorithm, lb op = 0 (greedy packing)
+  // Quadrant's algorithm, lb op = 1 (greedy packing)
   void quadrant_lb();
   void quadrant_migrate();
   int quadrant_pick_core(); // pick the core with the highest-rate within the assignment thresh
 
-  // New, lb op = 1 (traffic-awareness)
+  // New, lb op = 2 (traffic-awareness)
   void traffic_aware_lb();
 
   // To update flow routing and per-flow counters
