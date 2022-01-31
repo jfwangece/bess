@@ -1,5 +1,7 @@
 #include "nfv_ingress.h"
 
+#include <fstream>
+
 #include "../utils/ether.h"
 #include "../utils/ip.h"
 #include "../utils/tcp.h"
@@ -46,6 +48,17 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
 
   log_core_info();
 
+  quadrant_per_core_packet_rate_thresh_ = 0;
+  if (arg.packet_rate_thresh() > 0) {
+    quadrant_per_core_packet_rate_thresh_ = (uint64_t)arg.packet_rate_thresh();
+  }
+
+  quadrant_high_thresh_ = 0.9;
+  quadrant_target_thresh_ = 0.85;
+  quadrant_low_thresh_ = 0.8;
+  quadrant_assign_packet_rate_thresh_ = quadrant_low_thresh_ * quadrant_per_core_packet_rate_thresh_;
+  quadrant_migrate_packet_rate_thresh_ = quadrant_high_thresh_ * quadrant_per_core_packet_rate_thresh_;
+
   packet_count_thresh_ = DEFAULT_PACKET_COUNT_THRESH;
   if (arg.packet_count_thresh() > 0) {
     packet_count_thresh_ = (uint64_t)arg.packet_count_thresh();
@@ -62,6 +75,7 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
 
   curr_ts_ns_ = 0;
   last_core_assignment_ts_ns_ = 0;
+  last_update_traffic_stats_ts_ns_ = 0;
   next_epoch_id_ = 0;
 
   return CommandSuccess();
@@ -134,7 +148,11 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     if (it == flow_cache_.end()) {
       FlowRoutingRule new_rule("02:42:01:c2:02:fe");
       // Assign this flow to a CPU core
-      process_new_flow(new_rule);
+      if (!process_new_flow(new_rule)) {
+        DropPacket(ctx, pkt);
+        continue;
+      }
+
       std::tie(it, std::ignore) = flow_cache_.emplace(
           std::piecewise_construct,
           std::make_tuple(flow), std::make_tuple(new_rule));
@@ -159,6 +177,8 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     if (emitted) {
       eth->dst_addr = it->second.encoded_mac_;
+
+      // Update per-core traffic statistics. Do we have to do this in the fast path?
       int cid = routing_to_core_id_[it->second.egress_mac_];
       auto flow_it = cpu_cores_[cid].per_flow_packet_counter.find(it->first);
       if (flow_it == cpu_cores_[cid].per_flow_packet_counter.end()) {
@@ -192,18 +212,16 @@ bool NFVIngress::process_new_flow(FlowRoutingRule &rule) {
 // Load balancing: 1) flow assignment; 2) load rebalancing;
 // Flow assignment
 void NFVIngress::pick_next_normal_core() {
-  // Round-robin
   if (load_balancing_op_ == 0) {
     quadrant_lb();
   } else if (load_balancing_op_ == 1) {
     traffic_aware_lb();
   } else {
-    default_lb();
+    default_lb(); // Round-robin
   }
 }
 
 void NFVIngress::pick_next_idle_core() {
-  // Round-robin
   rr_idle_core_index_ = (rr_idle_core_index_ + 1) % idle_core_count_;
   next_idle_core_ = idle_cores_[rr_idle_core_index_];
 }
@@ -216,23 +234,62 @@ void NFVIngress::default_lb() {
 // For all CPU cores, this algorithm calculates a value that indicates
 // 'how far a CPU core is from violating latency SLOs'.
 void NFVIngress::quadrant_lb() {
+  update_traffic_stats();
+
+  quadrant_migrate();
+
   // Greedy assignment and flow packing
-  next_normal_core_ = 0;
+  next_normal_core_ = quadrant_pick_core();
+}
+
+void NFVIngress::quadrant_migrate() {
+  for (auto &it : cpu_cores_) {
+    if (is_idle_core(it.core_id)) { continue; }
+
+    if (it.packet_rate >= quadrant_migrate_packet_rate_thresh_) {
+      uint64_t diff_rate = it.packet_rate - quadrant_assign_packet_rate_thresh_;
+      uint64_t sum_rate = 0;
+      size_t remaining_fc = it.per_flow_packet_counter.size() / 2;
+      // Migrating some flows from |it|
+      while (it.per_flow_packet_counter.size() >= remaining_fc && sum_rate < diff_rate) {
+        auto flow_it = it.per_flow_packet_counter.begin();
+        sum_rate += flow_it->second;
+        int cid = quadrant_pick_core();
+        migrate_flow(flow_it->first, it.core_id, cid);
+      }
+    }
+  }
+}
+
+int NFVIngress::quadrant_pick_core() {
+  int core_id = 0;
   size_t max_per_core_packet_rate = 0;
   for (auto &it : cpu_cores_) {
     if (is_idle_core(it.core_id)) { continue; }
-    if (it.packet_rate >= per_core_packet_rate_thresh_) { continue; }
+    if (it.packet_rate >= quadrant_assign_packet_rate_thresh_) { continue; }
 
     if (it.packet_rate > max_per_core_packet_rate) {
       max_per_core_packet_rate = it.packet_rate;
-      next_normal_core_ = it.core_id;
+      core_id = it.core_id;
     }
   }
+  return core_id;
+}
 
-  update_traffic_stats();
+void NFVIngress::migrate_flow(const Flow &f, int from_id, int to_id) {
+  auto it = flow_cache_.find(f);
+  it->second.SetAction(false, 0, cpu_cores_[to_id].nic_addr);
+
+  auto flow_it = cpu_cores_[from_id].per_flow_packet_counter.find(f);
+  if (flow_it != cpu_cores_[from_id].per_flow_packet_counter.end()) {
+    cpu_cores_[to_id].per_flow_packet_counter.emplace(f, flow_it->second);
+    cpu_cores_[from_id].per_flow_packet_counter.erase(flow_it);
+  }
 }
 
 void NFVIngress::traffic_aware_lb() {
+  update_traffic_stats();
+
   // Balance the number of active flows among cores
   next_normal_core_ = 0;
   int min_active_flow_count = 10000000;
@@ -244,12 +301,10 @@ void NFVIngress::traffic_aware_lb() {
       next_normal_core_ = it.core_id;
     }
   }
-
-  update_traffic_stats();
 }
 
 void NFVIngress::update_traffic_stats() {
-  if (curr_ts_ns_ - last_core_assignment_ts_ns_ < DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS) {
+  if (curr_ts_ns_ - last_update_traffic_stats_ts_ns_ < DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS) {
     return;
   }
 
@@ -277,13 +332,13 @@ void NFVIngress::update_traffic_stats() {
   if (sum_rate > 0) {
     cluster_snapshots_[next_epoch_id_].active_core_count = sum_active_cores;
     cluster_snapshots_[next_epoch_id_].sum_packet_rate = sum_rate;
+    ++next_epoch_id_;
   } else {
     // Do not record if the cluster is not processing any packets
     cluster_snapshots_.pop_back();
   }
 
-  ++next_epoch_id_;
-  last_core_assignment_ts_ns_ = curr_ts_ns_;
+  last_update_traffic_stats_ts_ns_ = curr_ts_ns_;
 }
 
 // Scaling: 1) overload detection; 2) CPU core set adjustment;
@@ -296,9 +351,33 @@ CommandResponse NFVIngress::CommandGetSummary(const bess::pb::EmptyArg &) {
       num_flows += 1;
     }
   }
-  std::cout << total_flows;
-  std::cout << num_flows;
-  std::cout << active_flows_;
+
+  int sum_cores = 0;
+  int total_epochs = cluster_snapshots_.size();
+  for (auto & x : cluster_snapshots_) {
+    sum_cores += x.active_core_count;
+  }
+
+  std::ofstream out_fp("stats.txt");
+  if (out_fp.is_open()) {
+    // Traffic
+    out_fp << "Flow stats:" << std::endl;
+    out_fp << total_flows << std::endl;
+    out_fp << num_flows << std::endl;
+
+    // CPU cores
+    out_fp << "CPU core stats:" << std::endl;
+    out_fp << total_epochs << std::endl;
+    out_fp << double(sum_cores) / double(total_epochs) << std::endl;
+    out_fp << std::endl;
+
+    for (auto &x : cluster_snapshots_) {
+      out_fp << "core:" << x.active_core_count << "rate:" << x.sum_packet_rate << std::endl;
+    }
+  }
+
+  out_fp.close();
+
   return CommandResponse();
 }
 

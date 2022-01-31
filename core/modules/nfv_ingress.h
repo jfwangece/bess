@@ -41,7 +41,9 @@ class NFVIngress final : public Module {
     int active_flow_count;
     uint64_t packet_rate;
     int idle_period_count;
-
+    // Timestamp
+    uint64_t last_migrating_ts_ns_;
+    // Flow statistics
     std::unordered_map<Flow, uint64_t, FlowHash> per_flow_packet_counter;
   };
 
@@ -73,9 +75,19 @@ class NFVIngress final : public Module {
   void pick_next_normal_core(); // Assign a normal flow to a normal core
   void pick_next_idle_core(); // Assign a bursty flow to an reserved core
 
-  void default_lb(); // default (round-robin), lb op = -1
-  void quadrant_lb(); // Quadrant's algorithm, lb op = 0 (greedy packing)
-  void traffic_aware_lb(); // New, lb op = 1 (traffic-awareness)
+  // default (round-robin), lb op = -1
+  void default_lb();
+
+  // Quadrant's algorithm, lb op = 0 (greedy packing)
+  void quadrant_lb();
+  void quadrant_migrate();
+  int quadrant_pick_core(); // pick the core with the highest-rate within the assignment thresh
+
+  // New, lb op = 1 (traffic-awareness)
+  void traffic_aware_lb();
+
+  // To update flow routing and per-flow counters
+  void migrate_flow(const Flow &f, int from_cid, int to_cid);
 
   // Remove inactive flows every |traffic-stats-update| period
   void update_traffic_stats();
@@ -106,6 +118,7 @@ class NFVIngress final : public Module {
   // Timestamp
   uint64_t curr_ts_ns_;
   uint64_t last_core_assignment_ts_ns_;
+  uint64_t last_update_traffic_stats_ts_ns_;
   int next_epoch_id_; // Performance statistics recorded in Epoch
 
   // LB and scaling options
@@ -122,9 +135,11 @@ class NFVIngress final : public Module {
   std::vector<int> normal_cores_;
 
   // The number of normal / reserved CPU cores
+  // |normal_core_count_| + |idle_core_count_| <= |total_core_count_|
   int total_core_count_ = 0;
   int normal_core_count_ = 0;
   int idle_core_count_ = 0;
+
   // The selected normal / reserved CPU core
   int next_normal_core_ = 0;
   int next_idle_core_ = 0;
@@ -133,7 +148,13 @@ class NFVIngress final : public Module {
 
   // Packet rate threshold for identifying high-rate flows
   uint64_t packet_count_thresh_;
-  uint64_t per_core_packet_rate_thresh_;
+
+  uint64_t quadrant_per_core_packet_rate_thresh_;
+  double quadrant_low_thresh_;
+  double quadrant_target_thresh_;
+  double quadrant_high_thresh_;
+  uint64_t quadrant_assign_packet_rate_thresh_; // stop assigning more flows
+  uint64_t quadrant_migrate_packet_rate_thresh_; // start migrating flows
 
   // Per-flow connection table
   std::unordered_map<Flow, FlowRoutingRule, FlowHash> flow_cache_;
