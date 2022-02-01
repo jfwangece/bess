@@ -8,6 +8,7 @@
 #include "../utils/udp.h"
 
 #define DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS 200000000 // 200 ms
+#define DEFAULT_PER_CORE_MIGRATION_PERIOD_US 200000000 // 200 ms
 #define DEFAULT_ACTIVE_FLOW_WINDOW_NS 2000000000 // 2000 ms
 #define DEFAULT_PACKET_COUNT_THRESH 1000000
 
@@ -243,19 +244,26 @@ void NFVIngress::quadrant_lb() {
     next_normal_core_ = quadrant_pick_core();
   }
 
-  //quadrant_migrate();
+  // Overload control via flow migration
+  quadrant_migrate();
 }
 
 void NFVIngress::quadrant_migrate() {
   for (auto &it : cpu_cores_) {
     if (is_idle_core(it.core_id)) { continue; }
 
+    if (curr_ts_ns_ < it.last_migrating_ts_ns_ + DEFAULT_PER_CORE_MIGRATION_PERIOD_US) {
+      continue;
+    }
+
     if (it.packet_rate >= quadrant_migrate_packet_rate_thresh_) {
       uint64_t diff_rate = it.packet_rate - quadrant_assign_packet_rate_thresh_;
       uint64_t sum_rate = 0;
       size_t remaining_fc = 1 + it.per_flow_packet_counter.size() / 2;
+
       // Migrating some flows from |it|
-      while (it.per_flow_packet_counter.size() > remaining_fc && sum_rate < diff_rate) {
+      while (it.per_flow_packet_counter.size() > remaining_fc &&
+            sum_rate < diff_rate) {
         auto flow_it = it.per_flow_packet_counter.begin();
         if (flow_it == it.per_flow_packet_counter.end()) {
           break;
@@ -266,6 +274,8 @@ void NFVIngress::quadrant_migrate() {
         migrate_flow(flow_it->first, it.core_id, cid);
       }
     }
+
+    it.last_migrating_ts_ns_ = curr_ts_ns_;
   }
 }
 
@@ -391,7 +401,6 @@ CommandResponse NFVIngress::CommandGetSummary(const bess::pb::EmptyArg &) {
   }
 
   out_fp << std::endl;
-
   out_fp.close();
 
   return CommandResponse();
