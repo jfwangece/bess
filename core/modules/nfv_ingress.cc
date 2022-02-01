@@ -64,6 +64,10 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
     packet_count_thresh_ = (uint64_t)arg.packet_count_thresh();
   }
 
+  std::cout << "Flow assignment thresh:" << quadrant_assign_packet_rate_thresh_;
+  std::cout << "Flow migration thresh:" << quadrant_migrate_packet_rate_thresh_;
+  std::cout << "Bursty flow packet count thresh:" << packet_count_thresh_;
+
   load_balancing_op_ = 0;
   if (arg.lb() > 0) {
     load_balancing_op_ = arg.lb();
@@ -234,12 +238,12 @@ void NFVIngress::default_lb() {
 // For all CPU cores, this algorithm calculates a value that indicates
 // 'how far a CPU core is from violating latency SLOs'.
 void NFVIngress::quadrant_lb() {
-  update_traffic_stats();
+  if (update_traffic_stats()) {
+    // Greedy assignment and flow packing
+    next_normal_core_ = quadrant_pick_core();
+  }
 
-  quadrant_migrate();
-
-  // Greedy assignment and flow packing
-  next_normal_core_ = quadrant_pick_core();
+  //quadrant_migrate();
 }
 
 void NFVIngress::quadrant_migrate() {
@@ -249,10 +253,14 @@ void NFVIngress::quadrant_migrate() {
     if (it.packet_rate >= quadrant_migrate_packet_rate_thresh_) {
       uint64_t diff_rate = it.packet_rate - quadrant_assign_packet_rate_thresh_;
       uint64_t sum_rate = 0;
-      size_t remaining_fc = it.per_flow_packet_counter.size() / 2;
+      size_t remaining_fc = 1 + it.per_flow_packet_counter.size() / 2;
       // Migrating some flows from |it|
-      while (it.per_flow_packet_counter.size() >= remaining_fc && sum_rate < diff_rate) {
+      while (it.per_flow_packet_counter.size() > remaining_fc && sum_rate < diff_rate) {
         auto flow_it = it.per_flow_packet_counter.begin();
+        if (flow_it == it.per_flow_packet_counter.end()) {
+          break;
+        }
+
         sum_rate += flow_it->second;
         int cid = quadrant_pick_core();
         migrate_flow(flow_it->first, it.core_id, cid);
@@ -263,7 +271,7 @@ void NFVIngress::quadrant_migrate() {
 
 int NFVIngress::quadrant_pick_core() {
   int core_id = 0;
-  size_t max_per_core_packet_rate = 0;
+  int max_per_core_packet_rate = -1;
   for (auto &it : cpu_cores_) {
     if (is_idle_core(it.core_id)) { continue; }
     if (it.packet_rate >= quadrant_assign_packet_rate_thresh_) { continue; }
@@ -278,6 +286,10 @@ int NFVIngress::quadrant_pick_core() {
 
 void NFVIngress::migrate_flow(const Flow &f, int from_id, int to_id) {
   auto it = flow_cache_.find(f);
+  if (it == flow_cache_.end()) {
+    return;
+  }
+
   it->second.SetAction(false, 0, cpu_cores_[to_id].nic_addr);
 
   auto flow_it = cpu_cores_[from_id].per_flow_packet_counter.find(f);
@@ -303,9 +315,9 @@ void NFVIngress::traffic_aware_lb() {
   }
 }
 
-void NFVIngress::update_traffic_stats() {
+bool NFVIngress::update_traffic_stats() {
   if (curr_ts_ns_ - last_update_traffic_stats_ts_ns_ < DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS) {
-    return;
+    return false;
   }
 
   cluster_snapshots_.push_back(Snapshot{epoch_id: next_epoch_id_});
@@ -313,6 +325,7 @@ void NFVIngress::update_traffic_stats() {
   int sum_active_cores = 0;
   uint64_t sum_rate = 0;
   for (auto &it : cpu_cores_) {
+    // Update |active_flow_count|, |packet_rate| for each CPU core
     it.active_flow_count = it.per_flow_packet_counter.size();
     it.packet_rate = 0;
     auto flow_it = it.per_flow_packet_counter.begin();
@@ -339,6 +352,7 @@ void NFVIngress::update_traffic_stats() {
   }
 
   last_update_traffic_stats_ts_ns_ = curr_ts_ns_;
+  return true;
 }
 
 // Scaling: 1) overload detection; 2) CPU core set adjustment;
@@ -362,19 +376,21 @@ CommandResponse NFVIngress::CommandGetSummary(const bess::pb::EmptyArg &) {
   if (out_fp.is_open()) {
     // Traffic
     out_fp << "Flow stats:" << std::endl;
-    out_fp << total_flows << std::endl;
-    out_fp << num_flows << std::endl;
+    out_fp << "Total flows: " << total_flows << std::endl;
+    out_fp << "Flow entries: " << num_flows << std::endl;
 
     // CPU cores
     out_fp << "CPU core stats:" << std::endl;
-    out_fp << total_epochs << std::endl;
-    out_fp << double(sum_cores) / double(total_epochs) << std::endl;
+    out_fp << "Total epochs: " << total_epochs << std::endl;
+    out_fp << "Time-avg cores: " << double(sum_cores) / double(total_epochs) << std::endl;
     out_fp << std::endl;
 
     for (auto &x : cluster_snapshots_) {
-      out_fp << "core:" << x.active_core_count << "rate:" << x.sum_packet_rate << std::endl;
+      out_fp << "core:" << x.active_core_count << ", rate:" << x.sum_packet_rate << std::endl;
     }
   }
+
+  out_fp << std::endl;
 
   out_fp.close();
 
