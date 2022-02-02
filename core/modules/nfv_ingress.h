@@ -39,7 +39,7 @@ class NFVIngress final : public Module {
     std::string nic_addr;
     // Traffic statistics
     int active_flow_count;
-    uint64_t packet_rate;
+    float packet_rate;
     int idle_period_count;
     // Timestamp
     uint64_t last_migrating_ts_ns_;
@@ -89,8 +89,9 @@ class NFVIngress final : public Module {
   // To update flow routing and per-flow counters
   void migrate_flow(const Flow &f, int from_cid, int to_cid);
 
+  // Return true if this module successfully updates traffic statistics
   // Remove inactive flows every |traffic-stats-update| period
-  void update_traffic_stats();
+  bool update_traffic_stats();
 
   bool is_idle_core(int core_id) {
     for (auto &it : idle_cores_) {
@@ -151,11 +152,11 @@ class NFVIngress final : public Module {
 
   // Quadrant parameters
   uint64_t quadrant_per_core_packet_rate_thresh_;
-  double quadrant_low_thresh_;
-  double quadrant_target_thresh_;
-  double quadrant_high_thresh_;
-  uint64_t quadrant_assign_packet_rate_thresh_; // stop assigning more flows
-  uint64_t quadrant_migrate_packet_rate_thresh_; // start migrating flows
+  float quadrant_low_thresh_;
+  float quadrant_target_thresh_;
+  float quadrant_high_thresh_;
+  float quadrant_assign_packet_rate_thresh_; // stop assigning more flows
+  float quadrant_migrate_packet_rate_thresh_; // start migrating flows
 
   // Traffic-aware parameters
   int ta_flow_count_thresh_; // Stop assigning more flows
