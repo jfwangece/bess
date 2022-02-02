@@ -149,12 +149,16 @@ class NFVIngress final : public Module {
   // Packet rate threshold for identifying high-rate flows
   uint64_t packet_count_thresh_;
 
+  // Quadrant parameters
   uint64_t quadrant_per_core_packet_rate_thresh_;
   double quadrant_low_thresh_;
   double quadrant_target_thresh_;
   double quadrant_high_thresh_;
   uint64_t quadrant_assign_packet_rate_thresh_; // stop assigning more flows
   uint64_t quadrant_migrate_packet_rate_thresh_; // start migrating flows
+
+  // Traffic-aware parameters
+  int ta_flow_count_thresh_; // Stop assigning more flows
 
   // Per-flow connection table
   std::unordered_map<Flow, FlowRoutingRule, FlowHash> flow_cache_;

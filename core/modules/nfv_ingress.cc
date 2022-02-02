@@ -48,6 +48,11 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
 
   log_core_info();
 
+  packet_count_thresh_ = DEFAULT_PACKET_COUNT_THRESH;
+  if (arg.packet_count_thresh() > 0) {
+    packet_count_thresh_ = (uint64_t)arg.packet_count_thresh();
+  }
+
   quadrant_per_core_packet_rate_thresh_ = 0;
   if (arg.packet_rate_thresh() > 0) {
     quadrant_per_core_packet_rate_thresh_ = (uint64_t)arg.packet_rate_thresh();
@@ -59,9 +64,9 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
   quadrant_assign_packet_rate_thresh_ = quadrant_low_thresh_ * quadrant_per_core_packet_rate_thresh_;
   quadrant_migrate_packet_rate_thresh_ = quadrant_high_thresh_ * quadrant_per_core_packet_rate_thresh_;
 
-  packet_count_thresh_ = DEFAULT_PACKET_COUNT_THRESH;
-  if (arg.packet_count_thresh() > 0) {
-    packet_count_thresh_ = (uint64_t)arg.packet_count_thresh();
+  ta_flow_count_thresh_ = 0;
+  if (arg.flow_count_thresh() > 0) {
+    ta_flow_count_thresh_ = arg.flow_count_thresh();
   }
 
   load_balancing_op_ = 0;
@@ -292,12 +297,12 @@ void NFVIngress::traffic_aware_lb() {
 
   // Balance the number of active flows among cores
   next_normal_core_ = 0;
-  int min_active_flow_count = 10000000;
   for (auto &it : cpu_cores_) {
     if (is_idle_core(it.core_id)) { continue; }
 
-    if (it.active_flow_count < min_active_flow_count) {
-      min_active_flow_count = it.active_flow_count;
+    if (ta_flow_count_thresh_ > 0 && 
+        it.active_flow_count > ta_flow_count_thresh_) { continue; }
+
       next_normal_core_ = it.core_id;
     }
   }
