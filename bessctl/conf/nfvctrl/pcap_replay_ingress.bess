@@ -33,6 +33,7 @@ scale_op = int($BESS_SCALE!'0')
 idle_num_cores = int($BESS_IDLE_CORE!'1')
 flow_pkt_cnt_thresh = int($BESS_PKT_THRESH!"1000000")
 core_pkt_rate_thresh = int($BESS_RATE_THRESH!"1000000")
+update_stats_period = int($BESS_STATS_PERIOD!"200000000")
 burst_size = int($BESS_BURST!'32')
 tag_offset = 72
 pcie0, offset0="82:00.0", 0
@@ -59,7 +60,8 @@ nfv::NFVIngress(core_addrs=core_addrs,
     packet_rate_thresh=core_pkt_rate_thresh,
     lb=lb_op,
     scale=scale_op,
-    local_decision=True)
+    update_stats_period_ns=update_stats_period,
+)
 
 src -> queue -> replayer -> q -> nfv -> Timestamp(offset=tag_offset) -> pout0
 pinc0 -> Measure(offset=tag_offset) -> Sink()

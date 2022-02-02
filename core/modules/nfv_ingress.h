@@ -120,6 +120,7 @@ class NFVIngress final : public Module {
   uint64_t curr_ts_ns_;
   uint64_t last_core_assignment_ts_ns_;
   uint64_t last_update_traffic_stats_ts_ns_;
+  uint64_t update_traffic_stats_period_ns_;
   int next_epoch_id_; // Performance statistics recorded in Epoch
 
   // LB and scaling options

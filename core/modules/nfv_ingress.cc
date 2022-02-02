@@ -88,6 +88,11 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
   last_update_traffic_stats_ts_ns_ = 0;
   next_epoch_id_ = 0;
 
+  update_traffic_stats_period_ns_ = DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS;
+  if (arg.update_stats_period_ns() > 0) {
+    update_traffic_stats_period_ns_ = arg.update_stats_period_ns();
+  }
+
   return CommandSuccess();
 }
 
@@ -325,13 +330,12 @@ void NFVIngress::traffic_aware_lb() {
     if (ta_flow_count_thresh_ > 0 && 
         it.active_flow_count > ta_flow_count_thresh_) { continue; }
 
-      next_normal_core_ = it.core_id;
-    }
+    next_normal_core_ = it.core_id;
   }
 }
 
 bool NFVIngress::update_traffic_stats() {
-  if (curr_ts_ns_ - last_update_traffic_stats_ts_ns_ < DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS) {
+  if (curr_ts_ns_ - last_update_traffic_stats_ts_ns_ < update_traffic_stats_period_ns_) {
     return false;
   }
 

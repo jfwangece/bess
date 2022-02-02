@@ -964,7 +964,7 @@ message NATArg {
 
 message NFVIngressArg {
   repeated string core_addrs = 1; /// list of routing addresses for available CPU cores in the cluster
-  bool local_decision = 2;
+  int32 update_stats_period_ns = 2; /// Time period of collecting system performance metrics
   int32 packet_count_thresh = 3;
   int32 packet_rate_thresh = 4;
   int32 flow_count_thresh = 5;
