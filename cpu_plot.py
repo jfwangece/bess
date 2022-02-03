@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 import matplotlib
-matplotlib.use('TkAgg')
+matplotlib.use('TkAgg', force=True)
 import matplotlib.pyplot as plt
 
 # Cluster CPU core usage information
 class Snapshot(object):
-    def __init__(self, core, rate):
+    def __init__(self, epoch, core, rate):
+        self._epoch_id = epoch
         self._core_cnt = core
         self._pkt_rate = rate
 
@@ -18,7 +19,7 @@ def data_reader(file_name):
                 continue
 
             data = [float(m.split(':')[1]) for m in line.split(',')]
-            ss = Snapshot(data[0], data[1])
+            ss = Snapshot(data[0], data[1], data[2])
             cluster_snapshots.append(ss)
         f.close()
     return cluster_snapshots
@@ -52,9 +53,10 @@ def main():
     snapshots = data_reader('stats.txt')
     x = [i for i in range(len(snapshots))]
     y1 = [s._core_cnt for s in snapshots]
-    #y2 = []
+    y2 = [s._pkt_rate for s in snapshots]
 
     scatter_group_curve_plot(x, [(y1, 'b')], "Epoch", "Core #", "Timeline of CPU core usage", False)
+    scatter_group_curve_plot(x, [(y2, 'r')], "Epoch", "Pkt rate (pkts / 200 us)", "Timeline of CPU core usage", False)
     plt.show()
     return
 

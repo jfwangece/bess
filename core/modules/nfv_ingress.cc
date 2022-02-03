@@ -90,8 +90,10 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
 
   update_traffic_stats_period_ns_ = DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS;
   if (arg.update_stats_period_ns() > 0) {
-    update_traffic_stats_period_ns_ = arg.update_stats_period_ns();
+    update_traffic_stats_period_ns_ = (uint64_t)arg.update_stats_period_ns();
   }
+
+  std::cout << "Traffic update period:" << update_traffic_stats_period_ns_;
 
   return CommandSuccess();
 }
@@ -242,6 +244,8 @@ void NFVIngress::pick_next_idle_core() {
 }
 
 void NFVIngress::default_lb() {
+  update_traffic_stats();
+
   rr_normal_core_index_ = (rr_normal_core_index_ + 1) % normal_core_count_;
   next_normal_core_ = normal_cores_[rr_normal_core_index_];
 }
@@ -379,7 +383,7 @@ bool NFVIngress::update_traffic_stats() {
 CommandResponse NFVIngress::CommandGetSummary(const bess::pb::EmptyArg &) {
   int total_flows = flow_cache_.size();
   int num_flows = 0; // Count # of bursty flows
-  for (auto & x : flow_cache_) {
+  for (auto &x : flow_cache_) {
     if (x.second.packet_count_ > packet_count_thresh_) {
       num_flows += 1;
     }
@@ -395,17 +399,19 @@ CommandResponse NFVIngress::CommandGetSummary(const bess::pb::EmptyArg &) {
   if (out_fp.is_open()) {
     // Traffic
     out_fp << "Flow stats:" << std::endl;
-    out_fp << "Total flows: " << total_flows << std::endl;
-    out_fp << "Flow entries: " << num_flows << std::endl;
+    out_fp << "- Total flows: " << total_flows << std::endl;
+    out_fp << "- Flow entries" << flow_cache_.size() << std::endl;
+    out_fp << "- Bursty flows: " << num_flows << std::endl;
+    out_fp << std::endl;
 
     // CPU cores
     out_fp << "CPU core stats:" << std::endl;
-    out_fp << "Total epochs: " << total_epochs << std::endl;
-    out_fp << "Time-avg cores: " << double(sum_cores) / double(total_epochs) << std::endl;
+    out_fp << "- Total epochs: " << total_epochs << std::endl;
+    out_fp << "- Time-avg cores: " << double(sum_cores) / double(total_epochs) << std::endl;
     out_fp << std::endl;
 
-    for (auto &x : cluster_snapshots_) {
-      out_fp << "core:" << x.active_core_count << ", rate:" << x.sum_packet_rate << std::endl;
+    for (size_t i = 0; i < cluster_snapshots_.size(); i++) {
+      out_fp << "epoch:" << i << ", core:" << cluster_snapshots_[i].active_core_count << ", rate:" << cluster_snapshots_[i].sum_packet_rate << std::endl;
     }
   }
 
