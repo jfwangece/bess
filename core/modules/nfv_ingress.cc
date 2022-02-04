@@ -22,7 +22,8 @@ const Commands NFVIngress::cmds = {
     {"get_summary", "EmptyArg", MODULE_CMD_FUNC(&NFVIngress::CommandGetSummary),
      Command::THREAD_SAFE},
     {"clear", "EmptyArg", MODULE_CMD_FUNC(&NFVIngress::CommandClear),
-     Command::THREAD_UNSAFE}};
+     Command::THREAD_UNSAFE},
+};
 
 CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &arg) {
   total_core_count_ = arg.core_addrs_size();

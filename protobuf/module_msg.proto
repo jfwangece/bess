@@ -973,6 +973,11 @@ message NFVIngressArg {
   int32 scale = 8;
 }
 
+message NFVMonitorArg {
+  int32 core_id = 1; /// The target CPU core's ID
+  int32 update_stats_period_ns = 2; /// Time period of collecting system performance metrics
+}
+
 /**
  * Static NAT module implements one-to-one translation of source/destination
  * IPv4 addresses. No port number is translated.
