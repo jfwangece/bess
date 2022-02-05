@@ -56,6 +56,7 @@ message PMDPortArg {
   bool vlan_offload_rx_qinq = 7;
   bool enable_interrupt = 8;
   bool enable_rt = 9;
+  bool enable_timestamp = 10;
 }
 
 message UnixSocketPortArg {

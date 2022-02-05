@@ -164,6 +164,14 @@ class PMDPort final : public Port {
   bool rt_enabled_;
 
   /*!
+   * True if the NIC tags each packet with a timestamp.
+   */
+  bool timestamp_enabled_;
+  double timestamp_freq_;
+  uint64_t timestamp_base_;
+  uint64_t tsc_base_;
+
+  /*!
    * The number of idle queues of this NIC / port.
    */
   int lcore_rx_idle_count_;

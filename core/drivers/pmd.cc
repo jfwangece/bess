@@ -274,6 +274,18 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
     eth_conf.lpbk_mode = 1;
   }
 
+  timestamp_freq_ = 1.0;
+  timestamp_enabled_ = true;
+  if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TIMESTAMP) {
+    if (timestamp_enabled_) {
+      eth_conf.rxmode.offloads |= DEV_RX_OFFLOAD_TIMESTAMP;
+      LOG(INFO) << "NIC: HW timestamp is supported and enabled";
+    }
+  } else {
+    timestamp_enabled_ = false;
+    LOG(INFO) << "NIC: HW timestamp is not supported";
+  }
+
   lcore_rx_idle_count_ = 0;
   lcore_rx_idle_ts_ = 0;
   intr_enabled_ = false;
@@ -379,6 +391,24 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   CollectStats(true);
 
   driver_ = dev_info.driver_name ?: "unknown";
+
+  // Find the timestamp conversion eq
+  if (timestamp_enabled_) {
+    for (int i = 0; i < 10; i++) {
+      uint64_t start_ns, end_ns;
+      uint64_t start, end;
+      rte_eth_read_clock(dpdk_port_id_, &start);
+      start_ns = rdtsc();
+      rte_delay_ms(100);
+      rte_eth_read_clock(dpdk_port_id_, &end);
+      end_ns = rdtsc();
+      timestamp_freq_ = double(end_ns - start_ns) / double(end - start);
+
+      tsc_base_ = start_ns;
+      timestamp_base_ = start;
+      LOG(INFO) << tsc_base_ << ", " << timestamp_base_ << ", " << timestamp_freq_;
+    }
+  }
 
   return CommandSuccess();
 }
