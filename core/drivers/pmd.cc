@@ -401,6 +401,7 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
       linear_re_.AddData(dat_x, dat_y);
       rte_delay_ms(100);
     }
+    linear_re_.Train();
     LOG(INFO) << "Slope: " << linear_re_.GetSlope();
   }
 
