@@ -105,6 +105,8 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     per_core_packet_counter_ += 1;
   }
 
+  update_traffic_stats();
+
   RunNextModule(ctx, batch);
 }
 
