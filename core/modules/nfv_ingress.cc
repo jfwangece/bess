@@ -71,9 +71,9 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
     ta_flow_count_thresh_ = arg.flow_count_thresh();
   }
 
-  std::cout << "Flow assignment thresh:" << quadrant_assign_packet_rate_thresh_;
-  std::cout << "Flow migration thresh:" << quadrant_migrate_packet_rate_thresh_;
-  std::cout << "Bursty flow packet count thresh:" << packet_count_thresh_;
+  LOG(INFO) << "Flow assignment thresh:" << quadrant_assign_packet_rate_thresh_;
+  LOG(INFO) << "Flow migration thresh:" << quadrant_migrate_packet_rate_thresh_;
+  LOG(INFO) << "Bursty flow packet count thresh:" << packet_count_thresh_;
 
   load_balancing_op_ = 0;
   if (arg.lb() > 0) {
@@ -94,7 +94,7 @@ CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &
     update_traffic_stats_period_ns_ = (uint64_t)arg.update_stats_period_ns();
   }
 
-  std::cout << "Traffic update period:" << update_traffic_stats_period_ns_;
+  LOG(INFO) << "Traffic update period:" << update_traffic_stats_period_ns_;
 
   return CommandSuccess();
 }

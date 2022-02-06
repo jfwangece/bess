@@ -40,7 +40,7 @@ CommandResponse NFVMonitor::Init([[maybe_unused]]const bess::pb::NFVMonitorArg &
     update_traffic_stats_period_ns_ = (uint64_t)arg.update_stats_period_ns();
   }
 
-  std::cout << "Traffic update period:" << update_traffic_stats_period_ns_;
+  LOG(INFO) << "Traffic update period: " << update_traffic_stats_period_ns_;
 
   return CommandSuccess();
 }

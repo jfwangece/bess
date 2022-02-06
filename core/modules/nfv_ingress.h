@@ -9,6 +9,7 @@
 #include "../pb/module_msg.pb.h"
 #include "../utils/flow.h"
 #include "../utils/ip.h"
+#include "../utils/sys_measure.h"
 
 using bess::utils::be16_t;
 using bess::utils::be32_t;
@@ -17,6 +18,7 @@ using bess::utils::Flow;
 using bess::utils::FlowHash;
 using bess::utils::FlowRecord;
 using bess::utils::FlowRoutingRule;
+using bess::utils::Snapshot;
 
 class NFVIngress final : public Module {
  public:
@@ -45,17 +47,6 @@ class NFVIngress final : public Module {
     uint64_t last_migrating_ts_ns_;
     // Flow statistics
     std::unordered_map<Flow, uint64_t, FlowHash> per_flow_packet_counter;
-  };
-
-  struct Snapshot {
-    Snapshot(int t_id) {
-      epoch_id = t_id; active_core_count = 0; sum_packet_rate = 0;
-    };
-
-    int epoch_id; // Starting from 0
-    int active_core_count; // Number of CPU cores with traffic
-    uint64_t sum_packet_rate; // Sum of all CPU cores' packet rates
-    std::vector<uint64_t> per_core_packet_rate;
   };
 
   NFVIngress() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; }
@@ -106,13 +97,13 @@ class NFVIngress final : public Module {
     return false;
   }
   void log_core_info() {
-    std::cout << "Idle cores:";
+    LOG(INFO) << "Idle cores:";
     for (auto &it : idle_cores_) {
-      std::cout << it;
+      LOG(INFO) << it;
     }
-    std::cout << "Normal cores:";
+    LOG(INFO) << "Normal cores:";
     for (auto &it : normal_cores_) {
-      std::cout << it;
+      LOG(INFO) << it;
     }
   }
 

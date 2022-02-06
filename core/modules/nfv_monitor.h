@@ -9,6 +9,7 @@
 #include "../pb/module_msg.pb.h"
 #include "../utils/flow.h"
 #include "../utils/ip.h"
+#include "../utils/sys_measure.h"
 
 using bess::utils::be16_t;
 using bess::utils::be32_t;
@@ -17,21 +18,11 @@ using bess::utils::Flow;
 using bess::utils::FlowHash;
 using bess::utils::FlowRecord;
 using bess::utils::FlowRoutingRule;
+using bess::utils::Snapshot;
 
 class NFVMonitor final : public Module {
  public:
   static const Commands cmds;
-
-  struct Snapshot {
-    Snapshot(int t_id) {
-      epoch_id = t_id; active_core_count = 0; sum_packet_rate = 0;
-    };
-
-    int epoch_id; // Starting from 0
-    int active_core_count; // Number of CPU cores with traffic
-    uint64_t sum_packet_rate; // Sum of all CPU cores' packet rates
-    std::vector<uint64_t> per_core_packet_rate;
-  };
 
   NFVMonitor() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; }
 
