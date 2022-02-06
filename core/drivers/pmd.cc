@@ -394,20 +394,14 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
 
   // Find the timestamp conversion eq
   if (timestamp_enabled_) {
+    uint64_t dat_x, dat_y;
     for (int i = 0; i < 10; i++) {
-      uint64_t start_ns, end_ns;
-      uint64_t start, end;
-      rte_eth_read_clock(dpdk_port_id_, &start);
-      start_ns = rdtsc();
+      rte_eth_read_clock(dpdk_port_id_, &dat_x);
+      dat_y = rdtsc();
+      linear_re_.AddData(dat_x, dat_y);
       rte_delay_ms(100);
-      rte_eth_read_clock(dpdk_port_id_, &end);
-      end_ns = rdtsc();
-      timestamp_freq_ = double(end_ns - start_ns) / double(end - start);
-
-      tsc_base_ = start_ns;
-      timestamp_base_ = start;
-      LOG(INFO) << tsc_base_ << ", " << timestamp_base_ << ", " << timestamp_freq_;
     }
+    LOG(INFO) << "Slope: " << linear_re_.GetSlope();
   }
 
   return CommandSuccess();

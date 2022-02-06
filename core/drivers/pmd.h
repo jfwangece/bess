@@ -39,6 +39,7 @@
 
 #include "../module.h"
 #include "../port.h"
+#include "../utils/regression.h"
 
 typedef uint16_t dpdk_port_t;
 
@@ -167,6 +168,8 @@ class PMDPort final : public Port {
    * True if the NIC tags each packet with a timestamp.
    */
   bool timestamp_enabled_;
+  LinearRegression<uint64_t> linear_re_;
+
   double timestamp_freq_;
   uint64_t timestamp_base_;
   uint64_t tsc_base_;
