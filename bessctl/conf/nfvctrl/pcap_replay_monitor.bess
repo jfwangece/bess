@@ -5,40 +5,23 @@
 # smaller than the specified |playback_rate_mpps| or |playback_rate_mbps|.
 #
 # Example:
-# $ run nfvctrl/pcap_replay_ingress PCAP="./equinix-nyc.dirA.20190117-125910.UTC.short.pcap",BESS_SPEED=32,BESS_IDLE_CORES=1
+# $ run nfvctrl/pcap_replay_monitor PCAP="./equinix-nyc.dirA.20190117-125910.UTC.short.pcap",BESS_SPEED=32,BESS_IDLE_CORES=1
 #
+
 import scapy.all as scapy
 
 PCAPFILE = $PCAP!"equinix-nyc.dirA.20190117-125910.UTC.short.pcap"
 assert PCAPFILE
 print("Target PCAP file: %s" %(PCAPFILE))
 
-# 5e:00.1: '0a:14:69:37:5f:f2',
-core_addrs = [
-        '82:a3:ae:74:72:30',
-        'a2:87:fd:f8:72:21',
-        '2e:c7:8b:7b:8d:a8',
-        '2a:9d:fd:13:15:01',
-        '32:a5:0f:e0:04:0b',
-        '06:8a:62:fb:51:51',
-        'ce:2e:14:c4:a0:cb',
-        '6e:af:01:7a:93:6f',
-]
-
 playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
 playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
 playback_speed = float($BESS_SPEED!"1")
-lb_op = int($BESS_LB!'0')
-scale_op = int($BESS_SCALE!'0')
-idle_num_cores = int($BESS_IDLE_CORE!'1')
-flow_pkt_cnt_thresh = int($BESS_PKT_THRESH!"1000000")
-core_pkt_rate_thresh = int($BESS_RATE_THRESH!"1000000")
 update_stats_period = int($BESS_STATS_PERIOD!"200000000")
 burst_size = int($BESS_BURST!'32')
 tag_offset = 72
-pcie0, offset0="82:00.0", 0
-
 pcap_file = '{}'.format(PCAPFILE)
+pcie0, offset0="82:00.0", 0
 
 pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
 src = PortInc(port=pcap_port)
@@ -51,28 +34,19 @@ elif playback_rate_mbps > 0:
 else:
     replayer = Replayer(offset=tag_offset, speed=playback_speed)
 
-pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
-pout0::PortOut(port=pmd_port0)
-pinc0::PortInc(port=pmd_port0)
-nfv::NFVIngress(core_addrs=core_addrs,
-    idle_core_count=idle_num_cores,
-    packet_count_thresh=flow_pkt_cnt_thresh,
-    packet_rate_thresh=core_pkt_rate_thresh,
-    lb=lb_op,
-    scale=scale_op,
+nfvmo::NFVMonitor(
+    core_id=1,
     update_stats_period_ns=update_stats_period,
 )
 
-src -> queue -> replayer -> q -> nfv -> Timestamp(offset=tag_offset) -> pout0
-pinc0 -> Measure(offset=tag_offset) -> Sink()
+src -> queue -> replayer -> q -> nfvmo -> Sink()
 
 queue.set_burst(burst=burst_size)
-pinc0.set_burst(burst=burst_size)
+q.set_burst(burst=burst_size)
 
 bess.add_worker(wid=1, core=1+offset0)
 bess.add_worker(wid=2, core=3+offset0)
 bess.add_worker(wid=3, core=5+offset0)
-bess.add_worker(wid=4, core=7+offset0)
 bess.add_tc('rl',
             policy='rate_limit',
             resource='packet',
@@ -81,6 +55,5 @@ bess.add_tc('rl',
 src.attach_task(wid=1)
 queue.attach_task(parent='rl')
 q.attach_task(wid=3)
-pinc0.attach_task(wid=4)
 
 bess.resume_all()

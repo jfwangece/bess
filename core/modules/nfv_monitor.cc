@@ -39,8 +39,9 @@ CommandResponse NFVMonitor::Init([[maybe_unused]]const bess::pb::NFVMonitorArg &
   if (arg.update_stats_period_ns() > 0) {
     update_traffic_stats_period_ns_ = (uint64_t)arg.update_stats_period_ns();
   }
-
   LOG(INFO) << "Traffic update period: " << update_traffic_stats_period_ns_;
+
+  per_core_packet_counter_ = 0;
 
   return CommandSuccess();
 }
@@ -89,7 +90,6 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       flow.dst_port = udp->dst_port;
       flow.proto_ip = ip->protocol;
     } else {
-      EmitPacket(ctx, pkt, 0);
       continue;
     }
 
@@ -102,7 +102,10 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     } else {
       it->second += 1;
     }
+    per_core_packet_counter_ += 1;
   }
+
+  RunNextModule(ctx, batch);
 }
 
 bool NFVMonitor::update_traffic_stats() {
@@ -114,13 +117,9 @@ bool NFVMonitor::update_traffic_stats() {
   uint64_t sum_rate = 0;
   // Update |active_flow_count|, |packet_rate| for each CPU core
   active_flow_count_ = per_flow_packet_counter_.size();
-  packet_rate_ = 0;
-  auto it = per_flow_packet_counter_.begin();
-  while (it != per_flow_packet_counter_.end()) {
-    packet_rate_ += it->second;
-    ++it;
-  }
+  packet_rate_ = per_core_packet_counter_;
   per_flow_packet_counter_.clear();
+  per_core_packet_counter_ = 0;
 
   if (packet_rate_ > 0) {
     sum_active_cores += 1;

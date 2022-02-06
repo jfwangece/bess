@@ -7,7 +7,7 @@
 # (2) increase Queue size in queue.cc and recompile BESS:
 #
 
-PCAPFILE = $PCAP!""
+PCAPFILE = $PCAP!"equinix-nyc.dirA.20190117-125910.UTC.short.pcap"
 assert PCAPFILE
 print("Target PCAP file: %s" %(PCAPFILE))
 

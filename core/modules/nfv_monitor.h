@@ -48,6 +48,7 @@ class NFVMonitor final : public Module {
 
   // Flow statistics
   std::unordered_map<Flow, uint64_t, FlowHash> per_flow_packet_counter_;
+  uint64_t per_core_packet_counter_;
 
   // Traffic summary
   int active_flow_count_;
