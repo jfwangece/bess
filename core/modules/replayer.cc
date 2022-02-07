@@ -42,19 +42,15 @@ CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
 
   temp_pkt_cnt_ = 0;
   temp_bit_cnt_ = 0;
-  // Record the startup timestamp. Note: this module starts to send packets after 1 sec
-  if (use_trace_time_) {
-    curr_time_ = tsc_to_us(rdtsc());
-    startup_ts_ = tsc_to_us(rdtsc()) + 2000000;
-  } else {
-    curr_time_ = tsc_to_ns(rdtsc());
-    startup_ts_ = tsc_to_ns(rdtsc()) + 2000000000;
-  }
+  // Record the startup timestamp.
+  // Note: this module starts to send packets after 2 sec
+  curr_time_ = tsc_to_ns(rdtsc());
+  startup_ts_ = tsc_to_ns(rdtsc()) + 2000000000;
   last_rate_calc_ts_ = startup_ts_;
   next_pkt_time_ = startup_ts_;
 
   // CPU freq in GHz
-  std::cout << 1000.0 / double(tsc_to_ns(1000));
+  LOG(INFO) << "CPU freq: " << 1000.0 / double(tsc_to_ns(1000));
 
   return CommandSuccess();
 }
@@ -108,8 +104,8 @@ void Replayer::WaitToSendPkt(bess::Packet *pkt) {
     GetTimestamp(pkt, offset_, &time_diff);
 
     if (time_diff) {
-      if (time_diff > 60000000) {
-        time_diff = 0;
+      if (time_diff > 60000000000) { // 60 sec
+        time_diff = 100;
       }
       if (playback_speed_ >= 0.1) {
         time_diff /= playback_speed_;
@@ -120,12 +116,7 @@ void Replayer::WaitToSendPkt(bess::Packet *pkt) {
 
 // Emit a packet only if |curr_time_| passes the calculated packet timestamp
 checktime:
-  if (use_trace_time_) {
-    curr_time_ = tsc_to_us(rdtsc());
-  } else {
-    curr_time_ = tsc_to_ns(rdtsc());
-  }
-
+  curr_time_ = tsc_to_ns(rdtsc());
   if (curr_time_ >= next_pkt_time_) {
     return;
   } else {

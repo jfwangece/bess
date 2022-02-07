@@ -115,6 +115,8 @@ bool NFVMonitor::update_traffic_stats() {
     return false;
   }
 
+  cluster_snapshots_.push_back(Snapshot{epoch_id: next_epoch_id_});
+
   int sum_active_cores = 0;
   uint64_t sum_rate = 0;
   // Update |active_flow_count|, |packet_rate| for each CPU core
@@ -169,9 +171,7 @@ CommandResponse NFVMonitor::CommandGetSummary(const bess::pb::EmptyArg &) {
     }
   }
 
-  out_fp << std::endl;
   out_fp.close();
-
   return CommandResponse();
 }
 

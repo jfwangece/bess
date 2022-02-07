@@ -49,7 +49,7 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
   }
   const std::string dev = arg.dev();
   char msg_buf[PCAP_ERRBUF_SIZE];
-  pcap_handle_ = pcap_open_offline(dev.c_str(), msg_buf);
+  pcap_handle_ = pcap_open_offline_with_tstamp_precision(dev.c_str(), PCAP_TSTAMP_PRECISION_NANO, msg_buf);
 
   is_eth_missing_ = false;
   if (pcap_handle_ == nullptr) {
@@ -64,7 +64,7 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
     is_eth_missing_ = *(uint16_t*)pkt_ == 0x0045 || *(uint16_t*)pkt_ == 0x0845 || *(uint16_t*)pkt_ == 0x4845 || *(uint16_t*)pkt_ == 0x0a14;
 
     init_tsec_ = pkthdr_.ts.tv_sec;
-    init_tusec_ = pkthdr_.ts.tv_usec;
+    init_tnsec_ = pkthdr_.ts.tv_usec;
   }
 
   // Initialize payload template
@@ -172,14 +172,14 @@ int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
     pkt_counter_++;
 
     if (is_timestamp_) {
-      // Tag packet: to calculate the global timestamp (in usec) of this packet
+      // Tag packet: to calculate the global timestamp (in nsec)
       long tsec = pkthdr_.ts.tv_sec;
-      long tusec = pkthdr_.ts.tv_usec;
-      uint64_t ts = uint64_t(tsec - init_tsec_) * 1000000;
-      if (tusec > init_tusec_) {
-        ts += uint64_t(tusec - init_tusec_);
+      long tnsec = pkthdr_.ts.tv_usec;
+      uint64_t ts = uint64_t(tsec - init_tsec_) * 1000000000;
+      if (tnsec > init_tnsec_) {
+        ts += uint64_t(tnsec - init_tnsec_);
       } else {
-        ts -= uint64_t(init_tusec_ - tusec);
+        ts -= uint64_t(init_tnsec_ - tnsec);
       }
       tag_packet(pkt, offset_, ts);
     }
