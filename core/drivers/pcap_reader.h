@@ -75,7 +75,7 @@ class PCAPReader final : public Port {
   pcap_t *pcap_handle_ = nullptr;
   // Initial time origin
   long init_tsec_;
-  long init_tusec_;
+  long init_tnsec_;
   uint64_t startup_ts_;
 };
 
