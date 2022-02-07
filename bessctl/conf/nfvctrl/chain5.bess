@@ -5,7 +5,6 @@
 
 nic=int($BESS_NIC!'0')
 burst_size=int($BESS_BURST!'32')
-acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 
 # By default, pick Intel NICs
@@ -21,6 +20,10 @@ nat_hosts = []
 for i in range(lb_cnt / 20):
     for j in range(20):
         nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
+
+ids_keywords = []
+for i in range(50):
+    ids_keywords.append("GET%s%s" %(chr(97+i/20), chr(97+i%20)))
 
 lb::FlowLB(endpoints=nat_hosts)
 ids::SnortIDS(keywords=ids_keywords)

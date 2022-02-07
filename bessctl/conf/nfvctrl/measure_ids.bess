@@ -1,0 +1,60 @@
+#
+# The traffic generator that replays a PCAP packet trace.
+# Note: the sender pipeline works with the NFV Ingress module, which slows
+# down the sender pipeline a little bit. Thus, the actual packet rate is
+# smaller than the specified |playback_rate_mpps| or |playback_rate_mbps|.
+#
+# Example:
+# $ run nfvctrl/pcap_replay_monitor PCAP="./equinix-nyc.dirA.20190117-125910.UTC.short.pcap",BESS_SPEED=32,BESS_IDLE_CORES=1
+#
+
+import scapy.all as scapy
+
+PCAPFILE = $PCAP!"equinix-nyc.dirA.20190117-125910.UTC.short.pcap"
+assert PCAPFILE
+print("Target PCAP file: %s" %(PCAPFILE))
+
+playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
+playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
+playback_speed = float($BESS_SPEED!"1")
+update_stats_period = int($BESS_STATS_PERIOD!"200000000")
+burst_size = int($BESS_BURST!'32')
+tag_offset = 72
+pcap_file = '{}'.format(PCAPFILE)
+pcie0, offset0="82:00.0", 0
+
+pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
+src = PortInc(port=pcap_port)
+queue = Queue(size=pow(2,24))
+q = Queue()
+if playback_rate_mpps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
+elif playback_rate_mbps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
+else:
+    replayer = Replayer(offset=tag_offset, speed=playback_speed)
+
+ids_keywords = []
+for i in range(50):
+    ids_keywords.append("GET%s%s" %(chr(97+int(i/20)), chr(97+int(i%20))))
+
+ids::SnortIDS(keywords=ids_keywords)
+
+src -> queue -> replayer -> q -> ids -> Sink()
+
+queue.set_burst(burst=burst_size)
+q.set_burst(burst=burst_size)
+
+bess.add_worker(wid=1, core=1+offset0)
+bess.add_worker(wid=2, core=3+offset0)
+bess.add_worker(wid=3, core=5+offset0)
+bess.add_tc('rl',
+            policy='rate_limit',
+            resource='packet',
+            limit={'packet': 1000000000},
+            wid=2)
+src.attach_task(wid=1)
+queue.attach_task(parent='rl')
+q.attach_task(wid=3)
+
+bess.resume_all()

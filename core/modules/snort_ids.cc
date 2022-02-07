@@ -44,7 +44,7 @@ using bess::utils::Ethernet;
 using bess::utils::Ipv4;
 using bess::utils::Tcp;
 
-const uint64_t TIME_OUT_NS = 10ull * 1000 * 1000 * 1000;  // 10 seconds
+const uint64_t TIME_OUT_NS = 5ull * 1000 * 1000 * 1000;  // 5 seconds
 
 const Commands SnortIDS::cmds = {
     {"add", "SnortIDSArg", MODULE_CMD_FUNC(&SnortIDS::CommandAdd),
@@ -117,7 +117,8 @@ void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         // Once we're finished analyzing, we only record *blocked* flows.
         // Continue blocking this flow for TIME_OUT_NS more ns.
         it->second.SetExpiryTime(now + TIME_OUT_NS);
-        DropPacket(ctx, pkt);
+        EmitPacket(ctx, pkt, 0);
+        // DropPacket(ctx, pkt);
         continue;
       }
     }
@@ -145,29 +146,31 @@ void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     // in the data (in which case the contiguous_len() below is short).
     bool success = buffer.InsertPacket(pkt);
     if (!success) {
-      VLOG(1) << "Reconstruction failure";
-      flow_cache_.erase(it);
+      record.SetAnalyzed();
       EmitPacket(ctx, pkt, 0);
       continue;
     }
 
     // Update the default flow entry timeout timestamp
+    record.pkt_cnt_ += 1;
     record.SetExpiryTime(now + TIME_OUT_NS);
 
     bool matched = false;
-    if (buffer.contiguous_len() >= min_keyword_len_) {
-      const char *buffer_data = buffer.buf();
-      std::string search_string(buffer_data);
-      std::vector<int> match_results = SearchWords(keyword_count_, search_string);
-      for (int i : match_results) {
-        if (i > 0) {
-          matched = true;
-          break;
-        }
-      }
-    }
+    // if (record.pkt_cnt_ % 10 == 1 &&
+    //     buffer.contiguous_len() >= 5 * min_keyword_len_) {
+    //   const char *buffer_data = buffer.buf();
+    //   std::string search_string(buffer_data);
+    //   std::vector<int> match_results = SearchWords(keyword_count_, search_string);
+    //   for (int i : match_results) {
+    //     if (i > 0) { matched = true; break; }
+    //   }
+    // }
 
-    if (!matched) {
+    if (matched) {
+      it->second.SetAnalyzed();
+      EmitPacket(ctx, pkt, 0);
+      // DropPacket(ctx, pkt);
+    } else {
       EmitPacket(ctx, pkt, 0);
 
       // Once FIN is observed, or we've seen all the headers and decided
@@ -177,11 +180,6 @@ void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       if (tcp->flags & Tcp::Flag::kFin) {
         flow_cache_.erase(it);
       }
-    } else {
-      it->second.SetAnalyzed();
-
-      // Drop the data packet
-      DropPacket(ctx, pkt);
     }
   }
 }

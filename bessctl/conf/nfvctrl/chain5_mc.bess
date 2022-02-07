@@ -5,23 +5,20 @@
 
 nic=int($BESS_NIC!'0')
 burst_size=int($BESS_BURST!'32')
-acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 
 # By default, pick Intel NICs
 pcie0 = ['5e:00.%d' %(i) for i in range(2, 8)] + ['5e:01.%d' %(i) for i in range(2, 4)]
 offset0 = 1
 
-acl_rules = []
-for i in range(acl_cnt / 50):
-    for j in range(50):
-        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
-acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
-
 nat_hosts = []
 for i in range(lb_cnt / 20):
     for j in range(20):
         nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
+
+ids_keywords = []
+for i in range(50):
+    ids_keywords.append("GET%s%s" %(chr(97+i/20), chr(97+i%20)))
 
 port0 = {}
 pinc0 = {}

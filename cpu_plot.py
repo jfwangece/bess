@@ -5,6 +5,18 @@ import matplotlib
 matplotlib.use('TkAgg', force=True)
 import matplotlib.pyplot as plt
 
+# NF chain per-packet cycle cost (worst-case under the maximum):
+#
+# Chain 2:
+# 11972.276 cycles / packet
+#
+# Chain 4:
+# 2632.455 cycles / packet
+#
+# Chain 5:
+#
+#
+
 # Cluster CPU core usage information
 class Snapshot(object):
     def __init__(self, epoch, core, rate):
