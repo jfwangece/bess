@@ -13,6 +13,7 @@
 #define DEFAULT_PER_CORE_MIGRATION_PERIOD_US 200000000 // 200 ms
 #define DEFAULT_ACTIVE_FLOW_WINDOW_NS 2000000000 // 2000 ms
 #define DEFAULT_PACKET_COUNT_THRESH 1000000
+#define DEFAULT_LATENCY_QUEUE_SIZE 10000
 
 namespace {
 
@@ -57,6 +58,7 @@ CommandResponse NFVMonitor::Init([[maybe_unused]]const bess::pb::NFVMonitorArg &
   }
   LOG(INFO) << "Traffic update period: " << update_traffic_stats_period_ns_;
 
+  per_core_latency_sample_.set_capacity((arg.latency_sample_size()>0)? arg.latency_sample_size():DEFAULT_LATENCY_QUEUE_SIZE);
   per_core_packet_counter_ = 0;
 
   return CommandSuccess();
@@ -68,6 +70,7 @@ CommandResponse NFVMonitor::CommandAdd([[maybe_unused]]const bess::pb::NFVMonito
 
 CommandResponse NFVMonitor::CommandClear(const bess::pb::EmptyArg &) {
   per_flow_packet_counter_.clear();
+  per_core_latency_sample_.clear();
   return CommandSuccess();
 }
 

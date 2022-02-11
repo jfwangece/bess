@@ -11,6 +11,7 @@
 #include "../utils/flow.h"
 #include "../utils/ip.h"
 #include "../utils/sys_measure.h"
+#include <boost/circular_buffer.hpp>
 
 using bess::utils::be16_t;
 using bess::utils::be32_t;
@@ -36,9 +37,14 @@ class NFVMonitor final : public Module {
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &arg);
 
   double GetTailLatency() {
-    sort(per_core_latency_sample_.begin(), per_core_latency_sample_.end());
-    size_t idx = ceil(0.99 * per_core_latency_sample_.size());
-    return per_core_latency_sample_[idx];
+    std::vector<uint64_t> latency_copy_(per_core_latency_sample_.size());
+    // Create a copy of the latency buffer
+    for (auto it = per_core_latency_sample_.begin(); it != per_core_latency_sample_.end(); it++) {
+      latency_copy_.push_back(*it);
+    }
+    sort(latency_copy_.begin(), latency_copy_.end());
+    size_t idx = ceil(0.99 * latency_copy_.size());
+    return latency_copy_[idx];
   }
 
  private:
@@ -57,7 +63,7 @@ class NFVMonitor final : public Module {
   std::unordered_map<Flow, uint64_t, FlowHash> per_flow_packet_counter_;
 
   // Core statistics
-  std::vector<uint64_t> per_core_latency_sample_;
+  boost::circular_buffer<uint64_t> per_core_latency_sample_;
   uint64_t per_core_packet_counter_;
 
   // Traffic summary
