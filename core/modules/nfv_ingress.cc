@@ -119,7 +119,8 @@ void NFVIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   Tcp *tcp = nullptr;
   Udp *udp = nullptr;
 
-  curr_ts_ns_ = ctx->current_ns;
+  // We don't use ctx->current_ns here for better accuracy
+  curr_ts_ns_ = tsc_to_ns(rdtsc());
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {

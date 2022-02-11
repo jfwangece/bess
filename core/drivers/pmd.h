@@ -142,6 +142,10 @@ class PMDPort final : public Port {
     return node_placement_;
   }
 
+  uint64_t NICCycleToCPUCycle(u_int64_t nic_cycle) {
+    return linear_re_.GetY(nic_cycle);
+  }
+
  private:
   /*!
    * The DPDK port ID number (set after binding).

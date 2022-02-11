@@ -1,0 +1,49 @@
+#
+# This script is to test hardware timestamp function at the NIC
+#
+
+import scapy.all as scapy
+import random
+
+nic=int($BESS_NIC!'1')
+update_stats_period = int($BESS_STATS_PERIOD!"200000000")
+pkt_rate=int($BESS_PKT_RATE!'1000000')
+pkt_size=int($BESS_PKT_SIZE!'100')
+ts_offset = 72
+
+# By default, pick Intel NICs
+pcie0, offset0="af:00.0", 8
+if nic != 0:
+    pcie0, offset0="5e:00.0", 1
+
+src_ether = 'ec:0d:9a:67:ff:68'
+dst_ether = '0a:14:69:37:5f:f2'
+src_ip = '204.57.0.1'
+dst_ip = '68.128.0.1'
+src_port = 10001
+dst_port = 8080
+
+# Create a "template" packet to use for generated flows.
+# All packets in flow will follow this formula; flowgen
+# changes dst IP to generate new connections.
+eth = scapy.Ether(src=src_ether, dst=dst_ether)
+ip = scapy.IP(src=src_ip, dst=dst_ip)
+tcp = scapy.TCP(sport=src_port, dport=dst_port)
+payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+pkt = eth/ip/tcp/payload
+pkt_data = bytes(pkt)
+print("Packet size = %d bytes" %(len(pkt_data)))
+
+port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1, loopback=1)
+pinc0::PortInc(port=port0)
+nfv_monitor::NFVMonitor(update_stats_period_ns=update_stats_period)
+pout0::PortOut(port=port0)
+fg0::FlowGen(
+    template=pkt_data,
+    pps=pkt_rate, flow_rate=100, flow_duration=10,
+    arrival='uniform', duration='uniform', quick_rampup=True,
+    port_src_range=255, port_dst_range=255,
+)
+
+fg0 -> pout0
+pinc0 -> nfv_monitor -> Measure(offset=ts_offset) -> Sink()

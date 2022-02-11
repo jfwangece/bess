@@ -1,6 +1,7 @@
 #ifndef BESS_MODULES_NFV_MONITOR_H_
 #define BESS_MODULES_NFV_MONITOR_H_
 
+#include <math.h>
 #include <map>
 #include <set>
 #include <vector>
@@ -34,6 +35,12 @@ class NFVMonitor final : public Module {
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &arg);
 
+  double GetTailLatency() {
+    sort(per_core_latency_sample_.begin(), per_core_latency_sample_.end());
+    size_t idx = ceil(0.99 * per_core_latency_sample_.size());
+    return per_core_latency_sample_[idx];
+  }
+
  private:
   bool update_traffic_stats();
 
@@ -48,6 +55,9 @@ class NFVMonitor final : public Module {
 
   // Flow statistics
   std::unordered_map<Flow, uint64_t, FlowHash> per_flow_packet_counter_;
+
+  // Core statistics
+  std::vector<uint64_t> per_core_latency_sample_;
   uint64_t per_core_packet_counter_;
 
   // Traffic summary

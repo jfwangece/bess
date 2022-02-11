@@ -2,6 +2,8 @@
 
 #include <fstream>
 
+#include "../port.h"
+#include "../drivers/pmd.h"
 #include "../utils/ether.h"
 #include "../utils/ip.h"
 #include "../utils/tcp.h"
@@ -13,8 +15,22 @@
 #define DEFAULT_PACKET_COUNT_THRESH 1000000
 
 namespace {
-const uint64_t TIME_OUT_NS = 10ull * 1000 * 1000 * 1000; // 10 seconds
+
+// The helper function for reading hw timestamp from |pkt| (unit: ns).
+uint64_t get_hw_timestamp(bess::Packet *pkt) {
+  if (PortBuilder::all_ports().size() == 0) {
+    return 0;
+  }
+
+  uint64_t nic_cycle = reinterpret_cast<rte_mbuf*>(pkt)->timestamp;
+  // Need to get the port name from the user. For now using the first element
+  // as we have only 1 port in the test setup.
+  Port *port = PortBuilder::all_ports().begin()->second;
+  uint64_t cpu_cycle = ((PMDPort*)port)->NICCycleToCPUCycle(nic_cycle);
+  return tsc_to_ns(cpu_cycle);
 }
+
+} /// namespace
 
 const Commands NFVMonitor::cmds = {
     {"add", "NFVMonitorArg", MODULE_CMD_FUNC(&NFVMonitor::CommandAdd),
@@ -65,7 +81,8 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   Tcp *tcp = nullptr;
   Udp *udp = nullptr;
 
-  curr_ts_ns_ = ctx->current_ns;
+  // We don't use ctx->current_ns here for better accuracy
+  curr_ts_ns_ = tsc_to_ns(rdtsc());
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
@@ -102,6 +119,8 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     } else {
       it->second += 1;
     }
+
+    per_core_latency_sample_.push_back(curr_ts_ns_ - get_hw_timestamp(pkt));
     per_core_packet_counter_ += 1;
   }
 
@@ -170,6 +189,7 @@ CommandResponse NFVMonitor::CommandGetSummary(const bess::pb::EmptyArg &) {
       out_fp << "epoch:" << i << ", core:" << cluster_snapshots_[i].active_core_count << ", rate:" << cluster_snapshots_[i].sum_packet_rate << std::endl;
     }
   }
+  out_fp << "P99 latency:" << GetTailLatency() << std::endl;
 
   out_fp.close();
   return CommandResponse();
