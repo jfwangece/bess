@@ -32,17 +32,19 @@ class LinearRegression {
     base_x_ = x_[0];
     base_y_ = y_[0];
     slope_ = double(n * sum_xy - sum_x * sum_y) / double(n * sum_x2 - sum_x * sum_x);
-    // double a = (sum_y - b * sum_x) / n;
+    const_ = (sum_y - slope_ * sum_x) / n;
     return true;
   }
   double GetSlope() { return slope_; }
-  inline T GetY(T x) { return base_y_ + (x - base_x_) * slope_; }
+  // inline T GetY(T x) { return base_y_ + (x - base_x_) * slope_; }
+  inline T GetY(T x) { return const_ + x * slope_; }
 
  private:
   std::vector<T> x_;
   std::vector<T> y_;
   T base_x_;
   T base_y_;
+  T const_;
   double slope_;
 };
 

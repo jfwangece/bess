@@ -402,6 +402,11 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
       rte_delay_ms(100);
     }
     linear_re_.Train();
+
+    // A simple test
+    rte_eth_read_clock(dpdk_port_id_, &dat_x);
+    dat_y = rdtsc();
+    LOG(INFO) << "NIC: " << linear_re_.GetY(dat_x) << ", CPU: " << dat_y << ", diff: " << dat_y - linear_re_.GetY(dat_x);
     LOG(INFO) << "Slope: " << linear_re_.GetSlope();
   }
 
