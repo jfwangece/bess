@@ -44,6 +44,7 @@ CommandResponse PortOut::Init(const bess::pb::PortOutArg &arg) {
   const char *port_name;
   int ret;
 
+  monitor_delay_ = false;
   if (arg.monitor_delay()) {
     monitor_delay_ = true;
   }

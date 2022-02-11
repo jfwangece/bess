@@ -9,7 +9,9 @@ nic=int($BESS_NIC!'1')
 update_stats_period = int($BESS_STATS_PERIOD!"200000000")
 pkt_rate=int($BESS_PKT_RATE!'1000000')
 pkt_size=int($BESS_PKT_SIZE!'100')
+cycles_pp=int($BESS_PKT_CYCLE!'8500')
 ts_offset = 72
+PACKET_OVERHEAD=24
 
 # By default, pick Intel NICs
 pcie0, offset0="af:00.0", 8
@@ -45,5 +47,5 @@ fg0::FlowGen(
     port_src_range=255, port_dst_range=255,
 )
 
-fg0 -> pout0
-pinc0 -> nfv_monitor -> Measure(offset=ts_offset) -> Sink()
+fg0 -> Timestamp(offset=ts_offset) -> pout0
+pinc0 -> nfv_monitor -> Bypass(cycles_per_packet=cycles_pp) -> Measure(offset=ts_offset) -> Sink()
