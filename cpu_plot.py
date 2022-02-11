@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 # 2632.455 cycles / packet
 #
 # Chain 5:
-#
+# ?
 #
 
 # Cluster CPU core usage information
@@ -91,6 +91,7 @@ def generate_packet_rate_plot(x, y):
 
 def generate_core_min_usage_plot(x, y):
     scatter_group_plot(x, [(y, 'b')], "Epoch", "Core #", "Timeline of CPU core usage", False)
+    plt.savefig('core_min_usage.png', dpi=300)
 
 def compute_avg_core(y):
     n = len(y)
@@ -107,7 +108,7 @@ def main():
     epoch_usec = 200
     cpu_freq = 1700 # 1 us = |cpu_freq| cycles
     per_core_rate = 680000 * 0.85
-    per_packet_cycle_cost = 1700
+    per_packet_cycle_cost = 2632
 
     print("Input stats file: %s" %(stats_filename))
     snapshots = data_reader(stats_filename)
@@ -119,7 +120,6 @@ def main():
     #generate_cpu_usage_plot(x, y1)
     #generate_packet_rate_plot(x, y2)
     generate_core_min_usage_plot(x, y3)
-    plt.show()
 
     print("Min avg core: %f" %(compute_avg_core(y3)))
     return
