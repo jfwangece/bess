@@ -1,7 +1,10 @@
 #ifndef BESS_UTILS_SYS_MEASURE_H_
 #define BESS_UTILS_SYS_MEASURE_H_
 
+#include <cstdint>
 #include <vector>
+
+#include "lock_less_queue.h"
 
 namespace bess{
 namespace utils {
@@ -16,6 +19,23 @@ struct Snapshot {
   uint64_t sum_packet_rate; // Sum of all CPU cores' packet rates
   std::vector<uint64_t> per_core_packet_rate;
 };
+
+// Per-core performance statistics for making LB decisions
+class CoreStats {
+ public:
+  CoreStats() { packet_rate = 0; p99_latency = 0; }
+  CoreStats(uint64_t r, uint64_t l) { packet_rate = r; p99_latency = l; }
+  CoreStats(const CoreStats& cs) : CoreStats(cs.packet_rate, cs.p99_latency) {}
+
+  uint64_t packet_rate;
+  uint64_t p99_latency;
+};
+
+// Core statistics buffer
+static std::vector<CoreStats> all_core_stats (20);
+
+// Core statistics message channel
+static std::vector<LockLessQueue<CoreStats *>> all_core_stats_chan (20);
 
 } // namespace utils
 } // namespace bess

@@ -160,6 +160,9 @@ bool NFVMonitor::update_traffic_stats() {
   }
 
   last_update_traffic_stats_ts_ns_ = curr_ts_ns_;
+
+  bess::utils::CoreStats *msg = new bess::utils::CoreStats();
+  bess::utils::all_core_stats_chan[core_id_].Push(msg);
   return true;
 }
 

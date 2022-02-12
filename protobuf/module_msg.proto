@@ -978,6 +978,17 @@ message NFVMonitorArg {
   int32 update_stats_period_ns = 2; /// Time period of collecting system performance metrics
 }
 
+message NFVSwitchArg {
+  repeated string core_addrs = 1; /// list of routing addresses for available CPU cores in the cluster
+  int32 update_stats_period_ns = 2; /// Time period of collecting system performance metrics
+  int32 packet_count_thresh = 3;
+  int32 packet_rate_thresh = 4;
+  int32 flow_count_thresh = 5;
+  int32 idle_core_count = 6;
+  int32 lb = 7;
+  int32 scale = 8;
+}
+
 /**
  * Static NAT module implements one-to-one translation of source/destination
  * IPv4 addresses. No port number is translated.

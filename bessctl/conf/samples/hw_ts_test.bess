@@ -47,5 +47,14 @@ fg0::FlowGen(
     port_src_range=255, port_dst_range=255,
 )
 
+# Pipeline
 fg0 -> Timestamp(offset=ts_offset) -> pout0
 pinc0 -> nfv_monitor -> Bypass(cycles_per_packet=cycles_pp) -> Measure(offset=ts_offset) -> Sink()
+
+
+# Core
+bess.add_worker(1, 1)
+bess.add_worker(2, 2)
+
+fg0.attach_task(wid=1)
+pcie0.attach_task(wid=2)
