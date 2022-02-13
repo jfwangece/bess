@@ -976,7 +976,7 @@ message NFVIngressArg {
 message NFVMonitorArg {
   int32 core_id = 1; /// The target CPU core's ID
   int32 update_stats_period_ns = 2; /// Time period of collecting system performance metrics
-  int64 latency_sample_size = 3; // Size of vector to calculate tail latency
+  int64 latency_sample_buffer_size = 3; // Size of vector to calculate tail latency
 }
 
 /**

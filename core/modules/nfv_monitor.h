@@ -36,15 +36,15 @@ class NFVMonitor final : public Module {
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &arg);
 
-  double GetTailLatency() {
-    std::vector<uint64_t> latency_copy_(per_core_latency_sample_.size());
+  double GetTailLatency(uint32_t percentile) {
+    std::vector<uint64_t> latency_copy;
     // Create a copy of the latency buffer
     for (auto it = per_core_latency_sample_.begin(); it != per_core_latency_sample_.end(); it++) {
-      latency_copy_.push_back(*it);
+      latency_copy.push_back(*it);
     }
-    sort(latency_copy_.begin(), latency_copy_.end());
-    size_t idx = ceil(0.99 * latency_copy_.size());
-    return latency_copy_[idx];
+    sort(latency_copy.begin(), latency_copy.end());
+    size_t idx = ceil((percentile/100.0) * latency_copy.size());
+    return latency_copy[idx];
   }
 
  private:

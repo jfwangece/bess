@@ -58,7 +58,7 @@ CommandResponse NFVMonitor::Init([[maybe_unused]]const bess::pb::NFVMonitorArg &
   }
   LOG(INFO) << "Traffic update period: " << update_traffic_stats_period_ns_;
 
-  per_core_latency_sample_.set_capacity((arg.latency_sample_size()>0)? arg.latency_sample_size():DEFAULT_LATENCY_QUEUE_SIZE);
+  per_core_latency_sample_.set_capacity((arg.latency_sample_buffer_size()>0)? arg.latency_sample_buffer_size():DEFAULT_LATENCY_QUEUE_SIZE);
   per_core_packet_counter_ = 0;
 
   return CommandSuccess();
@@ -192,7 +192,8 @@ CommandResponse NFVMonitor::CommandGetSummary(const bess::pb::EmptyArg &) {
       out_fp << "epoch:" << i << ", core:" << cluster_snapshots_[i].active_core_count << ", rate:" << cluster_snapshots_[i].sum_packet_rate << std::endl;
     }
   }
-  out_fp << "P99 latency:" << GetTailLatency() << std::endl;
+  out_fp << "P50 latency:" << GetTailLatency(50) << std::endl;
+  out_fp << "P99 latency:" << GetTailLatency(99) << std::endl;
 
   out_fp.close();
   return CommandResponse();
