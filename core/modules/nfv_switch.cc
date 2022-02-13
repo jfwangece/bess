@@ -24,11 +24,14 @@ const Commands NFVSwitch::cmds = {
 };
 
 CommandResponse NFVSwitch::Init([[maybe_unused]]const bess::pb::NFVSwitchArg &arg) {
-  total_core_count_ = arg.core_addrs_size();
-  for (int i = 0; i < total_core_count_; i++) {
-    cpu_cores_.push_back(WorkerCore{
-        core_id: i, worker_port: 0, nic_addr: arg.core_addrs(i)});
-    routing_to_core_id_.emplace(arg.core_addrs(i), i);
+  total_core_count_ = 0;
+  for (const auto &core_addr : arg.core_addrs()) {
+    cpu_cores_.push_back(
+      WorkerCore {
+        core_id: total_core_count_,
+        worker_port: core_addr.l2_port(),
+        nic_addr: core_addr.l2_mac()}
+    );
   }
   assert(total_core_count_ == cpu_cores_.size());
 
@@ -115,6 +118,8 @@ void NFVSwitch::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   // We don't use ctx->current_ns here for better accuracy
   curr_ts_ns_ = tsc_to_ns(rdtsc());
 
+  update_traffic_stats();
+
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
@@ -158,7 +163,7 @@ void NFVSwitch::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     }
 
     if (it == flow_cache_.end()) {
-      FlowRoutingRule new_rule("02:42:01:c2:02:fe");
+      FlowRoutingRule new_rule(0);
       // Assign this flow to a CPU core
       if (!process_new_flow(new_rule)) {
         DropPacket(ctx, pkt);
@@ -228,68 +233,8 @@ void NFVSwitch::pick_next_idle_core() {
 }
 
 void NFVSwitch::default_lb() {
-  update_traffic_stats();
-
   rr_normal_core_index_ = (rr_normal_core_index_ + 1) % normal_core_count_;
   next_normal_core_ = normal_cores_[rr_normal_core_index_];
-}
-
-// For all CPU cores, this algorithm calculates a value that indicates
-// 'how far a CPU core is from violating latency SLOs'.
-void NFVSwitch::quadrant_lb() {
-  if (update_traffic_stats()) {
-    // Greedy assignment and flow packing
-    next_normal_core_ = quadrant_pick_core();
-  }
-
-  // Overload control via flow migration
-  quadrant_migrate();
-}
-
-void NFVSwitch::quadrant_migrate() {
-  for (auto &it : cpu_cores_) {
-    if (is_idle_core(it.core_id)) { continue; }
-
-    if (curr_ts_ns_ < it.last_migrating_ts_ns_ + DEFAULT_PER_CORE_MIGRATION_PERIOD_US) {
-      continue;
-    }
-
-    // if (it.packet_rate >= quadrant_migrate_packet_rate_thresh_) {
-    //   uint64_t diff_rate = it.packet_rate - quadrant_assign_packet_rate_thresh_;
-    //   uint64_t sum_rate = 0;
-    //   size_t remaining_fc = 1 + it.per_flow_packet_counter.size() / 2;
-
-    //   // Migrating some flows from |it|
-    //   while (it.per_flow_packet_counter.size() > remaining_fc &&
-    //         sum_rate < diff_rate) {
-    //     auto flow_it = it.per_flow_packet_counter.begin();
-    //     if (flow_it == it.per_flow_packet_counter.end()) {
-    //       break;
-    //     }
-
-    //     sum_rate += flow_it->second;
-    //     int cid = quadrant_pick_core();
-    //     migrate_flow(flow_it->first, it.core_id, cid);
-    //   }
-    // }
-
-    it.last_migrating_ts_ns_ = curr_ts_ns_;
-  }
-}
-
-int NFVSwitch::quadrant_pick_core() {
-  int core_id = 0;
-  int max_per_core_packet_rate = -1;
-  for (auto &it : cpu_cores_) {
-    if (is_idle_core(it.core_id)) { continue; }
-    if (it.packet_rate >= quadrant_assign_packet_rate_thresh_) { continue; }
-
-    if (it.packet_rate > max_per_core_packet_rate) {
-      max_per_core_packet_rate = it.packet_rate;
-      core_id = it.core_id;
-    }
-  }
-  return core_id;
 }
 
 void NFVSwitch::migrate_flow(const Flow &f, int from_id, int to_id) {
@@ -309,8 +254,6 @@ void NFVSwitch::migrate_flow(const Flow &f, int from_id, int to_id) {
 }
 
 void NFVSwitch::traffic_aware_lb() {
-  update_traffic_stats();
-
   // Balance the number of active flows among cores
   next_normal_core_ = 0;
   for (auto &it : cpu_cores_) {
@@ -324,8 +267,21 @@ void NFVSwitch::traffic_aware_lb() {
 }
 
 bool NFVSwitch::update_traffic_stats() {
+  using bess::utils::all_core_stats_chan;
+
   if (curr_ts_ns_ - last_update_traffic_stats_ts_ns_ < update_traffic_stats_period_ns_) {
     return false;
+  }
+
+  CoreStats* stats_ptr = nullptr;
+  for (auto &it : cpu_cores_) {
+    while (all_core_stats_chan[it.core_id].Size()) {
+      all_core_stats_chan[it.core_id].Pop(stats_ptr);
+      it.packet_rate = stats_ptr->packet_rate;
+      it.p99_latency = stats_ptr->p99_latency;
+      delete (stats_ptr);
+      stats_ptr = nullptr;
+    }
   }
 
   last_update_traffic_stats_ts_ns_ = curr_ts_ns_;

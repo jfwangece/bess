@@ -19,6 +19,7 @@ using bess::utils::FlowHash;
 using bess::utils::FlowRecord;
 using bess::utils::FlowRoutingRule;
 using bess::utils::Snapshot;
+using bess::utils::CoreStats;
 
 class NFVSwitch final : public Module {
  public:
@@ -31,21 +32,23 @@ class NFVSwitch final : public Module {
   // |worker_port|, |nic_addr|: routing information
   // |active_flows|: a set of active flows assigned to this core
   struct WorkerCore {
+    WorkerCore() = default;
     WorkerCore(int core, int port, std::string addr) {
       core_id = core; worker_port = port; nic_addr = addr;
       active_flow_count = 0; packet_rate = 0; idle_period_count = 0;
     };
 
-    // Core info
+    // CPU core info
     int core_id;
     int worker_port;
     std::string nic_addr;
 
-    // Traffic statistics
+    // Traffic or performance statistics
     int active_flow_count;
     float packet_rate;
     uint64_t p99_latency;
     int idle_period_count;
+
     // Timestamp
     uint64_t last_migrating_ts_ns_;
   };
@@ -70,9 +73,9 @@ class NFVSwitch final : public Module {
   void default_lb();
 
   // Quadrant's algorithm, lb op = 1 (greedy packing)
-  void quadrant_lb();
-  void quadrant_migrate();
-  int quadrant_pick_core(); // pick the core with the highest-rate within the assignment thresh
+  void quadrant_lb() {}
+  void quadrant_migrate() {}
+  int quadrant_pick_core() { return 0; } // pick the core with the highest-rate within the assignment thresh
 
   // New, lb op = 2 (traffic-awareness)
   void traffic_aware_lb();
@@ -80,8 +83,10 @@ class NFVSwitch final : public Module {
   // To update flow routing and per-flow counters
   void migrate_flow(const Flow &f, int from_cid, int to_cid);
 
-  // Return true if this module successfully updates traffic statistics
-  // Remove inactive flows every |traffic-stats-update| period
+  // This function collects per-core performance statistics from
+  // each core's ll_ring channel.
+  // Return true if this module successfully updates traffic statistics;
+  // Otherwise, return false.
   bool update_traffic_stats();
 
   bool is_idle_core(int core_id) {

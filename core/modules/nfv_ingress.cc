@@ -26,11 +26,14 @@ const Commands NFVIngress::cmds = {
 };
 
 CommandResponse NFVIngress::Init([[maybe_unused]]const bess::pb::NFVIngressArg &arg) {
-  total_core_count_ = arg.core_addrs_size();
-  for (int i = 0; i < total_core_count_; i++) {
-    cpu_cores_.push_back(WorkerCore{
-        core_id: i, worker_port: 0, nic_addr: arg.core_addrs(i)});
-    routing_to_core_id_.emplace(arg.core_addrs(i), i);
+  total_core_count_ = 0;
+  for (const auto &core_addr : arg.core_addrs()) {
+    cpu_cores_.push_back(
+      WorkerCore {
+        core_id: total_core_count_,
+        worker_port: core_addr.l2_port(),
+        nic_addr: core_addr.l2_mac()}
+    );
   }
   assert(total_core_count_ == cpu_cores_.size());
 

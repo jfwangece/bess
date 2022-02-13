@@ -962,8 +962,13 @@ message NATArg {
   repeated ExternalAddress ext_addrs = 1; /// list of external IP addresses
 }
 
+message CoreAddr {
+  int32 l2_port = 1; /// The switch port for reaching the core
+  string l2_mac = 2; /// The NIC address for reaching the core
+}
+
 message NFVIngressArg {
-  repeated string core_addrs = 1; /// list of routing addresses for available CPU cores in the cluster
+  repeated CoreAddr core_addrs = 1; /// list of routing addresses for available CPU cores in the cluster
   int32 update_stats_period_ns = 2; /// Time period of collecting system performance metrics
   int32 packet_count_thresh = 3;
   int32 packet_rate_thresh = 4;
@@ -979,7 +984,7 @@ message NFVMonitorArg {
 }
 
 message NFVSwitchArg {
-  repeated string core_addrs = 1; /// list of routing addresses for available CPU cores in the cluster
+  repeated CoreAddr core_addrs = 1; /// list of routing addresses for available CPU cores in the cluster
   int32 update_stats_period_ns = 2; /// Time period of collecting system performance metrics
   int32 packet_count_thresh = 3;
   int32 packet_rate_thresh = 4;

@@ -105,6 +105,12 @@ class FlowLpmRule {
 
 class FlowRoutingRule {
  public:
+  FlowRoutingRule(uint o_port)
+      : action_(kForward),
+        egress_port_(o_port),
+        packet_count_(0),
+        last_packet_count_(0),
+        last_ts_us_(0) {}
   FlowRoutingRule(const std::string& o_mac)
       : action_(kForward),
         egress_port_(0),

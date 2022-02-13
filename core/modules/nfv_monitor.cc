@@ -159,10 +159,11 @@ bool NFVMonitor::update_traffic_stats() {
     cluster_snapshots_.pop_back();
   }
 
-  last_update_traffic_stats_ts_ns_ = curr_ts_ns_;
-
+  // Send the sample to NFVIngress via a per-core ll_ring channel.
   bess::utils::CoreStats *msg = new bess::utils::CoreStats();
   bess::utils::all_core_stats_chan[core_id_].Push(msg);
+
+  last_update_traffic_stats_ts_ns_ = curr_ts_ns_;
   return true;
 }
 
