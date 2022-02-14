@@ -58,7 +58,13 @@ CommandResponse NFVMonitor::Init([[maybe_unused]]const bess::pb::NFVMonitorArg &
   }
   LOG(INFO) << "Traffic update period: " << update_traffic_stats_period_ns_;
 
-  per_core_latency_sample_.set_capacity((arg.latency_sample_buffer_size()>0)? arg.latency_sample_buffer_size():DEFAULT_LATENCY_QUEUE_SIZE);
+  // Initialize all elements in the buffer to avoid memory access bugs.
+  size_t buffer_size = (arg.latency_sample_buffer_size() > 0) ? arg.latency_sample_buffer_size():DEFAULT_LATENCY_QUEUE_SIZE;
+  per_core_latency_sample_.set_capacity(buffer_size);
+  for (size_t i = 0; i < buffer_size; i++) {
+    per_core_latency_sample_.push_back(0);
+  }
+
   per_core_packet_counter_ = 0;
 
   return CommandSuccess();
@@ -164,6 +170,8 @@ bool NFVMonitor::update_traffic_stats() {
 
   // Send the sample to NFVIngress via a per-core ll_ring channel.
   bess::utils::CoreStats *msg = new bess::utils::CoreStats();
+  msg->packet_rate = packet_rate_;
+  msg->p99_latency = GetTailLatency(99);
   bess::utils::all_core_stats_chan[core_id_].Push(msg);
 
   last_update_traffic_stats_ts_ns_ = curr_ts_ns_;

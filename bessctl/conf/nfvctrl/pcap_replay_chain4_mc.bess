@@ -3,7 +3,7 @@
 # ACL/Firewall -> LB -> Monitor
 #
 # Example:
-# $ run nfvctrl/pcap_replay_chain4_mc PCAP="./equinix-nyc.dirA.20190117-125910.UTC.short.pcap",BESS_SPEED=32,BESS_IDLE_CORES=1
+# $ run nfvctrl/pcap_replay_chain4_mc BESS_SPEED=32,BESS_IDLE_CORES=1
 #
 
 import scapy.all as scapy
@@ -15,13 +15,19 @@ print("Target PCAP file: %s" %(PCAPFILE))
 playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
 playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
 playback_speed = float($BESS_SPEED!"1")
-update_stats_period = int($BESS_STATS_PERIOD!"200000000")
+lb_op = int($BESS_LB!'0')
+scale_op = int($BESS_SCALE!'0')
+idle_num_cores = int($BESS_IDLE_CORE!'1')
+flow_pkt_cnt_thresh = int($BESS_PKT_THRESH!"1000000")
+core_pkt_rate_thresh = int($BESS_RATE_THRESH!"1000000")
+long_update_stats_period = int($BESS_LSTATS_PERIOD!"200000000")
+short_update_stats_period = int($BESS_SSTATS_PERIOD!"1000000")
 burst_size = int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 tag_offset = 72
+cpu_offset = 1
 pcap_file = '{}'.format(PCAPFILE)
-pcie0, offset0="82:00.0", 0
 
 core_addrs = [
     {'l2_port': 0, 'l2_mac': '82:a3:ae:74:72:30'},
@@ -42,19 +48,16 @@ else:
     replayer = Replayer(offset=tag_offset, speed=playback_speed)
 
 acl_rules = []
-for i in range(acl_cnt / 50):
+for i in range(int(acl_cnt / 50)):
     for j in range(50):
         acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
 acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
 
 nat_hosts = []
-for i in range(lb_cnt / 20):
+for i in range(int(lb_cnt / 20)):
     for j in range(20):
         nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
 
-port0 = {}
-pinc0 = {}
-pout0 = {}
 chainq = {}
 fw = {}
 lb = {}
@@ -63,29 +66,47 @@ nfvm = {}
 
 pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
 src = PortInc(port=pcap_port)
-queue = Queue(size=pow(2,24))
-nfvss::NFVSwitch()
+src_queue::Queue(size=pow(2,24))
+ss_queue::Queue(size=4096)
+nfvss::NFVSwitch(
+    core_addrs=core_addrs,
+    update_stats_period_ns=long_update_stats_period,
+    packet_count_thresh=flow_pkt_cnt_thresh,
+    packet_rate_thresh=core_pkt_rate_thresh,
+    flow_count_thresh=10000,
+    idle_core_count=idle_num_cores,
+    lb=lb_op,
+    scale=scale_op,
+)
+sink_queue::Queue(size=4096)
 
-src -> queue -> replayer -> nfvss
+src -> src_queue -> replayer -> Timestamp(offset=tag_offset) -> ss_queue -> nfvss
 
 for i in range(len(core_addrs)):
     chainq[i] = Queue(size=4096)
     fw[i] = FlowACL(rules=acl_rules)
     lb[i] = FlowLB(endpoints=nat_hosts)
     monitor[i] = FlowCounter()
-    nfvm[i] = NFVMonitor(core_id=i, update_stats_period_ns=200000)
-    pout0[0] = QueueOut(port=port0[0], qid=i)
+    nfvm[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
 
     nfvss:i -> chainq[i]
-    chainq[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvm[i] -> Sink()
+    chainq[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvm[i] -> sink_queue
     chainq[i].set_burst(burst=burst_size)
+
+sink_queue -> Measure(offset=tag_offset) -> Sink()
 
 # core ID starts at the offset core
 bess.add_worker(wid=1, core=1)
-pinc0[0].attach_task(wid=1)
+bess.add_worker(wid=2, core=2)
+bess.add_worker(wid=3, core=3)
+bess.add_worker(wid=4, core=4)
+src.attach_task(wid=1)
+src_queue.attach_task(wid=2)
+ss_queue.attach_task(wid=3)
+sink_queue.attach_task(wid=4)
 
-for i in range(1, len(pcie0)+1):
-    bess.add_worker(wid=i, core=i+offset0)
-    chainq[i].attach_task(wid=i)
+for i in range(len(core_addrs)):
+    bess.add_worker(wid=5+i, core=5+i)
+    chainq[i].attach_task(wid=5+i)
 
 bess.resume_all()

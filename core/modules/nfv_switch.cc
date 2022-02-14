@@ -32,6 +32,7 @@ CommandResponse NFVSwitch::Init([[maybe_unused]]const bess::pb::NFVSwitchArg &ar
         worker_port: core_addr.l2_port(),
         nic_addr: core_addr.l2_mac()}
     );
+    total_core_count_ += 1;
   }
   assert(total_core_count_ == cpu_cores_.size());
 
@@ -72,9 +73,9 @@ CommandResponse NFVSwitch::Init([[maybe_unused]]const bess::pb::NFVSwitchArg &ar
     ta_flow_count_thresh_ = arg.flow_count_thresh();
   }
 
-  LOG(INFO) << "Flow assignment thresh:" << quadrant_assign_packet_rate_thresh_;
-  LOG(INFO) << "Flow migration thresh:" << quadrant_migrate_packet_rate_thresh_;
-  LOG(INFO) << "Bursty flow packet count thresh:" << packet_count_thresh_;
+  LOG(INFO) << "Flow assignment thresh: " << quadrant_assign_packet_rate_thresh_;
+  LOG(INFO) << "Flow migration thresh: " << quadrant_migrate_packet_rate_thresh_;
+  LOG(INFO) << "Bursty flow packet count thresh: " << packet_count_thresh_;
 
   load_balancing_op_ = 0;
   if (arg.lb() > 0) {
@@ -95,7 +96,7 @@ CommandResponse NFVSwitch::Init([[maybe_unused]]const bess::pb::NFVSwitchArg &ar
     update_traffic_stats_period_ns_ = (uint64_t)arg.update_stats_period_ns();
   }
 
-  LOG(INFO) << "Traffic update period:" << update_traffic_stats_period_ns_;
+  LOG(INFO) << "Traffic update period: " << update_traffic_stats_period_ns_;
 
   return CommandSuccess();
 }
@@ -187,7 +188,7 @@ void NFVSwitch::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       } else {
         pick_next_idle_core();
 
-        it->second.SetAction(false, 0, cpu_cores_[next_idle_core_].nic_addr);
+        it->second.SetAction(false, next_idle_core_, cpu_cores_[next_idle_core_].nic_addr);
         emitted = true;
       }
     }
@@ -211,7 +212,7 @@ bool NFVSwitch::process_new_flow(FlowRoutingRule &rule) {
     return false;
   }
 
-  rule.SetAction(false, 0, cpu_cores_[next_normal_core_].nic_addr);
+  rule.SetAction(false, next_normal_core_, cpu_cores_[next_normal_core_].nic_addr);
   return true;
 }
 

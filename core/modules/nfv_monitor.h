@@ -1,6 +1,7 @@
 #ifndef BESS_MODULES_NFV_MONITOR_H_
 #define BESS_MODULES_NFV_MONITOR_H_
 
+#include <boost/circular_buffer.hpp>
 #include <math.h>
 #include <map>
 #include <set>
@@ -11,7 +12,6 @@
 #include "../utils/flow.h"
 #include "../utils/ip.h"
 #include "../utils/sys_measure.h"
-#include <boost/circular_buffer.hpp>
 
 using bess::utils::be16_t;
 using bess::utils::be32_t;
@@ -36,14 +36,14 @@ class NFVMonitor final : public Module {
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &arg);
 
-  double GetTailLatency(uint32_t percentile) {
+  uint64_t GetTailLatency(uint32_t percentile) {
     std::vector<uint64_t> latency_copy;
     // Create a copy of the latency buffer
     for (auto it = per_core_latency_sample_.begin(); it != per_core_latency_sample_.end(); it++) {
       latency_copy.push_back(*it);
     }
     sort(latency_copy.begin(), latency_copy.end());
-    size_t idx = ceil((percentile/100.0) * latency_copy.size());
+    size_t idx = ceil((percentile / 100.0) * latency_copy.size());
     return latency_copy[idx];
   }
 
