@@ -93,6 +93,8 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   // We don't use ctx->current_ns here for better accuracy
   curr_ts_ns_ = tsc_to_ns(rdtsc());
 
+  // update_traffic_stats();
+
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
@@ -133,8 +135,6 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     per_core_packet_counter_ += 1;
   }
 
-  update_traffic_stats();
-
   RunNextModule(ctx, batch);
 }
 
@@ -143,10 +143,25 @@ bool NFVMonitor::update_traffic_stats() {
     return false;
   }
 
-  cluster_snapshots_.push_back(Snapshot{epoch_id: next_epoch_id_});
+  uint64_t p99_latency = GetTailLatency(99);
 
-  int sum_active_cores = 0;
-  uint64_t sum_rate = 0;
+  bess::utils::CoreStats *msg = new bess::utils::CoreStats();
+  msg->packet_rate = packet_rate_;
+  msg->p99_latency = p99_latency;
+
+  // Detect latency violations
+  if (p99_latency > 100000) {
+    uint64_t rate_thresh = per_core_packet_counter_ / 5;
+    for (auto &it : per_flow_packet_counter_) {
+      if (it.second > rate_thresh) {
+        msg->bursty_flows.push_back(it.first);
+      }
+    }
+  }
+
+  // Send the sample to NFVIngress via a per-core ll_ring channel.
+  bess::utils::all_core_stats_chan[core_id_].Push(msg);
+
   // Update |active_flow_count|, |packet_rate| for each CPU core
   active_flow_count_ = per_flow_packet_counter_.size();
   packet_rate_ = per_core_packet_counter_;
@@ -154,25 +169,12 @@ bool NFVMonitor::update_traffic_stats() {
   per_core_packet_counter_ = 0;
 
   if (packet_rate_ > 0) {
-    sum_active_cores += 1;
-    sum_rate += packet_rate_;
+    cluster_snapshots_.push_back(Snapshot{epoch_id: next_epoch_id_});
+    cluster_snapshots_[next_epoch_id_].active_core_count = 1;
+    cluster_snapshots_[next_epoch_id_].sum_packet_rate = packet_rate_;
+    cluster_snapshots_[next_epoch_id_].per_core_packet_rate.push_back(packet_rate_);
+    next_epoch_id_ += 1;
   }
-  cluster_snapshots_[next_epoch_id_].per_core_packet_rate.push_back(packet_rate_);
-
-  if (sum_rate > 0) {
-    cluster_snapshots_[next_epoch_id_].active_core_count = sum_active_cores;
-    cluster_snapshots_[next_epoch_id_].sum_packet_rate = sum_rate;
-    ++next_epoch_id_;
-  } else {
-    // Do not record if the cluster is not processing any packets
-    cluster_snapshots_.pop_back();
-  }
-
-  // Send the sample to NFVIngress via a per-core ll_ring channel.
-  bess::utils::CoreStats *msg = new bess::utils::CoreStats();
-  msg->packet_rate = packet_rate_;
-  msg->p99_latency = GetTailLatency(99);
-  bess::utils::all_core_stats_chan[core_id_].Push(msg);
 
   last_update_traffic_stats_ts_ns_ = curr_ts_ns_;
   return true;

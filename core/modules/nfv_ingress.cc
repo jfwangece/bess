@@ -373,7 +373,7 @@ bool NFVIngress::update_traffic_stats() {
   if (sum_rate > 0) {
     cluster_snapshots_[next_epoch_id_].active_core_count = sum_active_cores;
     cluster_snapshots_[next_epoch_id_].sum_packet_rate = sum_rate;
-    ++next_epoch_id_;
+    next_epoch_id_ += 1;
   } else {
     // Do not record if the cluster is not processing any packets
     cluster_snapshots_.pop_back();

@@ -25,6 +25,7 @@ short_update_stats_period = int($BESS_SSTATS_PERIOD!"1000000")
 burst_size = int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
+ts_offset = 72
 tag_offset = 72
 cpu_offset = 1
 pcap_file = '{}'.format(PCAPFILE)
@@ -64,6 +65,7 @@ lb = {}
 monitor = {}
 nfvm = {}
 
+# Module
 pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
 src = PortInc(port=pcap_port)
 src_queue::Queue(size=pow(2,24))
@@ -80,7 +82,8 @@ nfvss::NFVSwitch(
 )
 sink_queue::Queue(size=4096)
 
-src -> src_queue -> replayer -> Timestamp(offset=tag_offset) -> ss_queue -> nfvss
+# Pipeline
+src -> src_queue -> replayer -> ss_queue -> Timestamp(offset=ts_offset) -> nfvss
 
 for i in range(len(core_addrs)):
     chainq[i] = Queue(size=4096)
@@ -91,11 +94,17 @@ for i in range(len(core_addrs)):
 
     nfvss:i -> chainq[i]
     chainq[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvm[i] -> sink_queue
+
+sink_queue -> Measure(offset=ts_offset) -> Sink()
+
+# Burst
+src_queue.set_burst(burst=32)
+ss_queue.set_burst(burst=32)
+for i in range(len(core_addrs)):
     chainq[i].set_burst(burst=burst_size)
+sink_queue.set_burst(burst=32)
 
-sink_queue -> Measure(offset=tag_offset) -> Sink()
-
-# core ID starts at the offset core
+# Core
 bess.add_worker(wid=1, core=1)
 bess.add_worker(wid=2, core=2)
 bess.add_worker(wid=3, core=3)

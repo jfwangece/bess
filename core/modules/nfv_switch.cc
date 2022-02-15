@@ -119,7 +119,7 @@ void NFVSwitch::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   // We don't use ctx->current_ns here for better accuracy
   curr_ts_ns_ = tsc_to_ns(rdtsc());
 
-  update_traffic_stats();
+  // update_traffic_stats();
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
@@ -188,7 +188,7 @@ void NFVSwitch::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       } else {
         pick_next_idle_core();
 
-        it->second.SetAction(false, next_idle_core_, cpu_cores_[next_idle_core_].nic_addr);
+        it->second.SetAction(false, cpu_cores_[next_idle_core_].core_id, cpu_cores_[next_idle_core_].nic_addr);
         emitted = true;
       }
     }
@@ -212,7 +212,7 @@ bool NFVSwitch::process_new_flow(FlowRoutingRule &rule) {
     return false;
   }
 
-  rule.SetAction(false, next_normal_core_, cpu_cores_[next_normal_core_].nic_addr);
+  rule.SetAction(false, cpu_cores_[next_normal_core_].core_id, cpu_cores_[next_normal_core_].nic_addr);
   return true;
 }
 

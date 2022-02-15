@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "flow.h"
 #include "lock_less_queue.h"
 
 namespace bess{
@@ -29,6 +30,7 @@ class CoreStats {
 
   uint64_t packet_rate;
   uint64_t p99_latency;
+  std::vector<Flow> bursty_flows;
 };
 
 // Core statistics buffer

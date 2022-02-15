@@ -23,7 +23,7 @@ using bess::utils::CoreStats;
 
 class NFVSwitch final : public Module {
  public:
-  static const gate_idx_t kNumOGates = MAX_GATES;
+  static const gate_idx_t kNumOGates = 16;
 
   static const Commands cmds;
 
