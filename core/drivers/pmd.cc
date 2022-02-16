@@ -67,7 +67,9 @@ static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
 
   return ret;
 }
-
+static void SyncClockInit(PMDPort *p) {
+  p->SyncClock();
+}
 void PMDPort::TurnOnOffIntr(queue_t qid, bool on) {
   if (on) {
     rte_eth_dev_rx_intr_enable(dpdk_port_id_, qid);
@@ -394,23 +396,51 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
 
   // Find the timestamp conversion eq
   if (timestamp_enabled_) {
-    uint64_t dat_x, dat_y;
-    for (int i = 0; i < 10; i++) {
-      rte_eth_read_clock(dpdk_port_id_, &dat_x);
-      dat_y = rdtsc();
-      linear_re_.AddData(dat_x, dat_y);
-      rte_delay_ms(100);
-    }
-    linear_re_.Train();
+    system_shutdown_ = false;
+    std::thread(SyncClockInit, this).detach();
+  }
+  return CommandSuccess();
+}
 
-    // A simple test
+void PMDPort::SyncClock() {
+    uint64_t dat_x, dat_y;
+    cpu_set_t master_core;
+    if (!timestamp_enabled_) {
+      return;
+    }
+    CPU_ZERO(&master_core);
+    CPU_SET(0, &master_core);
+    // Set the sync clock thread to run on core 0
+    rte_thread_set_affinity(&master_core);
+    while(1) {
+      LinearRegression<uint64_t> linear_re;
+      for (int i = 0; i < 10; i++) {
+        rte_eth_read_clock(dpdk_port_id_, &dat_x);
+        dat_y = rdtsc();
+        linear_re.AddData(dat_x, dat_y);
+        rte_delay_ms(100);
+      }
+      linear_re.Train();
+      linear_re_lock_.lock();
+      linear_re_ = linear_re;
+      linear_re_lock_.unlock();
+      rte_delay_ms(10000);
+      if (system_shutdown_) {
+        break;
+      }
+    }
+}
+
+void PMDPort::TestClock() {
+  uint64_t dat_x, dat_y;
+  if (timestamp_enabled_) {
     rte_eth_read_clock(dpdk_port_id_, &dat_x);
     dat_y = rdtsc();
+    linear_re_lock_.lock_shared();
     LOG(INFO) << "NIC: " << linear_re_.GetY(dat_x) << ", CPU: " << dat_y << ", diff: " << dat_y - linear_re_.GetY(dat_x);
     LOG(INFO) << "Slope: " << linear_re_.GetSlope();
-  }
-
-  return CommandSuccess();
+    linear_re_lock_.unlock_shared();
+    }
 }
 
 CommandResponse PMDPort::UpdateConf(const Conf &conf) {
@@ -489,6 +519,9 @@ void PMDPort::DeInit() {
                    << static_cast<int>(dpdk_port_id_);
     }
 
+    if (timestamp_enabled_) {
+      system_shutdown_ = true;
+    }
     rte_eth_dev_close(dpdk_port_id_);
   }
 }
