@@ -396,7 +396,9 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
 
   // Find the timestamp conversion eq
   if (timestamp_enabled_) {
+    system_shutdown_lock_.lock();
     system_shutdown_ = false;
+    system_shutdown_lock_.unlock();
     std::thread(SyncClockInit, this).detach();
   }
   return CommandSuccess();
@@ -405,6 +407,7 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
 void PMDPort::SyncClock() {
     uint64_t dat_x, dat_y;
     cpu_set_t master_core;
+    bool is_shutdown = false;
     if (!timestamp_enabled_) {
       return;
     }
@@ -425,7 +428,10 @@ void PMDPort::SyncClock() {
       linear_re_ = linear_re;
       linear_re_lock_.unlock();
       rte_delay_ms(10000);
-      if (system_shutdown_) {
+      system_shutdown_lock_.lock();
+      is_shutdown = system_shutdown_;
+      system_shutdown_lock_.unlock();
+      if (is_shutdown) {
         break;
       }
     }
