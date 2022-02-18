@@ -40,6 +40,7 @@
 #include "../module.h"
 #include "../port.h"
 #include "../utils/regression.h"
+#include <shared_mutex>
 
 typedef uint16_t dpdk_port_t;
 
@@ -125,6 +126,8 @@ class PMDPort final : public Port {
   void TurnOnOffIntr(queue_t qid, bool on);
 
   void SleepUntilRxInterrupt();
+  void SyncClock();
+  void TestClock();
 
   uint64_t GetFlags() const override {
     return DRIVER_FLAG_SELF_INC_STATS | DRIVER_FLAG_SELF_OUT_STATS;
@@ -142,9 +145,18 @@ class PMDPort final : public Port {
     return node_placement_;
   }
 
+  /*
+   * Converts NIC ticks to CPU cylces.
+   * This function is called on every packet received and is supposed to be
+   * light weight. We are taking a lock in this function which may block and
+   * adds extra cpu cycles per packet. This can be optimized.
+   */
   uint64_t NICCycleToCPUCycle(u_int64_t nic_cycle) {
-    return linear_re_.GetY(nic_cycle);
-  }
+    linear_re_lock_.lock_shared();
+    uint64_t val = linear_re_.GetY(nic_cycle);
+    linear_re_lock_.unlock_shared();
+    return  val;
+    }
 
  private:
   /*!
@@ -173,7 +185,10 @@ class PMDPort final : public Port {
    */
   bool timestamp_enabled_;
   LinearRegression<uint64_t> linear_re_;
+  std::shared_mutex linear_re_lock_;
 
+  std::mutex system_shutdown_lock_;
+  bool system_shutdown_;
   double timestamp_freq_;
   uint64_t timestamp_base_;
   uint64_t tsc_base_;
