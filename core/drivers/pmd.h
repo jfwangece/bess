@@ -156,13 +156,31 @@ class PMDPort final : public Port {
     uint64_t val = linear_re_.GetY(nic_cycle);
     linear_re_lock_.unlock_shared();
     return  val;
+  }
+
+  void update_rss_reta() {
+    int remapping_count = 1;
+    for (size_t i = 0; i < 8; i++) {
+      for (size_t j = 0; j < 8; i++) {
+        reta_conf_[(i * 8 + j) / RTE_RETA_GROUP_SIZE].reta[(i * 8 + j) % RTE_RETA_GROUP_SIZE] = j;
+      }
     }
+
+    if (remapping_count) {
+      rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
+    }
+  }
+
+  void update_rss_flow_entry() {}
+
+  // NIC's RSS indirection table
+  uint32_t reta_size_;
+  struct rte_eth_rss_reta_entry64 reta_conf_[2];
 
  private:
   /*!
    * The DPDK port ID number (set after binding).
    */
-
   dpdk_port_t dpdk_port_id_;
 
   /*!
@@ -187,9 +205,7 @@ class PMDPort final : public Port {
   LinearRegression<uint64_t> linear_re_;
   std::shared_mutex linear_re_lock_;
 
-  std::mutex system_shutdown_lock_;
   bool system_shutdown_;
-  double timestamp_freq_;
   uint64_t timestamp_base_;
   uint64_t tsc_base_;
 

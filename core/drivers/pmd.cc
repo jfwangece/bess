@@ -47,6 +47,11 @@ namespace {
 bool intr_on = false;
 bool rt_on = false;
 struct sched_param RT_HIGH_PRIORITY = { .sched_priority = 41, };
+
+// This function synchronizes NIC's and CPU's clock.
+static void SyncClockInit(PMDPort *p) {
+  p->SyncClock();
+}
 }
 
 static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
@@ -67,9 +72,7 @@ static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
 
   return ret;
 }
-static void SyncClockInit(PMDPort *p) {
-  p->SyncClock();
-}
+
 void PMDPort::TurnOnOffIntr(queue_t qid, bool on) {
   if (on) {
     rte_eth_dev_rx_intr_enable(dpdk_port_id_, qid);
@@ -271,12 +274,14 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
    * with minor tweaks */
   rte_eth_dev_info_get(ret_port_id, &dev_info);
 
+  reta_size_ = dev_info.reta_size;
+  memset(reta_conf_, 0, sizeof(reta_conf_));
+
   eth_conf = default_eth_conf(dev_info, num_rxq);
   if (arg.loopback()) {
     eth_conf.lpbk_mode = 1;
   }
 
-  timestamp_freq_ = 1.0;
   timestamp_enabled_ = true;
   if (dev_info.rx_offload_capa & DEV_RX_OFFLOAD_TIMESTAMP) {
     if (timestamp_enabled_) {
@@ -396,45 +401,48 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
 
   // Find the timestamp conversion eq
   if (timestamp_enabled_) {
-    system_shutdown_lock_.lock();
+    linear_re_lock_.lock();
     system_shutdown_ = false;
-    system_shutdown_lock_.unlock();
+    linear_re_lock_.unlock();
     std::thread(SyncClockInit, this).detach();
   }
   return CommandSuccess();
 }
 
 void PMDPort::SyncClock() {
-    uint64_t dat_x, dat_y;
-    cpu_set_t master_core;
-    bool is_shutdown = false;
-    if (!timestamp_enabled_) {
-      return;
+  if (!timestamp_enabled_) {
+    return;
+  }
+
+  // Set the sync clock thread to run on core 0
+  cpu_set_t master_core;
+  CPU_ZERO(&master_core);
+  CPU_SET(0, &master_core);
+  rte_thread_set_affinity(&master_core);
+
+  uint64_t dat_x, dat_y;
+  bool is_shutdown = false;
+  while(1) {
+    LinearRegression<uint64_t> linear_re;
+    for (int i = 0; i < 10; i++) {
+      rte_eth_read_clock(dpdk_port_id_, &dat_x);
+      dat_y = rdtsc();
+      linear_re.AddData(dat_x, dat_y);
+      rte_delay_ms(100);
     }
-    CPU_ZERO(&master_core);
-    CPU_SET(0, &master_core);
-    // Set the sync clock thread to run on core 0
-    rte_thread_set_affinity(&master_core);
-    while(1) {
-      LinearRegression<uint64_t> linear_re;
-      for (int i = 0; i < 10; i++) {
-        rte_eth_read_clock(dpdk_port_id_, &dat_x);
-        dat_y = rdtsc();
-        linear_re.AddData(dat_x, dat_y);
-        rte_delay_ms(100);
-      }
-      linear_re.Train();
-      linear_re_lock_.lock();
-      linear_re_ = linear_re;
-      linear_re_lock_.unlock();
-      rte_delay_ms(10000);
-      system_shutdown_lock_.lock();
-      is_shutdown = system_shutdown_;
-      system_shutdown_lock_.unlock();
-      if (is_shutdown) {
-        break;
-      }
+    linear_re.Train();
+
+    linear_re_lock_.lock();
+    linear_re_ = linear_re;
+    is_shutdown = system_shutdown_;
+    linear_re_lock_.unlock();
+
+    if (is_shutdown) {
+      break;
     }
+
+    rte_delay_ms(10000);
+  }
 }
 
 void PMDPort::TestClock() {
@@ -526,7 +534,9 @@ void PMDPort::DeInit() {
     }
 
     if (timestamp_enabled_) {
+      linear_re_lock_.lock();
       system_shutdown_ = true;
+      linear_re_lock_.unlock();
     }
     rte_eth_dev_close(dpdk_port_id_);
   }
