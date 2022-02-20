@@ -48,11 +48,52 @@ bool intr_on = false;
 bool rt_on = false;
 struct sched_param RT_HIGH_PRIORITY = { .sched_priority = 41, };
 
-// This function synchronizes NIC's and CPU's clock.
-static void SyncClockInit(PMDPort *p) {
+// pthread func: it synchronizes NIC's and CPU's clock.
+void SyncClockInit(PMDPort *p) {
   p->SyncClock();
 }
+
+inline rte_flow* AddFlowRedirectRule(int port_id, int from, int to, bool validate, int priority = 0) {
+  struct rte_flow_attr attr;
+  memset(&attr, 0, sizeof(struct rte_flow_attr));
+  attr.ingress = 1;
+  attr.group = from;
+  attr.priority =  priority;
+
+  struct rte_flow_action action[2];
+  struct rte_flow_action_jump jump;
+  jump.group = to;
+  memset(action, 0, sizeof(struct rte_flow_action) * 2);
+  action[0].type = RTE_FLOW_ACTION_TYPE_JUMP;
+  action[0].conf = &jump;
+  action[1].type = RTE_FLOW_ACTION_TYPE_END;
+
+  std::vector<rte_flow_item> pattern;
+  rte_flow_item pat;
+  pat.type = RTE_FLOW_ITEM_TYPE_ETH;
+  pat.spec = 0;
+  pat.mask = 0;
+  pat.last = 0;
+  pattern.push_back(pat);
+
+  rte_flow_item end;
+  memset(&end, 0, sizeof(struct rte_flow_item));
+  end.type =  RTE_FLOW_ITEM_TYPE_END;
+  pattern.push_back(end);
+
+  struct rte_flow_error error;
+  int res = 0;
+  if (validate) {
+    res = rte_flow_validate(port_id, &attr, pattern.data(), action, &error);
+  }
+  if (res == 0) {
+    struct rte_flow *flow = rte_flow_create(port_id, &attr, pattern.data(), action, &error);
+    return flow;
+  }
+
+  return nullptr;
 }
+} /// namespace
 
 static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
                                            int nb_rxq) {
@@ -71,6 +112,62 @@ static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
   };
 
   return ret;
+}
+
+void PMDPort::UpdateRssReta() {
+  int remapping_count = 1;
+  for (size_t i = 0; i < 8; i++) {
+    for (size_t j = 0; j < 8; i++) {
+      reta_conf_[(i * 8 + j) / RTE_RETA_GROUP_SIZE].reta[(i * 8 + j) % RTE_RETA_GROUP_SIZE] = j;
+    }
+  }
+
+  if (remapping_count) {
+    rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
+  }
+}
+
+void PMDPort::UpdateRssFlow() {
+  if (AddFlowRedirectRule(dpdk_port_id_, 0, 1, true) != nullptr) {
+    LOG(INFO) << "Group table rule supported";
+  } else {
+    LOG(INFO) << "No group table rule supported";
+  }
+
+  // Update the flow-rule in 2 steps
+  // int tot = 1;
+  // struct rte_flow_attr attr;
+  // for (int i = 0; i < tot; i++) {
+  //   memset(&attr, 0, sizeof(struct rte_flow_attr));
+  //   attr.ingress = 1;
+  //   struct rte_flow_action action[3];
+  //   struct rte_flow_action_mark mark;
+  //   struct rte_flow_action_rss rss;
+  //   memset(action, 0, sizeof(action));
+  //   memset(&rss, 0, sizeof(rss));
+  // }
+}
+
+void PMDPort::BenchUpdateRssReta() {
+  uint64_t start, sum_cycle;
+
+  sum_cycle = 0;
+  for (int i = 0; i < 5; i++) {
+    start = rdtsc();
+    UpdateRssReta();
+    sum_cycle = rdtsc() - start;
+    rte_delay_ms(1000);
+  }
+  LOG(INFO) << "Bench rss: reta update: " << tsc_to_us(sum_cycle / 5) << " usec";
+
+  sum_cycle = 0;
+  for (int i = 0; i < 5; i++) {
+    start = rdtsc();
+    UpdateRssFlow();
+    sum_cycle = rdtsc() - start;
+    rte_delay_ms(1000);
+  }
+  LOG(INFO) << "Bench rss: flow rule update: " << tsc_to_us(sum_cycle / 5) << " usec";
 }
 
 void PMDPort::TurnOnOffIntr(queue_t qid, bool on) {
@@ -306,6 +403,11 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
     rt_enabled_ = true;
   }
 
+  bench_rss_ = false;
+  if (arg.bench_rss()) {
+    bench_rss_ = true;
+  }
+
   ret = rte_eth_dev_configure(ret_port_id, num_rxq, num_txq, &eth_conf);
   if (ret != 0) {
     return CommandFailure(-ret, "rte_eth_dev_configure() failed");
@@ -399,13 +501,19 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
 
   driver_ = dev_info.driver_name ?: "unknown";
 
-  // Find the timestamp conversion eq
+  // Find the timestamp conversion equation
   if (timestamp_enabled_) {
     linear_re_lock_.lock();
     system_shutdown_ = false;
     linear_re_lock_.unlock();
     std::thread(SyncClockInit, this).detach();
   }
+
+  // Run a set of NIC RSS benchmarks
+  if (bench_rss_) {
+    BenchUpdateRssReta();
+  }
+
   return CommandSuccess();
 }
 

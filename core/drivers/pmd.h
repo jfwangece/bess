@@ -36,6 +36,7 @@
 #include <rte_config.h>
 #include <rte_errno.h>
 #include <rte_ethdev.h>
+#include <rte_flow.h>
 
 #include "../module.h"
 #include "../port.h"
@@ -158,24 +159,14 @@ class PMDPort final : public Port {
     return  val;
   }
 
-  void update_rss_reta() {
-    int remapping_count = 1;
-    for (size_t i = 0; i < 8; i++) {
-      for (size_t j = 0; j < 8; i++) {
-        reta_conf_[(i * 8 + j) / RTE_RETA_GROUP_SIZE].reta[(i * 8 + j) % RTE_RETA_GROUP_SIZE] = j;
-      }
-    }
-
-    if (remapping_count) {
-      rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
-    }
-  }
-
-  void update_rss_flow_entry() {}
+  void UpdateRssReta();
+  void UpdateRssFlow();
+  void BenchUpdateRssReta();
 
   // NIC's RSS indirection table
   uint32_t reta_size_;
   struct rte_eth_rss_reta_entry64 reta_conf_[2];
+  std::vector<rte_flow*> reta_flows_;
 
  private:
   /*!
@@ -202,12 +193,15 @@ class PMDPort final : public Port {
    * True if the NIC tags each packet with a timestamp.
    */
   bool timestamp_enabled_;
+
+  /*!
+   * True if this PMD runs a set of RSS benchmarks when initializing it.
+   */
+  bool bench_rss_;
+
   LinearRegression<uint64_t> linear_re_;
   std::shared_mutex linear_re_lock_;
-
   bool system_shutdown_;
-  uint64_t timestamp_base_;
-  uint64_t tsc_base_;
 
   /*!
    * The number of idle queues of this NIC / port.

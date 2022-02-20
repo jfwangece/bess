@@ -57,6 +57,7 @@ message PMDPortArg {
   bool enable_interrupt = 8;
   bool enable_rt = 9;
   bool enable_timestamp = 10;
+  bool bench_rss = 11;
 }
 
 message UnixSocketPortArg {
