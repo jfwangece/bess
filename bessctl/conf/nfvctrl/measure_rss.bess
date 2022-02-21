@@ -1,0 +1,49 @@
+#
+# Test NF chain #5: a stateful NF chain used by Dyssect
+# NAT -> Snort
+#
+
+nic=int($BESS_NIC!'1')
+burst_size=int($BESS_BURST!'32')
+cycles_pp=int($BESS_PKT_CYCLE!'3400')
+
+core_addrs = [
+    {'l2_port': 0, 'l2_mac': '82:a3:ae:74:72:30'},
+    {'l2_port': 1, 'l2_mac': 'a2:87:fd:f8:72:21'},
+    {'l2_port': 2, 'l2_mac': '2e:c7:8b:7b:8d:a8'},
+    {'l2_port': 3, 'l2_mac': '2a:9d:fd:13:15:01'},
+    {'l2_port': 4, 'l2_mac': '32:a5:0f:e0:04:0b'},
+    {'l2_port': 5, 'l2_mac': '06:8a:62:fb:51:51'},
+    {'l2_port': 6, 'l2_mac': 'ce:2e:14:c4:a0:cb'},
+    {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
+]
+
+# By default, pick Intel NICs
+pcie0, offset0="af:00.0", 8
+if nic != 0:
+    pcie0, offset0="5e:00.0", 1
+
+# Module
+port0::PMDPort(pci=pcie0, num_inc_q=8, num_out_q=8, bench_rss=True)
+pinc0 = {}
+pout0 = {}
+bypass = {}
+
+# Pipeline
+for i in range(len(core_addrs)):
+    pinc0[i] = QueueInc(port=port0, qid=i)
+    pout0[i] = QueueOut(port=port0, qid=i)
+    bypass[i] = Bypass(cycles_per_packet=cycles_pp)
+
+    pinc0[i] -> bypass[i] -> MACSwap() -> pout0[i]
+
+# Burst
+for i in ragne(len(core_addrs)):
+    pinc0[i].set_burst(burst=burst_size)
+
+# Core
+for i in range(1, len(core_addrs)):
+    bess.add_worker(wid=i, core=i+offset0)
+    pinc0[i].attach_task(wid=i)
+
+bess.resume_all()
