@@ -17,6 +17,7 @@ core_addrs = [
     {'l2_port': 6, 'l2_mac': 'ce:2e:14:c4:a0:cb'},
     {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
 ]
+core_cnt=len(core_addrs)
 
 # By default, pick Intel NICs
 pcie0, offset0="af:00.0", 8
@@ -24,7 +25,7 @@ if nic != 0:
     pcie0, offset0="5e:00.0", 1
 
 # Module
-port0::PMDPort(pci=pcie0, num_inc_q=8, num_out_q=8, bench_rss=True)
+port0::PMDPort(pci=pcie0, num_inc_q=core_cnt, num_out_q=core_cnt, bench_rss=True)
 pinc0 = {}
 pout0 = {}
 bypass = {}
@@ -38,12 +39,13 @@ for i in range(len(core_addrs)):
     pinc0[i] -> bypass[i] -> MACSwap() -> pout0[i]
 
 # Burst
-for i in ragne(len(core_addrs)):
+for i in range(core_cnt):
     pinc0[i].set_burst(burst=burst_size)
 
 # Core
-for i in range(1, len(core_addrs)):
+for i in range(core_cnt):
     bess.add_worker(wid=i, core=i+offset0)
     pinc0[i].attach_task(wid=i)
 
 bess.resume_all()
+

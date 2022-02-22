@@ -53,7 +53,7 @@ void SyncClockInit(PMDPort *p) {
   p->SyncClock();
 }
 
-inline rte_flow* AddFlowRedirectRule(int port_id, int from, int to, bool validate, int priority = 0) {
+inline rte_flow* AddFlowRedirectRule(int port_id, int from, int to, int priority = 0) {
   struct rte_flow_attr attr;
   memset(&attr, 0, sizeof(struct rte_flow_attr));
   attr.ingress = 1;
@@ -82,11 +82,7 @@ inline rte_flow* AddFlowRedirectRule(int port_id, int from, int to, bool validat
   pattern.push_back(end);
 
   struct rte_flow_error error;
-  int res = 0;
-  if (validate) {
-    res = rte_flow_validate(port_id, &attr, pattern.data(), action, &error);
-  }
-  if (res == 0) {
+  if (rte_flow_validate(port_id, &attr, pattern.data(), action, &error) == 0) {
     struct rte_flow *flow = rte_flow_create(port_id, &attr, pattern.data(), action, &error);
     return flow;
   }
@@ -117,18 +113,21 @@ static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
 void PMDPort::UpdateRssReta() {
   int remapping_count = 1;
   for (size_t i = 0; i < 8; i++) {
-    for (size_t j = 0; j < 8; i++) {
+    for (size_t j = 0; j < 8; j++) {
       reta_conf_[(i * 8 + j) / RTE_RETA_GROUP_SIZE].reta[(i * 8 + j) % RTE_RETA_GROUP_SIZE] = j;
     }
   }
 
   if (remapping_count) {
-    rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
+    int ret = rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
+    if (ret != 0) {
+      LOG(ERROR) << "Failed to set NIC reta table: " << rte_strerror(ret);
+    }
   }
 }
 
 void PMDPort::UpdateRssFlow() {
-  if (AddFlowRedirectRule(dpdk_port_id_, 0, 1, true) != nullptr) {
+  if (AddFlowRedirectRule(dpdk_port_id_, 0, 1) != nullptr) {
     LOG(INFO) << "Group table rule supported";
   } else {
     LOG(INFO) << "No group table rule supported";
@@ -151,23 +150,30 @@ void PMDPort::UpdateRssFlow() {
 void PMDPort::BenchUpdateRssReta() {
   uint64_t start, sum_cycle;
 
+  // Reta update
   sum_cycle = 0;
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 3; i++) {
     start = rdtsc();
     UpdateRssReta();
-    sum_cycle = rdtsc() - start;
-    rte_delay_ms(1000);
+    sum_cycle += rdtsc() - start;
+    rte_delay_ms(500);
   }
-  LOG(INFO) << "Bench rss: reta update: " << tsc_to_us(sum_cycle / 5) << " usec";
 
+  LOG(INFO) << "Bench rss: reta update";
+  LOG(INFO) << " - reta table size: " << reta_size_;
+  LOG(INFO) << " - update time: " << tsc_to_us(sum_cycle / 3) << " usec";
+
+  // Flow update
   sum_cycle = 0;
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 3; i++) {
     start = rdtsc();
     UpdateRssFlow();
-    sum_cycle = rdtsc() - start;
-    rte_delay_ms(1000);
+    sum_cycle += rdtsc() - start;
+    rte_delay_ms(500);
   }
-  LOG(INFO) << "Bench rss: flow rule update: " << tsc_to_us(sum_cycle / 5) << " usec";
+
+  LOG(INFO) << "Bench rss: flow table update";
+  LOG(INFO) << " - update time: " << tsc_to_us(sum_cycle / 3) << " usec";
 }
 
 void PMDPort::TurnOnOffIntr(queue_t qid, bool on) {
@@ -371,9 +377,6 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
    * with minor tweaks */
   rte_eth_dev_info_get(ret_port_id, &dev_info);
 
-  reta_size_ = dev_info.reta_size;
-  memset(reta_conf_, 0, sizeof(reta_conf_));
-
   eth_conf = default_eth_conf(dev_info, num_rxq);
   if (arg.loopback()) {
     eth_conf.lpbk_mode = 1;
@@ -508,6 +511,13 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
     linear_re_lock_.unlock();
     std::thread(SyncClockInit, this).detach();
   }
+
+  reta_size_ = dev_info.reta_size;
+  memset(reta_conf_, 0, sizeof(reta_conf_));
+  for (uint32_t i = 0; i < reta_size_; i++) {
+    reta_conf_[i / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
+  }
+  UpdateRssReta();
 
   // Run a set of NIC RSS benchmarks
   if (bench_rss_) {
