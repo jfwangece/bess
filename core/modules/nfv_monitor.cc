@@ -63,7 +63,7 @@ CommandResponse NFVMonitor::Init([[maybe_unused]]const bess::pb::NFVMonitorArg &
     per_core_latency_sample_.push_back(0);
   }
 
-  per_core_packet_counter_ = 0;
+  epoch_packet_counter_ = 0;
   return CommandSuccess();
 }
 
@@ -115,7 +115,7 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     }
 
     // Find existing flow, if we have one.
-    std::unordered_map<Flow, uint64_t, FlowHash>::iterator it =
+    std::unordered_map<Flow, uint32_t, FlowHash>::iterator it =
         per_flow_packet_counter_.find(flow);
 
     if (it == per_flow_packet_counter_.end()) {
@@ -124,8 +124,11 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       it->second += 1;
     }
 
-    per_core_latency_sample_.push_back(curr_ts_ns_ - get_hw_timestamp(pkt));
-    per_core_packet_counter_ += 1;
+    // per_core_latency_sample_.push_back(curr_ts_ns_ - get_hw_timestamp(pkt));
+    epoch_packet_counter_ += 1;
+    if (get_hw_timestamp(pkt) > 200000) {
+      epoch_slo_violation_counter_ += 1;
+    }
   }
 
   RunNextModule(ctx, batch);
@@ -138,31 +141,34 @@ bool NFVMonitor::update_traffic_stats() {
     return false;
   }
 
-  uint64_t p99_latency = GetTailLatency(99);
+  // Update |active_flow_count|, |packet_rate| for each CPU core
+  active_flow_count_ = per_flow_packet_counter_.size();
+  packet_rate_ = epoch_packet_counter_;
+
   bess::utils::CoreStats *msg = new bess::utils::CoreStats();
   msg->packet_rate = packet_rate_;
-  msg->p99_latency = p99_latency;
-
-  // Detect latency violations
-  if (p99_latency > 100000) {
-    uint64_t rate_thresh = per_core_packet_counter_ / 5;
+  // uint64_t p99_latency = GetTailLatency(99);
+  // msg->p99_latency = p99_latency;
+  // Here, detect latency violations
+  // if (p99_latency > 200000) {
+  //   uint64_t rate_thresh = epoch_packet_counter_ / 5;
+  //   for (auto &it : per_flow_packet_counter_) {
+  //     if (it.second > rate_thresh) {
+  //       msg->bursty_flows.push_back(it.first);
+  //     }
+  //   }
+  // }
+  if (epoch_slo_violation_counter_ > epoch_packet_counter_ * 0.01) {
+    uint64_t rate_thresh = epoch_packet_counter_ / 5;
     for (auto &it : per_flow_packet_counter_) {
       if (it.second > rate_thresh) {
         msg->bursty_flows.push_back(it.first);
       }
     }
   }
-
-  // Send the sample to NFVIngress via a per-core ll_ring channel.
   all_core_stats_chan[core_id_]->Push(msg);
 
-  // Update |active_flow_count|, |packet_rate| for each CPU core
-  active_flow_count_ = per_flow_packet_counter_.size();
-  packet_rate_ = per_core_packet_counter_;
-  per_flow_packet_counter_.clear();
-  per_core_packet_counter_ = 0;
-
-  if (packet_rate_ > 0) {
+  if (false && packet_rate_ > 0) {
     cluster_snapshots_.push_back(Snapshot{epoch_id: next_epoch_id_});
     cluster_snapshots_[next_epoch_id_].active_core_count = 1;
     cluster_snapshots_[next_epoch_id_].sum_packet_rate = packet_rate_;
@@ -170,6 +176,9 @@ bool NFVMonitor::update_traffic_stats() {
     next_epoch_id_ += 1;
   }
 
+  // Reset epoch
+  per_flow_packet_counter_.clear();
+  epoch_packet_counter_ = 0;
   last_update_traffic_stats_ts_ns_ = curr_ts_ns_;
   return true;
 }

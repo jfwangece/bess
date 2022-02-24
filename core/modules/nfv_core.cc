@@ -99,7 +99,6 @@ bool NFVCore::update_traffic_stats() {
     for (auto &f : stats_ptr->bursty_flows) {
       per_flow_packet_counter_.emplace(f, 1);
     }
-
     delete (stats_ptr);
     stats_ptr = nullptr;
   }

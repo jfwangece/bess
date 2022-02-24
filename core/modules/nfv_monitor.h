@@ -57,11 +57,12 @@ class NFVMonitor final : public Module {
   std::vector<Snapshot> cluster_snapshots_;
 
   // Flow statistics
-  std::unordered_map<Flow, uint64_t, FlowHash> per_flow_packet_counter_;
+  std::unordered_map<Flow, uint32_t, FlowHash> per_flow_packet_counter_;
 
   // Core statistics
   boost::circular_buffer<uint64_t> per_core_latency_sample_;
-  uint64_t per_core_packet_counter_;
+  uint32_t epoch_packet_counter_;
+  uint32_t epoch_slo_violation_counter_;
 
   // Traffic summary
   int active_flow_count_;
