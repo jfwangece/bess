@@ -37,7 +37,10 @@ class CoreStats {
 static std::vector<CoreStats> all_core_stats (20);
 
 // Core statistics message channel
-static std::vector<LockLessQueue<CoreStats *>> all_core_stats_chan (20);
+extern LockLessQueue<CoreStats*> *volatile all_core_stats_chan[20];
+
+void SysMeasureInit();
+void SysMeasureDeinit();
 
 } // namespace utils
 } // namespace bess

@@ -517,7 +517,7 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   for (uint32_t i = 0; i < reta_size_; i++) {
     reta_conf_[i / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
   }
-  UpdateRssReta();
+  // UpdateRssReta();
 
   // Run a set of NIC RSS benchmarks
   if (bench_rss_) {

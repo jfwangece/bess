@@ -984,6 +984,10 @@ message NFVMonitorArg {
   int64 latency_sample_buffer_size = 3; // Size of vector to calculate tail latency
 }
 
+message NFVCoreArg {
+  int32 core_id = 1; /// The target CPU core's ID
+}
+
 message NFVSwitchArg {
   repeated CoreAddr core_addrs = 1; /// list of routing addresses for available CPU cores in the cluster
   int32 update_stats_period_ns = 2; /// Time period of collecting system performance metrics

@@ -34,8 +34,6 @@ uint64_t get_hw_timestamp(bess::Packet *pkt) {
 } /// namespace
 
 const Commands NFVMonitor::cmds = {
-    {"add", "NFVMonitorArg", MODULE_CMD_FUNC(&NFVMonitor::CommandAdd),
-     Command::THREAD_UNSAFE},
     {"get_summary", "EmptyArg", MODULE_CMD_FUNC(&NFVMonitor::CommandGetSummary),
      Command::THREAD_SAFE},
     {"clear", "EmptyArg", MODULE_CMD_FUNC(&NFVMonitor::CommandClear),
@@ -66,11 +64,6 @@ CommandResponse NFVMonitor::Init([[maybe_unused]]const bess::pb::NFVMonitorArg &
   }
 
   per_core_packet_counter_ = 0;
-
-  return CommandSuccess();
-}
-
-CommandResponse NFVMonitor::CommandAdd([[maybe_unused]]const bess::pb::NFVMonitorArg &arg) {
   return CommandSuccess();
 }
 
@@ -93,7 +86,7 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   // We don't use ctx->current_ns here for better accuracy
   curr_ts_ns_ = tsc_to_ns(rdtsc());
 
-  // update_traffic_stats();
+  update_traffic_stats();
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
@@ -139,12 +132,13 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 }
 
 bool NFVMonitor::update_traffic_stats() {
+  using bess::utils::all_core_stats_chan;
+
   if (curr_ts_ns_ - last_update_traffic_stats_ts_ns_ < update_traffic_stats_period_ns_) {
     return false;
   }
 
   uint64_t p99_latency = GetTailLatency(99);
-
   bess::utils::CoreStats *msg = new bess::utils::CoreStats();
   msg->packet_rate = packet_rate_;
   msg->p99_latency = p99_latency;
@@ -160,7 +154,7 @@ bool NFVMonitor::update_traffic_stats() {
   }
 
   // Send the sample to NFVIngress via a per-core ll_ring channel.
-  bess::utils::all_core_stats_chan[core_id_].Push(msg);
+  all_core_stats_chan[core_id_]->Push(msg);
 
   // Update |active_flow_count|, |packet_rate| for each CPU core
   active_flow_count_ = per_flow_packet_counter_.size();

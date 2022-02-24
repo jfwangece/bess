@@ -39,6 +39,7 @@
 #include "packet_pool.h"
 #include "port.h"
 #include "utils/format.h"
+#include "utils/sys_measure.h"
 #include "version.h"
 
 int main(int argc, char *argv[]) {
@@ -84,7 +85,7 @@ int main(int argc, char *argv[]) {
   }
 
   bess::PacketPool::CreateDefaultPools(FLAGS_buffers);
-
+  bess::utils::SysMeasureInit();
   PortBuilder::InitDrivers();
 
   {
@@ -109,6 +110,7 @@ int main(int argc, char *argv[]) {
   }
 
   rte_eal_mp_wait_lcore();
+  bess::utils::SysMeasureDeinit();
 
   LOG(INFO) << "BESS daemon has been gracefully shut down";
 

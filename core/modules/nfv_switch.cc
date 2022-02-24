@@ -95,7 +95,6 @@ CommandResponse NFVSwitch::Init([[maybe_unused]]const bess::pb::NFVSwitchArg &ar
   if (arg.update_stats_period_ns() > 0) {
     update_traffic_stats_period_ns_ = (uint64_t)arg.update_stats_period_ns();
   }
-
   LOG(INFO) << "Traffic update period: " << update_traffic_stats_period_ns_;
 
   return CommandSuccess();
@@ -276,8 +275,8 @@ bool NFVSwitch::update_traffic_stats() {
 
   CoreStats* stats_ptr = nullptr;
   for (auto &it : cpu_cores_) {
-    while (all_core_stats_chan[it.core_id].Size()) {
-      all_core_stats_chan[it.core_id].Pop(stats_ptr);
+    while (all_core_stats_chan[it.core_id]->Size()) {
+      all_core_stats_chan[it.core_id]->Pop(stats_ptr);
       it.packet_rate = stats_ptr->packet_rate;
       it.p99_latency = stats_ptr->p99_latency;
       delete (stats_ptr);

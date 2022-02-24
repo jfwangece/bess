@@ -29,12 +29,9 @@ class NFVMonitor final : public Module {
   NFVMonitor() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; }
 
   CommandResponse Init(const bess::pb::NFVMonitorArg &arg);
-
-  void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
-
-  CommandResponse CommandAdd(const bess::pb::NFVMonitorArg &arg);
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &arg);
+  void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
   uint64_t GetTailLatency(uint32_t percentile) {
     std::vector<uint64_t> latency_copy;
