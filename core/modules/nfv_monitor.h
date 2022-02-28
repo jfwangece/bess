@@ -20,7 +20,7 @@ using bess::utils::Flow;
 using bess::utils::FlowHash;
 using bess::utils::FlowRecord;
 using bess::utils::FlowRoutingRule;
-using bess::utils::Snapshot;
+using bess::utils::CoreSnapshot;
 
 class NFVMonitor final : public Module {
  public:
@@ -31,6 +31,7 @@ class NFVMonitor final : public Module {
   CommandResponse Init(const bess::pb::NFVMonitorArg &arg);
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &arg);
+
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
   uint64_t GetTailLatency(uint32_t percentile) {
@@ -53,8 +54,8 @@ class NFVMonitor final : public Module {
   uint64_t update_traffic_stats_period_ns_;
   int next_epoch_id_; // Performance statistics recorded in Epoch
 
-  // Cluster statistics
-  std::vector<Snapshot> cluster_snapshots_;
+  // Core statistics
+  std::vector<CoreSnapshot> core_snapshots_;
 
   // Flow statistics
   std::unordered_map<Flow, uint32_t, FlowHash> per_flow_packet_counter_;
@@ -63,6 +64,8 @@ class NFVMonitor final : public Module {
   boost::circular_buffer<uint64_t> per_core_latency_sample_;
   uint32_t epoch_packet_counter_;
   uint32_t epoch_slo_violation_counter_;
+  // Once a flow's packet counter exceeds this thresh, it is a bursty flow.
+  uint32_t epoch_packet_thresh_;
 
   // Traffic summary
   int active_flow_count_;

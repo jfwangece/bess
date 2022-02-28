@@ -164,8 +164,8 @@ class PMDPort final : public Port {
   void BenchUpdateRssReta();
 
   // NIC's RSS indirection table; Mellanox: 512;
-  uint32_t reta_size_;
   struct rte_eth_rss_reta_entry64 reta_conf_[8];
+  uint32_t reta_size_;
   std::vector<rte_flow*> reta_flows_;
 
  private:

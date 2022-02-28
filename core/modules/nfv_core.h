@@ -7,14 +7,11 @@
 #include "../utils/ip.h"
 #include "../utils/sys_measure.h"
 
-using bess::utils::be16_t;
-using bess::utils::be32_t;
-using bess::utils::Ipv4Prefix;
 using bess::utils::Flow;
 using bess::utils::FlowHash;
-using bess::utils::FlowRecord;
 using bess::utils::FlowRoutingRule;
 using bess::utils::CoreStats;
+using bess::utils::WorkerCore;
 
 class NFVCore final : public Module {
  public:
@@ -58,8 +55,11 @@ class NFVCore final : public Module {
 
   uint64_t curr_ts_ns_;
 
+  // Max number of new flows processed in a epoch
+  uint32_t epoch_flow_thresh_;
+
   // Flow cache
-  std::unordered_map<Flow, uint64_t, FlowHash> per_flow_packet_counter_;
+  std::unordered_map<Flow, uint32_t, FlowHash> per_flow_packet_counter_;
 };
 
 #endif // BESS_MODULES_NFV_CORE_H_

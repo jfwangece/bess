@@ -112,10 +112,8 @@ static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
 
 void PMDPort::UpdateRssReta() {
   int remapping_count = 1;
-  for (size_t i = 0; i < 8; i++) {
-    for (size_t j = 0; j < 8; j++) {
-      reta_conf_[(i * 8 + j) / RTE_RETA_GROUP_SIZE].reta[(i * 8 + j) % RTE_RETA_GROUP_SIZE] = j;
-    }
+  for (size_t j = 0; j < reta_size_; j++) {
+    reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = j % 8;
   }
 
   if (remapping_count) {
@@ -517,7 +515,7 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   for (uint32_t i = 0; i < reta_size_; i++) {
     reta_conf_[i / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
   }
-  // UpdateRssReta();
+  UpdateRssReta();
 
   // Run a set of NIC RSS benchmarks
   if (bench_rss_) {

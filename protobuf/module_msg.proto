@@ -978,6 +978,10 @@ message NFVIngressArg {
   int32 scale = 8;
 }
 
+message NFVCtrlArg {
+  repeated CoreAddr core_addrs = 1; /// list of routing addresses for available CPU cores in the cluster
+}
+
 message NFVMonitorArg {
   int32 core_id = 1; /// The target CPU core's ID
   int32 update_stats_period_ns = 2; /// Time period of collecting system performance metrics

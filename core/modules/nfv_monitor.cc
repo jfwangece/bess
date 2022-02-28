@@ -126,7 +126,8 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     // per_core_latency_sample_.push_back(curr_ts_ns_ - get_hw_timestamp(pkt));
     epoch_packet_counter_ += 1;
-    if (get_hw_timestamp(pkt) > 200000) {
+    uint64_t pkt_delay = curr_ts_ns_ - get_hw_timestamp(pkt);
+    if (pkt_delay > 200000) {
       epoch_slo_violation_counter_ += 1;
     }
   }
@@ -147,68 +148,61 @@ bool NFVMonitor::update_traffic_stats() {
 
   bess::utils::CoreStats *msg = new bess::utils::CoreStats();
   msg->packet_rate = packet_rate_;
+
   // uint64_t p99_latency = GetTailLatency(99);
   // msg->p99_latency = p99_latency;
   // Here, detect latency violations
   // if (p99_latency > 200000) {
-  //   uint64_t rate_thresh = epoch_packet_counter_ / 5;
   //   for (auto &it : per_flow_packet_counter_) {
-  //     if (it.second > rate_thresh) {
+  //     if (it.second > epoch_packet_thresh_) {
   //       msg->bursty_flows.push_back(it.first);
   //     }
   //   }
   // }
+
+  epoch_packet_thresh_ = epoch_packet_counter_ * 0.05;
   if (epoch_slo_violation_counter_ > epoch_packet_counter_ * 0.01) {
-    uint64_t rate_thresh = epoch_packet_counter_ / 5;
     for (auto &it : per_flow_packet_counter_) {
-      if (it.second > rate_thresh) {
+      if (it.second > epoch_packet_thresh_) {
         msg->bursty_flows.push_back(it.first);
       }
     }
   }
   all_core_stats_chan[core_id_]->Push(msg);
 
-  if (false && packet_rate_ > 0) {
-    cluster_snapshots_.push_back(Snapshot{epoch_id: next_epoch_id_});
-    cluster_snapshots_[next_epoch_id_].active_core_count = 1;
-    cluster_snapshots_[next_epoch_id_].sum_packet_rate = packet_rate_;
-    cluster_snapshots_[next_epoch_id_].per_core_packet_rate.push_back(packet_rate_);
+  if (packet_rate_ > 0.1) {
+    core_snapshots_.push_back(CoreSnapshot{epoch_id: next_epoch_id_});
+    core_snapshots_[next_epoch_id_].slo_violation = epoch_slo_violation_counter_;
+    core_snapshots_[next_epoch_id_].active_flow_count = active_flow_count_;
+    core_snapshots_[next_epoch_id_].bursty_flow_count = msg->bursty_flows.size();
+    core_snapshots_[next_epoch_id_].packet_rate = packet_rate_;
     next_epoch_id_ += 1;
   }
 
   // Reset epoch
   per_flow_packet_counter_.clear();
   epoch_packet_counter_ = 0;
+  epoch_slo_violation_counter_ = 0;
   last_update_traffic_stats_ts_ns_ = curr_ts_ns_;
   return true;
 }
 
 CommandResponse NFVMonitor::CommandGetSummary(const bess::pb::EmptyArg &) {
-  int total_flows = per_flow_packet_counter_.size();
-
-  int sum_cores = 0;
-  int total_epochs = cluster_snapshots_.size();
-  for (auto & x : cluster_snapshots_) {
-    sum_cores += x.active_core_count;
-  }
-
-  std::ofstream out_fp("stats.txt");
+  std::string fname = "stats" + std::to_string(core_id_) + ".txt";
+  std::ofstream out_fp(fname);
   if (out_fp.is_open()) {
-    // Traffic
-    out_fp << "Flow stats:" << std::endl;
-    out_fp << "- Total flows: " << total_flows << std::endl;
-    out_fp << std::endl;
-
-    // CPU cores
-    out_fp << "CPU core stats:" << std::endl;
-    out_fp << "- Total epochs: " << total_epochs << std::endl;
-    out_fp << "- Time-avg cores: " << double(sum_cores) / double(total_epochs) << std::endl;
-    out_fp << std::endl;
-
-    for (size_t i = 0; i < cluster_snapshots_.size(); i++) {
-      out_fp << "epoch:" << i << ", core:" << cluster_snapshots_[i].active_core_count << ", rate:" << cluster_snapshots_[i].sum_packet_rate << std::endl;
+    out_fp << "Per core stats:" << std::endl;
+    for (size_t i = 0; i < core_snapshots_.size(); i++) {
+      out_fp << "epoch:" << i;
+      out_fp << ", core:" << (core_snapshots_[i].packet_rate > 0.1 ? 1 : 0);
+      out_fp << ", slo:" << core_snapshots_[i].slo_violation;
+      out_fp << ", aflow:" << core_snapshots_[i].active_flow_count;
+      out_fp << ", bflow:" << core_snapshots_[i].bursty_flow_count;
+      out_fp << ", rate:" << core_snapshots_[i].packet_rate;
+      out_fp << std::endl;
     }
   }
+
   out_fp << "P50 latency:" << GetTailLatency(50) << std::endl;
   out_fp << "P99 latency:" << GetTailLatency(99) << std::endl;
 

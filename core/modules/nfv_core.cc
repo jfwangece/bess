@@ -23,6 +23,7 @@ CommandResponse NFVCore::Init([[maybe_unused]]const bess::pb::NFVCoreArg &arg) {
     core_id_ = arg.core_id();
   }
   core_.core_id = core_id_;
+  epoch_flow_thresh_ = 20;
 
   per_flow_packet_counter_.clear();
   return CommandSuccess();
@@ -78,7 +79,7 @@ void NFVCore::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     }
 
     // Find existing flow, if we have one.
-    std::unordered_map<Flow, uint64_t, FlowHash>::iterator it =
+    std::unordered_map<Flow, uint32_t, FlowHash>::iterator it =
         per_flow_packet_counter_.find(flow);
     if (it != per_flow_packet_counter_.end()) {
       DropPacket(ctx, pkt);

@@ -11,43 +11,15 @@
 #include "../utils/ip.h"
 #include "../utils/sys_measure.h"
 
-using bess::utils::be16_t;
-using bess::utils::be32_t;
-using bess::utils::Ipv4Prefix;
 using bess::utils::Flow;
 using bess::utils::FlowHash;
-using bess::utils::FlowRecord;
 using bess::utils::FlowRoutingRule;
 using bess::utils::Snapshot;
+using bess::utils::WorkerCore;
 
 class NFVIngress final : public Module {
  public:
   static const Commands cmds;
-
-  // This struct represents an active worker core
-  // |core_id|: the unique CPU core ID number
-  // |worker_port|, |nic_addr|: routing information
-  // |active_flows|: a set of active flows assigned to this core
-  struct WorkerCore {
-    WorkerCore(int core, int port, std::string addr) {
-      core_id = core; worker_port = port; nic_addr = addr;
-      active_flow_count = 0; packet_rate = 0; idle_period_count = 0;
-      per_flow_packet_counter.clear();
-    };
-
-    // Core info
-    int core_id;
-    int worker_port;
-    std::string nic_addr;
-    // Traffic statistics
-    int active_flow_count;
-    float packet_rate;
-    int idle_period_count;
-    // Timestamp
-    uint64_t last_migrating_ts_ns_;
-    // Flow statistics
-    std::unordered_map<Flow, uint64_t, FlowHash> per_flow_packet_counter;
-  };
 
   NFVIngress() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; }
 

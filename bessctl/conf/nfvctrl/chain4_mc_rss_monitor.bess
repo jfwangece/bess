@@ -40,6 +40,7 @@ for i in range(lb_cnt / 20):
         nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
 
 # Module
+nfvctrl::NFVCtrl(core_addrs=core_addrs)
 port0::PMDPort(pci=pcie0, num_inc_q=core_cnt, num_out_q=core_cnt, bench_rss=False)
 pinc0 = {}
 pout0 = {}
@@ -58,7 +59,8 @@ for i in range(len(core_addrs)):
     monitor[i] = FlowCounter()
 
     if exp_idx == 0:
-        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> pout0[i]
+        nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
+        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
     elif exp_idx == 1:
         nfvig[i] = NFVCore(core_id=i)
         nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
@@ -71,8 +73,11 @@ for i in range(core_cnt):
     pinc0[i].set_burst(burst=burst_size)
 
 # Core
+bess.add_worker(wid=14, core=14)
+nfvctrl.attach_task(wid=14)
+
 for i in range(core_cnt):
-    bess.add_worker(wid=i, core=i+offset0)
-    pinc0[i].attach_task(wid=i)
+    bess.add_worker(wid=i+offset0, core=i+offset0)
+    pinc0[i].attach_task(wid=i+offset0)
 
 bess.resume_all()
