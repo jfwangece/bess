@@ -4,6 +4,7 @@ import math
 import matplotlib
 matplotlib.use('TkAgg', force=True)
 import matplotlib.pyplot as plt
+from utils import Snapshot, read_cluster_snapshot
 
 # NF chain per-packet cycle cost (worst-case under the maximum):
 #
@@ -16,27 +17,6 @@ import matplotlib.pyplot as plt
 # Chain 5:
 # ?
 #
-
-# Cluster CPU core usage information
-class Snapshot(object):
-    def __init__(self, epoch, core, rate):
-        self._epoch_id = epoch
-        self._core_cnt = core
-        self._pkt_rate = rate
-
-def data_reader(file_name):
-    cluster_snapshots = []
-    with open(file_name) as f:
-        lines = f.readlines()
-        for line in lines:
-            if not ('core' in line and 'rate' in line):
-                continue
-
-            data = [float(m.split(':')[1]) for m in line.split(',')]
-            ss = Snapshot(data[0], data[1], data[2])
-            cluster_snapshots.append(ss)
-        f.close()
-    return cluster_snapshots
 
 # |y_data| is an list of tuple (data, color).
 def scatter_group_plot(x_data,
@@ -111,7 +91,7 @@ def main():
     per_packet_cycle_cost = 2632
 
     print("Input stats file: %s" %(stats_filename))
-    snapshots = data_reader(stats_filename)
+    snapshots = read_cluster_snapshot(stats_filename)
     x = [i for i in range(len(snapshots))]
     y1 = [s._core_cnt for s in snapshots]
     y2 = [s._pkt_rate for s in snapshots]
