@@ -64,6 +64,7 @@ CommandResponse NFVMonitor::Init([[maybe_unused]]const bess::pb::NFVMonitorArg &
   }
 
   epoch_packet_counter_ = 0;
+  epoch_max_packet_delay_ = 0;
   return CommandSuccess();
 }
 
@@ -127,6 +128,9 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     // per_core_latency_sample_.push_back(curr_ts_ns_ - get_hw_timestamp(pkt));
     epoch_packet_counter_ += 1;
     uint64_t pkt_delay = curr_ts_ns_ - get_hw_timestamp(pkt);
+    if (pkt_delay > epoch_max_packet_delay_) {
+      epoch_max_packet_delay_ = pkt_delay;
+    }
     if (pkt_delay > 200000) {
       epoch_slo_violation_counter_ += 1;
     }
@@ -176,12 +180,14 @@ bool NFVMonitor::update_traffic_stats() {
     core_snapshots_[next_epoch_id_].active_flow_count = active_flow_count_;
     core_snapshots_[next_epoch_id_].bursty_flow_count = msg->bursty_flows.size();
     core_snapshots_[next_epoch_id_].packet_rate = packet_rate_;
+    core_snapshots_[next_epoch_id_].max_packet_delay = epoch_max_packet_delay_;
     next_epoch_id_ += 1;
   }
 
   // Reset epoch
   per_flow_packet_counter_.clear();
   epoch_packet_counter_ = 0;
+  epoch_max_packet_delay_ = 0;
   epoch_slo_violation_counter_ = 0;
   last_update_traffic_stats_ts_ns_ = curr_ts_ns_;
   return true;
@@ -199,6 +205,7 @@ CommandResponse NFVMonitor::CommandGetSummary(const bess::pb::EmptyArg &) {
       out_fp << ", aflow:" << core_snapshots_[i].active_flow_count;
       out_fp << ", bflow:" << core_snapshots_[i].bursty_flow_count;
       out_fp << ", rate:" << core_snapshots_[i].packet_rate;
+      out_fp << ", mdelay:" << core_snapshots_[i].max_packet_delay;
       out_fp << std::endl;
     }
   }

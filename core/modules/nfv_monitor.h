@@ -66,6 +66,7 @@ class NFVMonitor final : public Module {
   uint32_t epoch_slo_violation_counter_;
   // Once a flow's packet counter exceeds this thresh, it is a bursty flow.
   uint32_t epoch_packet_thresh_;
+  uint32_t epoch_max_packet_delay_;
 
   // Traffic summary
   int active_flow_count_;

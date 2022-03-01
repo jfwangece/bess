@@ -56,9 +56,12 @@ class NFVCore final : public Module {
   uint64_t curr_ts_ns_;
 
   // Max number of new flows processed in a epoch
+  uint32_t epoch_packet_thresh_;
   uint32_t epoch_flow_thresh_;
+  uint32_t epoch_packet_counter_;
 
   // Flow cache
+  std::unordered_map<Flow, bool, FlowHash> epoch_flow_cache_;
   std::unordered_map<Flow, uint32_t, FlowHash> per_flow_packet_counter_;
 };
 

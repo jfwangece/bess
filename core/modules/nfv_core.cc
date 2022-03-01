@@ -18,13 +18,17 @@ const Commands NFVCore::cmds = {
 };
 
 CommandResponse NFVCore::Init([[maybe_unused]]const bess::pb::NFVCoreArg &arg) {
-  core_id_ =0;
+  core_id_ = 0;
   if (arg.core_id() > 0) {
     core_id_ = arg.core_id();
   }
   core_.core_id = core_id_;
-  epoch_flow_thresh_ = 20;
 
+  // Init
+  epoch_flow_thresh_ = 35;
+  epoch_packet_thresh_ = 80;
+  epoch_packet_counter_ = 0;
+  epoch_flow_cache_.clear();
   per_flow_packet_counter_.clear();
   return CommandSuccess();
 }
@@ -48,9 +52,6 @@ void NFVCore::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   curr_ts_ns_ = tsc_to_ns(rdtsc());
 
   update_traffic_stats();
-
-  // RunNextModule(ctx, batch);
-  // return;
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
@@ -78,19 +79,40 @@ void NFVCore::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       continue;
     }
 
-    // Find existing flow, if we have one.
-    std::unordered_map<Flow, uint32_t, FlowHash>::iterator it =
-        per_flow_packet_counter_.find(flow);
-    if (it != per_flow_packet_counter_.end()) {
+    // Drop bursty flows
+    if (per_flow_packet_counter_.find(flow) != per_flow_packet_counter_.end()) {
       DropPacket(ctx, pkt);
-    } else {
-      EmitPacket(ctx, pkt);
+      continue;
     }
+
+    // Find existing flow, if we have one.
+    auto epoch_flow_it = epoch_flow_cache_.find(flow);
+    if (epoch_flow_it == epoch_flow_cache_.end()) {
+      if (epoch_flow_cache_.size() > epoch_flow_thresh_) {
+        DropPacket(ctx, pkt);
+        continue;
+      }
+      epoch_flow_cache_.emplace(flow, true);
+    }
+
+    if (epoch_packet_counter_ > epoch_packet_thresh_) {
+      DropPacket(ctx, pkt);
+      continue;
+    }
+
+    epoch_packet_counter_ += 1;
+    EmitPacket(ctx, pkt);
   }
 }
 
 bool NFVCore::update_traffic_stats() {
   using bess::utils::all_core_stats_chan;
+
+  bool is_new_epoch = (all_core_stats_chan[core_id_]->Size() > 0);
+  if (is_new_epoch) {
+    epoch_flow_cache_.clear();
+    epoch_packet_counter_ = 0;
+  }
 
   CoreStats* stats_ptr = nullptr;
   while (all_core_stats_chan[core_id_]->Size()) {
@@ -102,6 +124,9 @@ bool NFVCore::update_traffic_stats() {
     }
     delete (stats_ptr);
     stats_ptr = nullptr;
+
+    epoch_flow_thresh_ = 35;
+    epoch_packet_thresh_ = 80;
   }
 
   return true;

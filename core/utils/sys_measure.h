@@ -56,6 +56,7 @@ struct CoreSnapshot {
   int active_flow_count; // Number of active flows
   int bursty_flow_count ; // Number of bursty flows
   float packet_rate; // Sum of a core's packet rate
+  uint32_t max_packet_delay; // Max per-packet latency
 };
 
 // Per-core performance statistics for making LB decisions
