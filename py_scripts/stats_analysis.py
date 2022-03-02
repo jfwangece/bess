@@ -24,6 +24,20 @@ def cdf_plot(x_data, title=None):
         ax.set_title(title)
     plt.grid(True)
 
+def cluster_plot(node_groups, title=None):
+    _, ax = plt.subplots()
+
+    for m,c,s,nodes in node_groups:
+        x_data = [node[0] for node in nodes]
+        y_data = [node[1] for node in nodes]
+        ax.scatter(x_data, y_data, marker=m, color=c, s=s)
+
+    ax.set_xlabel("Packet count")
+    ax.set_ylabel("Active flow count")
+    if title:
+        ax.set_title(title)
+    plt.grid(True)
+
 def get_percentile(p_val, x_data):
     if p_val < 0 or p_val > 100:
         return -1
@@ -32,11 +46,64 @@ def get_percentile(p_val, x_data):
     p_pos = int(p_val * (n - 1) / 100)
     return sorted_x_data[p_pos]
 
-def stats_analysis(core_id):
+def parse_core_snapshot(core_id):
     stats_filename = "stats%d.txt" %(core_id)
     stats_abs_dir = stats_dir + stats_filename
     snapshots = read_core_snapshot(stats_abs_dir)
+    return snapshots
 
+def generate_epoch_distribution_plot(core_snapshots, title):
+    snapshots = []
+    for i in range(len(core_snapshots)):
+        snapshots += core_snapshots[i]
+
+    epochs = [ss._epoch_cnt for ss in snapshots]
+    cdf_plot(epochs, title)
+    plt.savefig('slo_vio_epoch_dist_%s.png' %(title), dpi=600)
+
+def generate_slo_vio_signal_plot(core_snapshots, title=None):
+    """ nodes is a list of node groups.
+        Each node group is defined as (marker, color, a list of nodes)
+    """
+    slo_vio_nodes = []
+    non_slo_vio_nodes = []
+    for i in range(len(core_snapshots)):
+        slo, non_slo = slo_vio_analysis(core_snapshots[i])
+        slo_vio_nodes += slo
+        non_slo_vio_nodes += non_slo
+
+    node_groups = [('x', 'blue', 5, slo_vio_nodes), ('.', 'purple', 1, non_slo_vio_nodes)]
+    cluster_plot(node_groups, "blue: SLO-vio epoch; purple: non SLO-vio epoch")
+    if title:
+        plt.savefig('slo_vio_signal%s.png' %(title), dpi=600)
+    else:
+        plt.savefig('slo_vio_signal.png', dpi=600)
+
+
+# Get the (packet count, active flow count) for both non-SLO-violated and SLO-violated epochs.
+def slo_vio_analysis(snapshots):
+    slo_vio_nodes = []
+    non_slo_vio_nodes = []
+
+    n = len(snapshots)
+    for sidx in range(1, n-2):
+        is_both = 0
+        if snapshots[sidx]._slo_violations == 0 and snapshots[sidx+1]._slo_violations == 0 and snapshots[sidx+2]._slo_violations == 0:
+            is_both += 1
+            non_slo_vio_nodes.append((snapshots[sidx]._pkt_rate, snapshots[sidx]._active_flow_cnt))
+
+        #if snapshots[sidx-1]._slo_violations == 0 and snapshots[sidx]._slo_violations >= 5:
+        if snapshots[sidx]._slo_violations >= 5:
+            is_both += 1
+            slo_vio_nodes.append((snapshots[sidx]._pkt_rate, snapshots[sidx]._active_flow_cnt))
+
+        if is_both == 2:
+            print("Error")
+
+    return (slo_vio_nodes, non_slo_vio_nodes)
+
+# Get SLO-violation events.
+def stats_analysis(snapshots):
     short_term_slo_vio = []
     long_term_slo_vio = []
     # Count short/long-term SLO violation
@@ -59,19 +126,17 @@ def stats_analysis(core_id):
             epoch_with_slo_vio = 0
             pkt_with_slo_vio = 0
 
-    print("Core %d analysis:" %(core_id))
     print("Total epochs: %d" %(len(snapshots)))
     print("Short term SLO violations: %d" %(len(short_term_slo_vio)))
     print("Long term SLO violations: %d" %(len(long_term_slo_vio)))
     return (total_pkts, len(snapshots), short_term_slo_vio, long_term_slo_vio)
 
-def generate_epoch_distribution_plot(snapshots, title):
-    epochs = [ss._epoch_cnt for ss in snapshots]
-    cdf_plot(epochs, title)
-    plt.savefig('slo_vio_epoch_dist_%s.png' %(title), dpi=600)
-
 
 def main():
+    core_snapshots = []
+    for core_id in range(8):
+        core_snapshots.append(parse_core_snapshot(core_id))
+
     # Cluster-scale
     total_epochs = 0
     total_pkts = 0
@@ -88,9 +153,16 @@ def main():
     short_term_slo_vio = []
     long_term_slo_vio = []
 
-    per_core_results = []
-    for i in range(8):
-        per_core_results.append(stats_analysis(i))
+
+    for i in range(1, 8):
+        generate_slo_vio_signal_plot([core_snapshots[i]], "core%d" %(i))
+
+    return
+
+    per_core_results = [None]
+    for i in range(1, 8):
+        print("Core %d statistics analysis:" %(i))
+        per_core_results.append(stats_analysis(core_snapshots[i]))
         total_pkts += per_core_results[i][0]
         total_epochs += per_core_results[i][1]
         short_term_slo_vio += per_core_results[i][2]
