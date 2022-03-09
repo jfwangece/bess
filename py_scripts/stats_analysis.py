@@ -25,6 +25,9 @@ def cdf_plot(x_data, title=None):
     plt.grid(True)
 
 def cluster_plot(node_groups, title=None):
+    """ node_groups is a list of node_group.
+        Each node group is defined as (marker, color, a list of nodes)
+    """
     _, ax = plt.subplots()
 
     for m,c,s,nodes in node_groups:
@@ -52,18 +55,15 @@ def parse_core_snapshot(core_id):
     snapshots = read_core_snapshot(stats_abs_dir)
     return snapshots
 
-def generate_epoch_distribution_plot(core_snapshots, title):
-    snapshots = []
-    for i in range(len(core_snapshots)):
-        snapshots += core_snapshots[i]
-
-    epochs = [ss._epoch_cnt for ss in snapshots]
+def generate_epoch_distribution_plot(slo_events, title):
+    epochs = [se._epoch_cnt for se in slo_events]
     cdf_plot(epochs, title)
     plt.savefig('slo_vio_epoch_dist_%s.png' %(title), dpi=600)
 
 def generate_slo_vio_signal_plot(core_snapshots, title=None):
-    """ nodes is a list of node groups.
-        Each node group is defined as (marker, color, a list of nodes)
+    """ |core_snapshots| is a list of CoreSnapshot objects
+        This function first seperates SLO-violating and non-SLO-violating epochs.
+        THen, it calls |cluster_plot| function to generate node clusters in a plot.
     """
     slo_vio_nodes = []
     non_slo_vio_nodes = []
@@ -93,7 +93,7 @@ def slo_vio_analysis(snapshots):
             non_slo_vio_nodes.append((snapshots[sidx]._pkt_rate, snapshots[sidx]._active_flow_cnt))
 
         #if snapshots[sidx-1]._slo_violations == 0 and snapshots[sidx]._slo_violations >= 5:
-        if snapshots[sidx]._slo_violations >= 5:
+        if snapshots[sidx-1]._slo_violations >= 10 and snapshots[sidx]._slo_violations >= 10 and snapshots[sidx+1]._slo_violations >= 10:
             is_both += 1
             slo_vio_nodes.append((snapshots[sidx]._pkt_rate, snapshots[sidx]._active_flow_cnt))
 
@@ -153,12 +153,11 @@ def main():
     short_term_slo_vio = []
     long_term_slo_vio = []
 
-
+    # SLO-violation plot
     for i in range(1, 8):
         generate_slo_vio_signal_plot([core_snapshots[i]], "core%d" %(i))
 
-    return
-
+    # SLO-event statistics
     per_core_results = [None]
     for i in range(1, 8):
         print("Core %d statistics analysis:" %(i))
@@ -195,11 +194,12 @@ def main():
     print(" - cnt=%d; epochs=%d [%.2f%%]; pkts=%d [%.2f%%]" %(len(long_term_slo_vio), long_term_slo_vio_epochs, long_term_slo_vio_epoch_ratio, \
         long_term_slo_vio_pkts, long_term_slo_vio_pkt_ratio))
 
-    # Plots
+    # SLO-violating event plots
     generate_epoch_distribution_plot(short_term_slo_vio, "short")
     generate_epoch_distribution_plot(long_term_slo_vio, "long")
     generate_epoch_distribution_plot(short_term_slo_vio + long_term_slo_vio, "Epoch distribution of SLO violation events")
 
+    # Percentiles of SLO-violating events' duration
     epochs = [ss._epoch_cnt for ss in all_slo_vio]
     print(get_percentile(90, epochs))
     print(get_percentile(95, epochs))
