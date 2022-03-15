@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from utils import CoreSnapshot, SLOEvent
 from utils import read_core_snapshot
 
-stats_dir = "../"
+stats_dir = "../stats_0314/"
 
 def cdf_plot(x_data, title=None):
     _, ax = plt.subplots()
@@ -24,26 +24,12 @@ def cdf_plot(x_data, title=None):
         ax.set_title(title)
     plt.grid(True)
 
-def cluster_plot(node_groups, title=None):
-    """ node_groups is a list of node_group.
-        Each node group is defined as (marker, color, a list of nodes)
-    """
-    _, ax = plt.subplots()
-
-    for m,c,s,nodes in node_groups:
-        x_data = [node[0] for node in nodes]
-        y_data = [node[1] for node in nodes]
-        ax.scatter(x_data, y_data, marker=m, color=c, s=s)
-
-    ax.set_xlabel("Packet count")
-    ax.set_ylabel("Active flow count")
-    if title:
-        ax.set_title(title)
-    plt.grid(True)
-
 def get_percentile(p_val, x_data):
+    if len(x_data) < 100:
+        return "Na (not enough samples)"
     if p_val < 0 or p_val > 100:
-        return -1
+        return "Na (p val out of range)"
+
     sorted_x_data = sorted(x_data)
     n = len(sorted_x_data)
     p_pos = int(p_val * (n - 1) / 100)
@@ -60,47 +46,6 @@ def generate_epoch_distribution_plot(slo_events, title):
     cdf_plot(epochs, title)
     plt.savefig('slo_vio_epoch_dist_%s.png' %(title), dpi=600)
 
-def generate_slo_vio_signal_plot(core_snapshots, title=None):
-    """ |core_snapshots| is a list of CoreSnapshot objects
-        This function first seperates SLO-violating and non-SLO-violating epochs.
-        THen, it calls |cluster_plot| function to generate node clusters in a plot.
-    """
-    slo_vio_nodes = []
-    non_slo_vio_nodes = []
-    for i in range(len(core_snapshots)):
-        slo, non_slo = slo_vio_analysis(core_snapshots[i])
-        slo_vio_nodes += slo
-        non_slo_vio_nodes += non_slo
-
-    node_groups = [('x', 'blue', 5, slo_vio_nodes), ('.', 'purple', 1, non_slo_vio_nodes)]
-    cluster_plot(node_groups, "blue: SLO-vio epoch; purple: non SLO-vio epoch")
-    if title:
-        plt.savefig('slo_vio_signal%s.png' %(title), dpi=600)
-    else:
-        plt.savefig('slo_vio_signal.png', dpi=600)
-
-
-# Get the (packet count, active flow count) for both non-SLO-violated and SLO-violated epochs.
-def slo_vio_analysis(snapshots):
-    slo_vio_nodes = []
-    non_slo_vio_nodes = []
-
-    n = len(snapshots)
-    for sidx in range(1, n-2):
-        is_both = 0
-        if snapshots[sidx]._slo_violations == 0 and snapshots[sidx+1]._slo_violations == 0 and snapshots[sidx+2]._slo_violations == 0:
-            is_both += 1
-            non_slo_vio_nodes.append((snapshots[sidx]._pkt_rate, snapshots[sidx]._active_flow_cnt))
-
-        #if snapshots[sidx-1]._slo_violations == 0 and snapshots[sidx]._slo_violations >= 5:
-        if snapshots[sidx-1]._slo_violations >= 10 and snapshots[sidx]._slo_violations >= 10 and snapshots[sidx+1]._slo_violations >= 10:
-            is_both += 1
-            slo_vio_nodes.append((snapshots[sidx]._pkt_rate, snapshots[sidx]._active_flow_cnt))
-
-        if is_both == 2:
-            print("Error")
-
-    return (slo_vio_nodes, non_slo_vio_nodes)
 
 # Get SLO-violation events.
 def stats_analysis(snapshots):
@@ -153,10 +98,6 @@ def main():
     short_term_slo_vio = []
     long_term_slo_vio = []
 
-    # SLO-violation plot
-    for i in range(1, 8):
-        generate_slo_vio_signal_plot([core_snapshots[i]], "core%d" %(i))
-
     # SLO-event statistics
     per_core_results = [None]
     for i in range(1, 8):
@@ -166,6 +107,7 @@ def main():
         total_epochs += per_core_results[i][1]
         short_term_slo_vio += per_core_results[i][2]
         long_term_slo_vio += per_core_results[i][3]
+
     all_slo_vio = short_term_slo_vio + long_term_slo_vio
 
     for x in short_term_slo_vio:
@@ -200,10 +142,11 @@ def main():
     generate_epoch_distribution_plot(short_term_slo_vio + long_term_slo_vio, "Epoch distribution of SLO violation events")
 
     # Percentiles of SLO-violating events' duration
-    epochs = [ss._epoch_cnt for ss in all_slo_vio]
-    print(get_percentile(90, epochs))
-    print(get_percentile(95, epochs))
-    print(get_percentile(99, epochs))
+    slo_vio_event_epochs = [ss._epoch_cnt for ss in all_slo_vio]
+
+    print(get_percentile(90, slo_vio_event_epochs))
+    print(get_percentile(95, slo_vio_event_epochs))
+    print(get_percentile(99, slo_vio_event_epochs))
 
     return
 
