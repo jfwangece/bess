@@ -50,8 +50,10 @@ class NFVMonitor final : public Module {
 
   // Timestamp
   uint64_t curr_ts_ns_;
+  uint64_t curr_nic_ts_ns_;
   uint64_t last_update_traffic_stats_ts_ns_;
   uint64_t update_traffic_stats_period_ns_;
+
   int next_epoch_id_; // Performance statistics recorded in Epoch
 
   // Core statistics
@@ -62,11 +64,14 @@ class NFVMonitor final : public Module {
 
   // Core statistics
   boost::circular_buffer<uint64_t> per_core_latency_sample_;
-  uint32_t epoch_packet_counter_;
-  uint32_t epoch_slo_violation_counter_;
+  uint16_t epoch_packet_counter_;
+  uint16_t epoch_queue_length_;
+  uint16_t epoch_slo_violation_counter_;
+  uint16_t epoch_packet_delay_error_;
+  uint16_t epoch_packet_delay_max_;
+
   // Once a flow's packet counter exceeds this thresh, it is a bursty flow.
-  uint32_t epoch_packet_thresh_;
-  uint32_t epoch_max_packet_delay_;
+  uint16_t epoch_packet_thresh_;
 
   // Traffic summary
   int active_flow_count_;

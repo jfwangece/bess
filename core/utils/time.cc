@@ -30,9 +30,19 @@
 
 #include "time.h"
 
+#include <rte_ethdev.h>
+
 #include <unistd.h>
 
+uint16_t nic_port_id = 0;
 uint64_t tsc_hz;
+uint64_t nic_tsc_hz;
+
+uint64_t nic_rdtsc(void) {
+  uint64_t nic_tsc;
+  rte_eth_read_clock(nic_port_id, &nic_tsc);
+  return nic_tsc;
+}
 
 namespace {
 

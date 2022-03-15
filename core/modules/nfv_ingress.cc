@@ -300,7 +300,7 @@ void NFVIngress::quadrant_migrate() {
 
 int NFVIngress::quadrant_pick_core() {
   int core_id = 0;
-  int max_per_core_packet_rate = -1;
+  uint32_t max_per_core_packet_rate = 0;
   for (auto &it : cpu_cores_) {
     if (is_idle_core(it.core_id)) { continue; }
     if (it.packet_rate >= quadrant_assign_packet_rate_thresh_) { continue; }
