@@ -31,7 +31,6 @@
 #include "pmd.h"
 
 #include <rte_bus_pci.h>
-#include <rte_ethdev.h>
 
 #include "../utils/ether.h"
 #include "../utils/format.h"
@@ -113,7 +112,7 @@ static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
 void PMDPort::UpdateRssReta() {
   int remapping_count = 1;
   for (size_t j = 0; j < reta_size_; j++) {
-    reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = j % 8;
+    reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = j % 9;
   }
 
   if (remapping_count) {
@@ -172,6 +171,21 @@ void PMDPort::BenchUpdateRssReta() {
 
   LOG(INFO) << "Bench rss: flow table update";
   LOG(INFO) << " - update time: " << tsc_to_us(sum_cycle / 3) << " usec";
+}
+
+void PMDPort::BenchRXQueueCount() {
+  uint64_t start, sum_cycle;
+
+  sum_cycle = 0;
+  for (int i = 0; i < 5; i++) {
+    start = rdtsc();
+    rte_eth_rx_queue_count(dpdk_port_id_, 0);
+    sum_cycle += rdtsc() - start;
+    rte_delay_ms(100);
+  }
+
+  LOG(INFO) << "Bench rx_queue_count:";
+  LOG(INFO) << " - query time: " << tsc_to_us(sum_cycle / 5) << " usec";
 }
 
 void PMDPort::TurnOnOffIntr(queue_t qid, bool on) {
@@ -504,6 +518,14 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
 
   // Find the timestamp conversion equation
   if (timestamp_enabled_) {
+    nic_port_id = dpdk_port_id_;
+
+    uint64_t start, end;
+    rte_eth_read_clock(dpdk_port_id_, &start);
+    usleep(100000);  // 0.1 sec
+    rte_eth_read_clock(dpdk_port_id_, &end);
+    nic_tsc_hz = (end - start) * 10;
+
     linear_re_lock_.lock();
     system_shutdown_ = false;
     linear_re_lock_.unlock();
@@ -520,6 +542,13 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   // Run a set of NIC RSS benchmarks
   if (bench_rss_) {
     BenchUpdateRssReta();
+  }
+
+  int q_pkt_count = rte_eth_rx_queue_count(dpdk_port_id_, 0);
+  if (q_pkt_count >= 0) {
+    BenchRXQueueCount();
+  } else {
+    LOG(INFO) << "RX queue count func is not supported. Error code: " << q_pkt_count;
   }
 
   return CommandSuccess();
@@ -540,7 +569,7 @@ void PMDPort::SyncClock() {
   bool is_shutdown = false;
   while(1) {
     LinearRegression<uint64_t> linear_re;
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 8; i++) {
       rte_eth_read_clock(dpdk_port_id_, &dat_x);
       dat_y = rdtsc();
       linear_re.AddData(dat_x, dat_y);
@@ -557,7 +586,7 @@ void PMDPort::SyncClock() {
       break;
     }
 
-    rte_delay_ms(10000);
+    rte_delay_ms(15000);
   }
 }
 

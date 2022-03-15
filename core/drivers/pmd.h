@@ -31,6 +31,7 @@
 #ifndef BESS_DRIVERS_PMD_H_
 #define BESS_DRIVERS_PMD_H_
 
+#include <shared_mutex>
 #include <string>
 
 #include <rte_config.h>
@@ -41,7 +42,6 @@
 #include "../module.h"
 #include "../port.h"
 #include "../utils/regression.h"
-#include <shared_mutex>
 
 typedef uint16_t dpdk_port_t;
 
@@ -146,6 +146,10 @@ class PMDPort final : public Port {
     return node_placement_;
   }
 
+  dpdk_port_t get_dpdk_port_id() {
+    return dpdk_port_id_;
+  }
+
   /*
    * Converts NIC ticks to CPU cylces.
    * This function is called on every packet received and is supposed to be
@@ -162,6 +166,7 @@ class PMDPort final : public Port {
   void UpdateRssReta();
   void UpdateRssFlow();
   void BenchUpdateRssReta();
+  void BenchRXQueueCount();
 
   // NIC's RSS indirection table; Mellanox: 512;
   struct rte_eth_rss_reta_entry64 reta_conf_[8];

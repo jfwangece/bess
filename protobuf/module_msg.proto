@@ -990,6 +990,12 @@ message NFVMonitorArg {
 
 message NFVCoreArg {
   int32 core_id = 1; /// The target CPU core's ID
+  string port = 2;
+  uint64 qid = 3;
+}
+
+message NFVCoreCommandSetBurstArg {
+  uint64 burst = 1; /// The maximum number of packets to release in a packetbatch from the module.
 }
 
 message NFVSwitchArg {

@@ -123,7 +123,7 @@ class NFVIngress final : public Module {
   float quadrant_migrate_packet_rate_thresh_; // start migrating flows
 
   // Traffic-aware parameters
-  int ta_flow_count_thresh_; // Stop assigning more flows
+  uint32_t ta_flow_count_thresh_; // Stop assigning more flows
 
   // Per-flow connection table
   std::unordered_map<Flow, FlowRoutingRule, FlowHash> flow_cache_;

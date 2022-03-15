@@ -12,7 +12,7 @@ short_update_stats_period = int($BESS_SSTATS_PERIOD!"200000")
 exp_idx = int($BESS_EXP!"1")
 
 # By default, pick MLX NICs
-pcie0, offset0="af:00.0", 8
+pcie0, offset0="af:00.0", 7
 if nic != 0:
     pcie0, offset0="5e:00.0", 1
 
@@ -25,6 +25,7 @@ core_addrs = [
     {'l2_port': 5, 'l2_mac': '06:8a:62:fb:51:51'},
     {'l2_port': 6, 'l2_mac': 'ce:2e:14:c4:a0:cb'},
     {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
+    {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
 ]
 core_cnt=len(core_addrs)
 
@@ -52,20 +53,29 @@ nfvmo = {}
 
 # Pipeline
 for i in range(len(core_addrs)):
-    pinc0[i] = QueueInc(port=port0, qid=i)
     pout0[i] = QueueOut(port=port0, qid=i)
     fw[i] = FlowACL(rules=acl_rules)
     lb[i] = FlowLB(endpoints=nat_hosts)
     monitor[i] = FlowCounter()
 
     if exp_idx == 0:
+        pinc0[i] = QueueInc(port=port0, qid=i)
         nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
-        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
+        if i == 0:
+            pinc0[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
+        else:
+            pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
     elif exp_idx == 1:
-        nfvig[i] = NFVCore(core_id=i)
+        pinc0[i] = QueueInc(port=port0, qid=i)
+        nfvig[i] = NFVCore(core_id=i, port="", qid=0)
         nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
         pinc0[i] -> nfvig[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
+    elif exp_idx == 2:
+        pinc0[i] = NFVCore(core_id=i, port=port0, qid=i)
+        nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
+        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
     else:
+        pinc0[i] = QueueInc(port=port0, qid=i)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> pout0[i]
 
 # Burst
@@ -73,8 +83,8 @@ for i in range(core_cnt):
     pinc0[i].set_burst(burst=burst_size)
 
 # Core
-bess.add_worker(wid=14, core=14)
-nfvctrl.attach_task(wid=14)
+bess.add_worker(wid=15, core=15)
+nfvctrl.attach_task(wid=15)
 
 for i in range(core_cnt):
     bess.add_worker(wid=i+offset0, core=i+offset0)

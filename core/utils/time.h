@@ -37,7 +37,9 @@
 
 #include <sys/time.h>
 
+extern uint16_t nic_port_id;
 extern uint64_t tsc_hz;
+extern uint64_t nic_tsc_hz;
 
 static inline uint64_t rdtsc(void) {
   uint32_t hi, lo;
@@ -45,12 +47,22 @@ static inline uint64_t rdtsc(void) {
   return (uint64_t)lo | ((uint64_t)hi << 32);
 }
 
+uint64_t nic_rdtsc(void);
+
 static inline uint64_t tsc_to_ns(uint64_t cycles) {
   return cycles * 1000000000.0 / tsc_hz;
 }
 
 static inline double tsc_to_us(uint64_t cycles) {
   return cycles * 1000000.0 / tsc_hz;
+}
+
+static inline uint64_t nic_tsc_to_ns(uint64_t cycles) {
+  return cycles * 1000000000.0 / nic_tsc_hz;
+}
+
+static inline double nic_tsc_to_us(uint64_t cycles) {
+  return cycles * 1000000.0 / nic_tsc_hz;
 }
 
 /* Return current time in seconds since the Epoch.
