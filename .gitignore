@@ -16,6 +16,8 @@ env/.vagrant
 # VM images
 
 # Object files
+*.pcap
+*.png
 *.pyc
 *.o
 *.ko
