@@ -5,6 +5,7 @@
 #include <thread>
 
 #include "../module_graph.h"
+#include "../utils/sys_measure.h"
 
 namespace {
 std::chrono::milliseconds DEFAULT_SLEEP_DURATION(100);
@@ -33,6 +34,10 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   assert(total_core_count_ == cpu_cores_.size());
 
   curr_ts_ns_ = 0;
+
+  if (arg.slo_ns() > 0) {
+    bess::utils::slo_ns = arg.slo_ns();
+  }
 
   return CommandSuccess();
 }

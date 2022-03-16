@@ -4,7 +4,10 @@ namespace bess{
 namespace utils {
 
 CoreStats *volatile all_local_core_stats[20];
+
 LockLessQueue<CoreStats*> *volatile all_core_stats_chan[20];
+
+uint32_t slo_ns = 1000000; // Default 1 ms
 
 void SysMeasureInit() {
   for (int i = 0; i < 20; i++) {

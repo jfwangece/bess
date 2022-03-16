@@ -94,6 +94,9 @@ extern CoreStats *volatile all_local_core_stats[20];
 // Core statistics message channel
 extern LockLessQueue<CoreStats*> *volatile all_core_stats_chan[20];
 
+// Target latency SLO
+extern uint32_t slo_ns;
+
 void SysMeasureInit();
 void SysMeasureDeinit();
 

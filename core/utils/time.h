@@ -37,8 +37,11 @@
 
 #include <sys/time.h>
 
-extern uint16_t nic_port_id;
+// CPU tick frequency
 extern uint64_t tsc_hz;
+
+// NIC tick frequency
+extern uint16_t nic_port_id;
 extern uint64_t nic_tsc_hz;
 
 static inline uint64_t rdtsc(void) {

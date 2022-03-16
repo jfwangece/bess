@@ -19,16 +19,24 @@
 namespace {
 
 // The helper function for reading hw timestamp from |pkt| (unit: ns).
-uint64_t get_hw_timestamp(bess::Packet *pkt) {
+uint64_t get_hw_timestamp_nic(bess::Packet *pkt) {
   uint64_t nic_cycle = reinterpret_cast<rte_mbuf*>(pkt)->timestamp;
   return nic_tsc_to_ns(nic_cycle);
+}
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+
+uint64_t get_hw_timestamp_cpu(bess::Packet *pkt) {
+  uint64_t nic_cycle = reinterpret_cast<rte_mbuf*>(pkt)->timestamp;
   // Need to get the port name from the user. For now using the first element
   // as we have only 1 port in the test setup.
   Port *port = PortBuilder::all_ports().begin()->second;
   uint64_t cpu_cycle = ((PMDPort*)port)->NICCycleToCPUCycle(nic_cycle);
   return tsc_to_ns(cpu_cycle);
 }
+
+#pragma GCC diagnostic pop
 
 } /// namespace
 
@@ -126,10 +134,10 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     //   it->second += 1;
     // }
 
-    // per_core_latency_sample_.push_back(curr_ts_ns_ - get_hw_timestamp(pkt));
+    // per_core_latency_sample_.push_back(curr_ts_ns_ - get_hw_timestamp_cpu(pkt));
     epoch_packet_counter_ += 1;
 
-    uint64_t pkt_ts_ns = get_hw_timestamp(pkt);
+    uint64_t pkt_ts_ns = get_hw_timestamp_nic(pkt);
     uint32_t pkt_delay = 0;
     if (curr_nic_ts_ns_ > pkt_ts_ns) {
       pkt_delay = (uint32_t)(curr_nic_ts_ns_ - pkt_ts_ns);
@@ -141,7 +149,7 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       if (pkt_delay > epoch_packet_delay_max_) {
         epoch_packet_delay_max_ = pkt_delay;
       }
-      if (pkt_delay > (uint32_t)200000) {
+      if (pkt_delay > bess::utils::slo_ns) {
         epoch_slo_violation_counter_ += 1;
       }
     }
