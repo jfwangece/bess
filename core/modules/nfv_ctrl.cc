@@ -9,6 +9,7 @@
 #include "../module_graph.h"
 #include "../utils/sys_measure.h"
 
+#define UPDATE_PERIOD 5000000000
 namespace {
 std::chrono::milliseconds DEFAULT_SLEEP_DURATION(100);
 } // namespace
@@ -132,6 +133,8 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   }
 
   total_core_count_ = 0;
+  update_period_ = UPDATE_PERIOD;
+  last_update_time_ = tsc_to_ns(rdtsc());
   for (const auto &core_addr : arg.core_addrs()) {
     cpu_cores_.push_back(
       WorkerCore {
@@ -139,6 +142,7 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
         worker_port: core_addr.l2_port(),
         nic_addr: core_addr.l2_mac()}
     );
+    total_core_count_ += 1;
   }
   assert(total_core_count_ == cpu_cores_.size());
 
@@ -149,6 +153,31 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   }
 
   return CommandSuccess();
+}
+void NFVCtrl::write_to_gurobi(uint32_t num_cores, std::vector<float> flow_rates, float latency_bound) {
+  LOG(INFO) << num_cores << flow_rates.size() << latency_bound;
+  std::ofstream file_out;
+  file_out.open("./gurobi_in");
+  file_out << num_cores <<std::endl;
+  file_out << flow_rates.size() << std::endl;
+  file_out << std::fixed <<latency_bound <<std::endl;
+  for (auto &it : flow_rates) {
+    file_out << it<< std::endl;
+  }
+ file_out.close();
+}
+
+void NFVCtrl::UpdateFlowAssignment() {
+  std::vector<float> flow_rate_per_bucket;
+  int i = 0;
+  bess::utils::bucket_table_lock.lock();
+  for (i=0; i< RETA_SIZE; i++) {
+    flow_rate_per_bucket.push_back(bess::utils::per_bucket_packet_counter[i]*1000000000/update_period_);
+    bess::utils::per_bucket_packet_counter[i] = 0;
+  }
+  bess::utils::bucket_table_lock.unlock();
+  
+  write_to_gurobi(total_core_count_, flow_rate_per_bucket,slo_p50_);
 }
 
 void NFVCtrl::DeInit() {
@@ -166,6 +195,10 @@ CommandResponse NFVCtrl::CommandGetSummary([[maybe_unused]]const bess::pb::Empty
 }
 
 struct task_result NFVCtrl::RunTask(Context *ctx, bess::PacketBatch *batch, void *) {
+  if (tsc_to_ns(rdtsc()) - last_update_time_ > update_period_) {
+    UpdateFlowAssignment();
+    last_update_time_ = tsc_to_ns(rdtsc());
+  }
   RunNextModule(ctx, batch); // To avoid [-Werror=unused-parameter] error
   return {.block = false, .packets = 0, .bits = 0};
 }

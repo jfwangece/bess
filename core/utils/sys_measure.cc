@@ -6,7 +6,11 @@ namespace utils {
 CoreStats *volatile all_local_core_stats[20];
 
 LockLessQueue<CoreStats*> *volatile all_core_stats_chan[20];
-
+uint64_t per_bucket_packet_counter[RETA_SIZE] = {0};
+std::shared_mutex bucket_table_lock;
+uint32_t rss_hash_to_id(uint32_t hash) {
+  return hash & (RETA_SIZE-1);
+}
 uint32_t slo_ns = 1000000; // Default 1 ms
 
 void SysMeasureInit() {

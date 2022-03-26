@@ -3,12 +3,20 @@
 
 #include <cstdint>
 #include <vector>
+#include <shared_mutex>
 
 #include "flow.h"
 #include "lock_less_queue.h"
 
+#define RETA_SIZE 512
 namespace bess{
 namespace utils {
+
+// Since different cores are expected to work on different index we don't
+// synchronize between cores.
+extern uint64_t per_bucket_packet_counter[RETA_SIZE];
+extern std::shared_mutex bucket_table_lock;
+uint32_t rss_hash_to_id(uint32_t hash);
 
 struct Snapshot {
   Snapshot(int t_id) {

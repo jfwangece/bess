@@ -134,6 +134,17 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     //   it->second += 1;
     // }
 
+    uint32_t id = bess::utils::rss_hash_to_id(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
+    packet_counter_lock_.lock();
+    bess::utils::bucket_table_lock.lock_shared();
+    /*
+     * Access within the same core is synchronized by packet_counter_lock.
+     * We don't need to synchronize between cores as they are expected to
+     * access differnt indexes.
+     */
+    bess::utils::per_bucket_packet_counter[id] += 1;
+    bess::utils::bucket_table_lock.unlock_shared();
+    packet_counter_lock_.unlock();
     // per_core_latency_sample_.push_back(curr_ts_ns_ - get_hw_timestamp_cpu(pkt));
     epoch_packet_counter_ += 1;
 
