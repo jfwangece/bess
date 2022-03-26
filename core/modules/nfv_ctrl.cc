@@ -1,5 +1,6 @@
 #include "nfv_ctrl.h"
 #include "nfv_ctrl_msg.h"
+#include "nfv_core.h"
 #include "nfv_monitor.h"
 
 #include <chrono>
@@ -16,9 +17,11 @@ std::chrono::milliseconds DEFAULT_SLEEP_DURATION(100);
 
 NFVCtrl *nfv_ctrl = nullptr;
 
-struct llring* sw_q[DEFAULT_SWQ_COUNT];
+NFVCore* nfv_cores[DEFAULT_INVALID_CORE_ID] = {nullptr};
 
-rte_atomic16_t* sw_q_state[DEFAULT_SWQ_COUNT];
+struct llring* sw_q[DEFAULT_SWQ_COUNT] = {nullptr};
+
+SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr};
 
 void NFVCtrlMsgInit(int slots) {
   int bytes = llring_bytes_with_slots(slots);
@@ -46,11 +49,24 @@ void NFVCtrlMsgDeInit() {
 
 // Transfer the ownership of (at most) |n| software packet queues
 // to NFVCore (who calls this function)
-uint64_t NFVCtrlRequestSwQ(int core_id, int n) {
-  if (nfv_ctrl != nullptr) {
-    return nfv_ctrl->RequestSwQ(core_id, n);
+void NFVCtrlRequestSwQ(cpu_core_t core_id, int n) {
+  if (nfv_cores[core_id] == nullptr) {
+    for (int i = 0; i < DEFAULT_INVALID_CORE_ID; i++){
+      std::string core_name = "nfv_core" + std::to_string(i);
+      for (const auto &it : ModuleGraph::GetAllModules()) {
+        if (it.first.find(core_name) != std::string::npos) {
+          nfv_cores[i] = ((NFVCore *)(it.second));
+        }
+      }
+    }
   }
-  return 0;
+
+  if (nfv_ctrl != nullptr) {
+    uint64_t bitmask = nfv_ctrl->RequestNSwQ(core_id, n);
+    if (bitmask > 0) {
+      return;
+    }
+  }
 }
 
 /// NFVCtrl's own functions
@@ -60,22 +76,50 @@ const Commands NFVCtrl::cmds = {
      Command::THREAD_SAFE},
 };
 
-uint64_t NFVCtrl::RequestSwQ(int core_id, int n) {
-  if (core_id < 0) {
-    return 0;
+uint64_t NFVCtrl::RequestNSwQ(cpu_core_t core_id, int n) {
+  uint64_t bitmask = 0;
+  if (core_id == DEFAULT_INVALID_CORE_ID) {
+    return bitmask;
   }
 
-  uint64_t q_bitmask = 0;
   int cnt = 0;
+  std::unique_lock lock(sw_q_mtx_);
+
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
-    if (sw_q_state[i] ) {
-      q_bitmask |= 1 << i;
+    if (sw_q_state[i]->up_core_id == DEFAULT_INVALID_CORE_ID) {
+      sw_q_state[i]->up_core_id = core_id;
+      bitmask |= 1 << i;
     }
     if (cnt == n) {
       break;
     }
   }
-  return q_bitmask;
+  return bitmask;
+}
+
+int NFVCtrl::RequestSwQ(cpu_core_t core_id) {
+  if (core_id == DEFAULT_INVALID_CORE_ID) {
+    return DEFAULT_SWQ_COUNT;
+  }
+
+  int i;
+  std::unique_lock lock(sw_q_mtx_);
+
+  for (i = 0; i < DEFAULT_SWQ_COUNT; i++) {
+    if (sw_q_state[i]->up_core_id == DEFAULT_INVALID_CORE_ID) {
+      sw_q_state[i]->up_core_id = core_id;
+      return i;
+    }
+  }
+  return i;
+}
+
+void NFVCtrl::ReleaseSwQ(int q_id) {
+  std::unique_lock lock(sw_q_mtx_);
+
+  if (q_id >= 0 && q_id < DEFAULT_SWQ_COUNT) {
+    sw_q_state[q_id]->up_core_id = DEFAULT_INVALID_CORE_ID;
+  }
 }
 
 CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {

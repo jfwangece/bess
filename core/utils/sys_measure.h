@@ -10,33 +10,6 @@
 namespace bess{
 namespace utils {
 
-// This struct represents an active worker core
-// |core_id|: the unique CPU core ID number
-// |worker_port|, |nic_addr|: routing information
-// |active_flows|: a set of active flows assigned to this core
-struct WorkerCore {
-  WorkerCore() = default;
-  WorkerCore(int core, int port, std::string addr) {
-    core_id = core; worker_port = port; nic_addr = addr;
-    active_flow_count = 0; packet_rate = 0; idle_period_count = 0;
-    per_flow_packet_counter.clear();
-  };
-
-  // Core info
-  int core_id;
-  int worker_port;
-  std::string nic_addr;
-  // Traffic statistics
-  uint32_t active_flow_count;
-  uint32_t packet_rate;
-  uint32_t idle_period_count;
-  uint64_t p99_latency;
-  // Timestamp
-  uint64_t last_migrating_ts_ns_;
-  // Flow statistics
-  std::unordered_map<Flow, uint64_t, FlowHash> per_flow_packet_counter;
-};
-
 struct Snapshot {
   Snapshot(int t_id) {
     epoch_id = t_id; active_core_count = 0; sum_packet_rate = 0;

@@ -301,6 +301,11 @@ bool NFVCore::update_traffic_stats() {
   bool is_new_epoch = (all_core_stats_chan[core_id_]->Size() > 0);
 
   if (is_new_epoch) {
+    // At the end of one epoch, NFVCore requests software queues to
+    // absorb the existing packet queue in the coming epoch.
+    RequestNSwQ(core_id_, 4);
+
+
     CoreStats* stats_ptr = nullptr;
     while (all_core_stats_chan[core_id_]->Size()) {
       all_core_stats_chan[core_id_]->Pop(stats_ptr);

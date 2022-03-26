@@ -4,6 +4,7 @@
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
 #include "../port.h"
+#include "../utils/cpu_core.h"
 #include "../utils/flow.h"
 #include "../utils/ip.h"
 #include "../utils/sys_measure.h"
@@ -13,6 +14,10 @@ using bess::utils::FlowHash;
 using bess::utils::FlowRoutingRule;
 using bess::utils::CoreStats;
 using bess::utils::WorkerCore;
+
+// Assumption:
+// if |active_flow_count| increases, |packet_count| will decrease
+// Then, the admission process can be a packing problem.
 
 class NFVCore final : public Module {
  public:
@@ -42,7 +47,7 @@ class NFVCore final : public Module {
  private:
   int Resize(int slots);
 
-  int core_id_;
+  cpu_core_t core_id_;
   WorkerCore core_;
 
   // NIC queue (port, qid)

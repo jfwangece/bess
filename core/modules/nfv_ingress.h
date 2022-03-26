@@ -7,6 +7,7 @@
 
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
+#include "../utils/cpu_core.h"
 #include "../utils/flow.h"
 #include "../utils/ip.h"
 #include "../utils/sys_measure.h"
