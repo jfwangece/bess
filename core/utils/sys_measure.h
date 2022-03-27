@@ -14,9 +14,6 @@ namespace utils {
 
 // Since different cores are expected to work on different index we don't
 // synchronize between cores.
-extern uint64_t per_bucket_packet_counter[RETA_SIZE];
-extern std::shared_mutex bucket_table_lock;
-uint32_t rss_hash_to_id(uint32_t hash);
 
 struct Snapshot {
   Snapshot(int t_id) {
@@ -69,6 +66,17 @@ class CoreStats {
   std::vector<Flow> bursty_flows;
 };
 
+class BucketStats {
+  public:
+   BucketStats() {}
+   uint64_t per_bucket_packet_counter[RETA_SIZE] = {0};
+   std::shared_mutex bucket_table_lock;
+   uint32_t rss_hash_to_id(uint32_t hash) {
+     return hash & (RETA_SIZE-1);
+   }
+};
+
+extern BucketStats bucket_stats;
 // Core statistics buffer
 extern CoreStats *volatile all_local_core_stats[20];
 

@@ -10,6 +10,7 @@
 #include "../utils/sys_measure.h"
 
 #define UPDATE_PERIOD 5000000000
+
 namespace {
 std::chrono::milliseconds DEFAULT_SLEEP_DURATION(100);
 } // namespace
@@ -170,12 +171,12 @@ void NFVCtrl::write_to_gurobi(uint32_t num_cores, std::vector<float> flow_rates,
 void NFVCtrl::UpdateFlowAssignment() {
   std::vector<float> flow_rate_per_bucket;
   int i = 0;
-  bess::utils::bucket_table_lock.lock();
+  bess::utils::bucket_stats.bucket_table_lock.lock();
   for (i=0; i< RETA_SIZE; i++) {
-    flow_rate_per_bucket.push_back(bess::utils::per_bucket_packet_counter[i]*1000000000/update_period_);
-    bess::utils::per_bucket_packet_counter[i] = 0;
+    flow_rate_per_bucket.push_back(bess::utils::bucket_stats.per_bucket_packet_counter[i]*1000000000/update_period_);
+    bess::utils::bucket_stats.per_bucket_packet_counter[i] = 0;
   }
-  bess::utils::bucket_table_lock.unlock();
+  bess::utils::bucket_stats.bucket_table_lock.unlock();
   
   write_to_gurobi(total_core_count_, flow_rate_per_bucket,slo_p50_);
 }
