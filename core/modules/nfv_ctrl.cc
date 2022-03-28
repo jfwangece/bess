@@ -134,8 +134,8 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   }
 
   total_core_count_ = 0;
-  update_period_ = UPDATE_PERIOD;
-  last_update_time_ = tsc_to_ns(rdtsc());
+  long_epoch_update_period_ = UPDATE_PERIOD;
+  long_epoch_last_update_time_ = tsc_to_ns(rdtsc());
   for (const auto &core_addr : arg.core_addrs()) {
     cpu_cores_.push_back(
       WorkerCore {
@@ -173,7 +173,7 @@ void NFVCtrl::UpdateFlowAssignment() {
   int i = 0;
   bess::utils::bucket_stats.bucket_table_lock.lock();
   for (i=0; i< RETA_SIZE; i++) {
-    flow_rate_per_bucket.push_back(bess::utils::bucket_stats.per_bucket_packet_counter[i]*1000000000/update_period_);
+    flow_rate_per_bucket.push_back(bess::utils::bucket_stats.per_bucket_packet_counter[i]*1000000000/long_epoch_update_period_);
     bess::utils::bucket_stats.per_bucket_packet_counter[i] = 0;
   }
   bess::utils::bucket_stats.bucket_table_lock.unlock();
@@ -196,9 +196,9 @@ CommandResponse NFVCtrl::CommandGetSummary([[maybe_unused]]const bess::pb::Empty
 }
 
 struct task_result NFVCtrl::RunTask(Context *ctx, bess::PacketBatch *batch, void *) {
-  if (tsc_to_ns(rdtsc()) - last_update_time_ > update_period_) {
+  if (tsc_to_ns(rdtsc()) - long_epoch_last_update_time_ > long_epoch_update_period_) {
     UpdateFlowAssignment();
-    last_update_time_ = tsc_to_ns(rdtsc());
+    long_epoch_last_update_time_ = tsc_to_ns(rdtsc());
   }
   RunNextModule(ctx, batch); // To avoid [-Werror=unused-parameter] error
   return {.block = false, .packets = 0, .bits = 0};

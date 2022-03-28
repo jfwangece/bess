@@ -229,6 +229,16 @@ void NFVCore::UpdateEpochStats(bess::PacketBatch *batch) {
     if (it == epoch_flow_cache_.end()) {
       epoch_flow_cache_.emplace(flow, true);
     }
+    // Update RSS bucket packet counters.
+    uint32_t id = bess::utils::bucket_stats.rss_hash_to_id(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
+    bess::utils::bucket_stats.bucket_table_lock.lock_shared();
+    /*
+     * Access within the same core is synchronized by packet_counter_lock.
+     * We don't need to synchronize between cores as they are expected to
+     * access differnt indexes.
+     */
+    bess::utils::bucket_stats.per_bucket_packet_counter[id] += 1;
+    bess::utils::bucket_stats.bucket_table_lock.unlock_shared();
   }
 }
 
@@ -289,6 +299,16 @@ void NFVCore::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       DropPacket(ctx, pkt);
       continue;
     }
+    // Update RSS bucket packet counters.
+    uint32_t id = bess::utils::bucket_stats.rss_hash_to_id(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
+    bess::utils::bucket_stats.bucket_table_lock.lock_shared();
+    /*
+     * Access within the same core is synchronized by packet_counter_lock.
+     * We don't need to synchronize between cores as they are expected to
+     * access differnt indexes.
+     */
+    bess::utils::bucket_stats.per_bucket_packet_counter[id] += 1;
+    bess::utils::bucket_stats.bucket_table_lock.unlock_shared();
 
     epoch_packet_arrival_ += 1;
     EmitPacket(ctx, pkt);

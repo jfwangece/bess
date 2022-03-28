@@ -12,9 +12,6 @@
 namespace bess{
 namespace utils {
 
-// Since different cores are expected to work on different index we don't
-// synchronize between cores.
-
 struct Snapshot {
   Snapshot(int t_id) {
     epoch_id = t_id; active_core_count = 0; sum_packet_rate = 0;
@@ -76,6 +73,7 @@ class BucketStats {
    }
 };
 
+// Used to maintain packet counts per RSS bucket
 extern BucketStats bucket_stats;
 // Core statistics buffer
 extern CoreStats *volatile all_local_core_stats[20];
