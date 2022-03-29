@@ -3,10 +3,12 @@
 
 #include <cstdint>
 #include <vector>
+#include <shared_mutex>
 
 #include "flow.h"
 #include "lock_less_queue.h"
 
+#define RETA_SIZE 512
 namespace bess{
 namespace utils {
 
@@ -61,6 +63,18 @@ class CoreStats {
   std::vector<Flow> bursty_flows;
 };
 
+class BucketStats {
+  public:
+   BucketStats() {}
+   uint64_t per_bucket_packet_counter[RETA_SIZE] = {0};
+   std::shared_mutex bucket_table_lock;
+   uint32_t RSSHashToID(uint32_t hash) {
+     return hash & (RETA_SIZE-1);
+   }
+};
+
+// Used to maintain packet counts per RSS bucket
+extern BucketStats bucket_stats;
 // Core statistics buffer
 extern CoreStats *volatile all_local_core_stats[20];
 

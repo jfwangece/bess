@@ -273,6 +273,13 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
     }
 
     state->egress_packet_count += 1;
+
+    // Update RSS bucket packet counters.
+    uint32_t id = bess::utils::bucket_stats.RSSHashToID(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
+
+    bess::utils::bucket_stats.bucket_table_lock.lock_shared();
+    bess::utils::bucket_stats.per_bucket_packet_counter[id] += 1;
+    bess::utils::bucket_stats.bucket_table_lock.unlock_shared();
   }
 
   // Update per-epoch packet counter

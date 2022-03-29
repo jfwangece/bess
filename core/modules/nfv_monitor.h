@@ -77,7 +77,6 @@ class NFVMonitor final : public Module {
   int active_flow_count_;
   float packet_rate_;
   int idle_period_count_;
-
   int core_id_;
 };
 
