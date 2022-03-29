@@ -6,7 +6,7 @@ namespace utils {
 CoreStats *volatile all_local_core_stats[20];
 
 LockLessQueue<CoreStats*> *volatile all_core_stats_chan[20];
-
+BucketStats bucket_stats;
 uint32_t slo_ns = 1000000; // Default 1 ms
 
 void SysMeasureInit() {

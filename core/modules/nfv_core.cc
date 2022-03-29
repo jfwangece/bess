@@ -289,6 +289,16 @@ void NFVCore::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       DropPacket(ctx, pkt);
       continue;
     }
+    // Update RSS bucket packet counters.
+    uint32_t id = bess::utils::bucket_stats.RSSHashToID(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
+    bess::utils::bucket_stats.bucket_table_lock.lock_shared();
+    /*
+     * Access within the same core is synchronized by packet_counter_lock.
+     * We don't need to synchronize between cores as they are expected to
+     * access differnt indexes.
+     */
+    bess::utils::bucket_stats.per_bucket_packet_counter[id] += 1;
+    bess::utils::bucket_stats.bucket_table_lock.unlock_shared();
 
     epoch_packet_arrival_ += 1;
     EmitPacket(ctx, pkt);
@@ -303,7 +313,7 @@ bool NFVCore::update_traffic_stats() {
   if (is_new_epoch) {
     // At the end of one epoch, NFVCore requests software queues to
     // absorb the existing packet queue in the coming epoch.
-    RequestNSwQ(core_id_, 4);
+//    RequestNSwQ(core_id_, 4);
 
 
     CoreStats* stats_ptr = nullptr;

@@ -31,13 +31,17 @@ class NFVCtrl final : public Module {
 
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg) override;
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
+  void UpdateFlowAssignment();
 
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &arg);
 
  private:
   // All available per-core packet queues in a cluster
   std::vector<WorkerCore> cpu_cores_;
+  uint64_t long_epoch_update_period_;
+  uint64_t long_epoch_last_update_time_;
   int total_core_count_ = 0;
+  uint64_t slo_p50_ = 200000000; //200ms
 
   // The lock for maintaining a pool of software queues
   mutable std::shared_mutex sw_q_mtx_;
