@@ -290,7 +290,7 @@ void NFVCore::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       continue;
     }
     // Update RSS bucket packet counters.
-    uint32_t id = bess::utils::bucket_stats.rss_hash_to_id(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
+    uint32_t id = bess::utils::bucket_stats.RSSHashToID(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
     bess::utils::bucket_stats.bucket_table_lock.lock_shared();
     /*
      * Access within the same core is synchronized by packet_counter_lock.

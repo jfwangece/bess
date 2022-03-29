@@ -68,7 +68,7 @@ class BucketStats {
    BucketStats() {}
    uint64_t per_bucket_packet_counter[RETA_SIZE] = {0};
    std::shared_mutex bucket_table_lock;
-   uint32_t rss_hash_to_id(uint32_t hash) {
+   uint32_t RSSHashToID(uint32_t hash) {
      return hash & (RETA_SIZE-1);
    }
 };
