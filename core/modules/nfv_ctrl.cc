@@ -155,7 +155,7 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
 
   return CommandSuccess();
 }
-void NFVCtrl::write_to_gurobi(uint32_t num_cores, std::vector<float> flow_rates, float latency_bound) {
+void WriteToGurobi(uint32_t num_cores, std::vector<float> flow_rates, float latency_bound) {
   LOG(INFO) << num_cores << flow_rates.size() << latency_bound;
   std::ofstream file_out;
   file_out.open("./gurobi_in");
@@ -178,7 +178,7 @@ void NFVCtrl::UpdateFlowAssignment() {
   }
   bess::utils::bucket_stats.bucket_table_lock.unlock();
   
-  write_to_gurobi(total_core_count_, flow_rate_per_bucket,slo_p50_);
+  WriteToGurobi(total_core_count_, flow_rate_per_bucket,slo_p50_);
 }
 
 void NFVCtrl::DeInit() {

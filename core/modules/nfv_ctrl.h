@@ -37,7 +37,6 @@ class NFVCtrl final : public Module {
 
  private:
   // All available per-core packet queues in a cluster
-  void write_to_gurobi(uint32_t num_cores, std::vector<float> flow_rates, float latency_bound);
   std::vector<WorkerCore> cpu_cores_;
   uint64_t long_epoch_update_period_;
   uint64_t long_epoch_last_update_time_;
