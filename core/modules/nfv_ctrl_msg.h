@@ -25,6 +25,10 @@ extern NFVCtrl* nfv_ctrl;
 
 extern NFVCore* nfv_cores[DEFAULT_INVALID_CORE_ID];
 
+// extern NFVRcore* nfv_rcores[DEFAULT_INVALID_CORE_ID];
+
+// Note: only NFVCtrl can access data structures below
+
 // A pool of software packet queues
 extern struct llring* sw_q[DEFAULT_SWQ_COUNT];
 

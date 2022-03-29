@@ -25,6 +25,32 @@ const Commands NFVCore::cmds = {
      Command::THREAD_SAFE},
 };
 
+bool ParseFlowFromPacket(Flow *flow, bess::Packet *pkt) {
+  Ethernet *eth = pkt->head_data<Ethernet *>();
+  Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
+  size_t ip_bytes = ip->header_length << 2;
+
+  if (ip->protocol == Ipv4::Proto::kTcp) {
+    Tcp *tcp = reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
+    flow->src_ip = ip->src;
+    flow->dst_ip = ip->dst;
+    flow->src_port = tcp->src_port;
+    flow->dst_port = tcp->dst_port;
+    flow->proto_ip = ip->protocol;
+  } else if (ip->protocol == Ipv4::Proto::kUdp) {
+    Udp *udp = reinterpret_cast<Udp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
+    flow->src_ip = ip->src;
+    flow->dst_ip = ip->dst;
+    flow->src_port = udp->src_port;
+    flow->dst_port = udp->dst_port;
+    flow->proto_ip = ip->protocol;
+  } else {
+    return false;
+  }
+  return true;
+}
+
+// NFVCore member functions
 int NFVCore::Resize(int slots) {
   struct llring *old_queue = queue_;
   struct llring *new_queue;
@@ -91,14 +117,21 @@ CommandResponse NFVCore::Init([[maybe_unused]]const bess::pb::NFVCoreArg &arg) {
   }
   core_.core_id = core_id_;
 
+  // Add a metadata filed for recording flow stats pointer
+  std::string attr_name = "flow_stats";
+  using AccessMode = bess::metadata::Attribute::AccessMode;
+  flow_stats_attr_id_ = AddMetadataAttr(attr_name, sizeof(uint64_t), AccessMode::kWrite);
+
   // Init
+  nfv_cores[core_id_] = this;
+
   epoch_flow_thresh_ = 35;
   epoch_packet_thresh_ = 80;
   epoch_packet_arrival_ = 0;
   epoch_packet_processed_ = 0;
   epoch_packet_queued_ = 0;
   epoch_flow_cache_.clear();
-  per_flow_packet_counter_.clear();
+  per_flow_states_.clear();
   return CommandSuccess();
 }
 
@@ -114,7 +147,14 @@ void NFVCore::DeInit() {
 }
 
 CommandResponse NFVCore::CommandClear(const bess::pb::EmptyArg &) {
-  per_flow_packet_counter_.clear();
+  for (auto &it : per_flow_states_) {
+    if (it.second != nullptr) {
+      free(it.second);
+      it.second = nullptr;
+    }
+  }
+
+  per_flow_states_.clear();
   return CommandSuccess();
 }
 
@@ -133,30 +173,29 @@ std::string NFVCore::GetDesc() const {
   return bess::utils::Format("%s:%hhu/%d", port_->name().c_str(), qid_, llring_count(queue_));
 }
 
-/* to downstream */
+/* Get a batch from NIC and send it to downstream */
 struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
                                      void *arg) {
-  using bess::utils::all_local_core_stats;
-
   Port *p = port_;
 
   const queue_t qid = (queue_t)(uintptr_t)arg;
   const int burst = ACCESS_ONCE(burst_);
 
-  // We don't use ctx->current_ns here for better accuracy
+  // Read the CPU cycle counter for better accuracy
   curr_ts_ns_ = tsc_to_ns(rdtsc());
 
-  update_traffic_stats();
-
+  // Busy pulling from the NIC queue
   while (1) {
     // Should check llring_free_count(queue_)
     batch->set_cnt(p->RecvPackets(qid, batch->pkts(), 32));
     if (batch->cnt()) {
-      // To update |epoch_packet_arrival_| and |epoch_flow_cache_|
-      UpdateEpochStats(batch);
       // Note: need to consider possible drops due to |queue_| overflow
       llring_sp_enqueue_burst(queue_, (void **)batch->pkts(), batch->cnt());
+
+      // To update |per_flow_states_|, |epoch_flow_cache_|, |epoch_packet_arrival_|
+      UpdateStatsOnFetchBatch(batch);
     }
+
     if (batch->cnt() < 30) {
       break;
     }
@@ -169,133 +208,95 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   }
   batch->set_cnt(cnt);
 
-  epoch_packet_processed_ += cnt;
-  epoch_packet_queued_ = llring_count(queue_);
-
   uint64_t total_bytes = 0;
   for (uint32_t i = 0; i < cnt; i++) {
     total_bytes += batch->pkts()[i]->total_len();
   }
 
-  // Update for NFVMonitor (the current epoch info)
-  all_local_core_stats[core_id_]->active_flow_count = epoch_flow_cache_.size();
-  all_local_core_stats[core_id_]->packet_rate = epoch_packet_arrival_;
-  all_local_core_stats[core_id_]->packet_processed = epoch_packet_processed_;
-  all_local_core_stats[core_id_]->packet_queued = epoch_packet_queued_;
+  UpdateStatsPreProcessBatch(batch);
 
-  // ProcessBatch(ctx, batch);
-  RunNextModule(ctx, batch);
+  ProcessBatch(ctx, batch);
+
+  UpdateStatsPostProcessBatch(batch);
 
   return {.block = false,
           .packets = cnt,
           .bits = (total_bytes + cnt * 24) * 8};
 }
 
-void NFVCore::UpdateEpochStats(bess::PacketBatch *batch) {
+void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   Flow flow;
-  Tcp *tcp = nullptr;
-  Udp *udp = nullptr;
+  FlowState *state = nullptr;
 
   int cnt = batch->cnt();
+  for (int i = 0; i < cnt; i++) {
+    bess::Packet *pkt = batch->pkts()[i];
+    if (!ParseFlowFromPacket(&flow, pkt)) {
+      continue;
+    }
+
+    // Update per-core flow states
+    auto state_it = per_flow_states_.find(flow);
+    if (state_it == per_flow_states_.end()) {
+      state = new FlowState();
+      per_flow_states_.emplace(flow, state);
+    } else {
+      state = state_it->second;
+    }
+
+    state->ingress_packet_count += 1;
+    if (state->short_epoch_packet_count == 0) {
+      // Update the per-epoch flow count
+      epoch_flow_cache_.emplace(flow, state);
+    }
+    state->short_epoch_packet_count += 1;
+
+    // Append the pointer of this flow's stats
+    set_attr<FlowState*>(this, flow_stats_attr_id_, pkt, state);
+  }
+
+  // Update per-epoch packet counter
   epoch_packet_arrival_ += cnt;
-
-  for (int i = 0; i < cnt; i++) {
-    bess::Packet *pkt = batch->pkts()[i];
-
-    Ethernet *eth = pkt->head_data<Ethernet *>();
-    Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
-    size_t ip_bytes = ip->header_length << 2;
-
-    if (ip->protocol == Ipv4::Proto::kTcp) {
-      tcp = reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
-      flow.src_ip = ip->src;
-      flow.dst_ip = ip->dst;
-      flow.src_port = tcp->src_port;
-      flow.dst_port = tcp->dst_port;
-      flow.proto_ip = ip->protocol;
-    } else if (ip->protocol == Ipv4::Proto::kUdp) {
-      udp = reinterpret_cast<Udp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
-      flow.src_ip = ip->src;
-      flow.dst_ip = ip->dst;
-      flow.src_port = udp->src_port;
-      flow.dst_port = udp->dst_port;
-      flow.proto_ip = ip->protocol;
-    } else {
-      continue;
-    }
-
-    // Find existing flow, if we have one.
-    auto it = epoch_flow_cache_.find(flow);
-    if (it == epoch_flow_cache_.end()) {
-      epoch_flow_cache_.emplace(flow, true);
-    }
-  }
 }
 
-/* from upstream */
-void NFVCore::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
+void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
+  using bess::utils::all_local_core_stats;
   Flow flow;
-  Tcp *tcp = nullptr;
-  Udp *udp = nullptr;
-
-  // We don't use ctx->current_ns here for better accuracy
-  curr_ts_ns_ = tsc_to_ns(rdtsc());
-
-  update_traffic_stats();
+  FlowState *state = nullptr;
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
-
-    Ethernet *eth = pkt->head_data<Ethernet *>();
-    Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
-    size_t ip_bytes = ip->header_length << 2;
-
-    if (ip->protocol == Ipv4::Proto::kTcp) {
-      tcp = reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
-      flow.src_ip = ip->src;
-      flow.dst_ip = ip->dst;
-      flow.src_port = tcp->src_port;
-      flow.dst_port = tcp->dst_port;
-      flow.proto_ip = ip->protocol;
-    } else if (ip->protocol == Ipv4::Proto::kUdp) {
-      udp = reinterpret_cast<Udp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
-      flow.src_ip = ip->src;
-      flow.dst_ip = ip->dst;
-      flow.src_port = udp->src_port;
-      flow.dst_port = udp->dst_port;
-      flow.proto_ip = ip->protocol;
-    } else {
+    state = get_attr<FlowState*>(this, flow_stats_attr_id_, pkt);
+    if (state == nullptr) {
       continue;
     }
 
-    // Drop bursty flows
-    if (per_flow_packet_counter_.find(flow) != per_flow_packet_counter_.end()) {
-      DropPacket(ctx, pkt);
-      continue;
-    }
-
-    // Find existing flow, if we have one.
-    auto epoch_flow_it = epoch_flow_cache_.find(flow);
-    if (epoch_flow_it == epoch_flow_cache_.end()) {
-      if (epoch_flow_cache_.size() > epoch_flow_thresh_) {
-        DropPacket(ctx, pkt);
-        continue;
-      }
-      epoch_flow_cache_.emplace(flow, true);
-    }
-
-    if (epoch_packet_arrival_ > epoch_packet_thresh_) {
-      DropPacket(ctx, pkt);
-      continue;
-    }
-
-    epoch_packet_arrival_ += 1;
-    EmitPacket(ctx, pkt);
+    state->egress_packet_count += 1;
   }
+
+  // Update per-epoch packet counter
+  epoch_packet_processed_ += cnt;
+  epoch_packet_queued_ = llring_count(queue_);
+
+  // Update for NFVMonitor (the current epoch info)
+  all_local_core_stats[core_id_]->active_flow_count = epoch_flow_cache_.size();
+  all_local_core_stats[core_id_]->packet_rate = epoch_packet_arrival_;
+  all_local_core_stats[core_id_]->packet_processed = epoch_packet_processed_;
+  all_local_core_stats[core_id_]->packet_queued = epoch_packet_queued_;
 }
 
-bool NFVCore::update_traffic_stats() {
+void NFVCore::UpdateStatsPostProcessBatch(bess::PacketBatch *) {
+  // If a new epoch starts, absorb the current packet queue
+  ShortEpochProcess();
+}
+
+/* Get a batch from upstream */
+void NFVCore::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
+  RunNextModule(ctx, batch);
+}
+
+bool NFVCore::ShortEpochProcess() {
   using bess::utils::all_core_stats_chan;
 
   bool is_new_epoch = (all_core_stats_chan[core_id_]->Size() > 0);
@@ -303,17 +304,12 @@ bool NFVCore::update_traffic_stats() {
   if (is_new_epoch) {
     // At the end of one epoch, NFVCore requests software queues to
     // absorb the existing packet queue in the coming epoch.
-    RequestNSwQ(core_id_, 4);
 
+    // RequestNSwQ(core_id_, 4);
 
     CoreStats* stats_ptr = nullptr;
     while (all_core_stats_chan[core_id_]->Size()) {
       all_core_stats_chan[core_id_]->Pop(stats_ptr);
-      core_.packet_rate = stats_ptr->packet_rate;
-      core_.p99_latency = stats_ptr->p99_latency;
-      for (auto &f : stats_ptr->bursty_flows) {
-        per_flow_packet_counter_.emplace(f, 1);
-      }
       delete (stats_ptr);
       stats_ptr = nullptr;
 
@@ -324,9 +320,11 @@ bool NFVCore::update_traffic_stats() {
     epoch_flow_cache_.clear();
     epoch_packet_arrival_ = 0;
     epoch_packet_processed_ = 0;
+
+    return true;
   }
 
-  return true;
+  return false;
 }
 
 ADD_MODULE(NFVCore, "nfv_core", "It handles traffic burstiness at each core")

@@ -1,6 +1,8 @@
 #ifndef BESS_MODULES_NFV_CORE_H_
 #define BESS_MODULES_NFV_CORE_H_
 
+#include "nfv_ctrl_msg.h"
+
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
 #include "../port.h"
@@ -19,14 +21,24 @@ using bess::utils::WorkerCore;
 // if |active_flow_count| increases, |packet_count| will decrease
 // Then, the admission process can be a packing problem.
 
+struct FlowState {
+  FlowState() {
+    ingress_packet_count = 0;
+    short_epoch_packet_count = 0;
+    egress_packet_count = 0;
+  }
+
+  uint32_t ingress_packet_count; // packet counter at ingress
+  uint32_t short_epoch_packet_count; // short-term epoch packet counter
+  uint32_t egress_packet_count; // packet counter at egress
+  uint32_t unused;
+};
+
 class NFVCore final : public Module {
  public:
   static const Commands cmds;
 
-  NFVCore() : Module(),
-    queue_(),
-    burst_(),
-    size_() {
+  NFVCore() : Module(), queue_(0), burst_(32), size_(2048) {
     max_allowed_workers_ = 1;
   }
 
@@ -36,13 +48,31 @@ class NFVCore final : public Module {
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg);
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
+  // Check if a new short-term epoch has started.
+  // If yes, check the remaining packet queue, and split traffic
+  // if it will lead to SLO violations.
+  // Returns true if a new epoch started.
+  bool ShortEpochProcess();
+
+  // OnFetch:
+  // - Add the per-flow state pointer to each packet's metadata.
+  // All following updates will use this pointer instead of
+  // computing the flow's hash.
+  // - Update epoch and per-flow packet arrivals, flow arrivals
+  void UpdateStatsOnFetchBatch(bess::PacketBatch *batch);
+
+  // PreProcess:
+  // - Update epoch packet processed, flow processed
+  void UpdateStatsPreProcessBatch(bess::PacketBatch *batch);
+
+  // PostProcess:
+  // - Update epoch latency statistics
+  void UpdateStatsPostProcessBatch(bess::PacketBatch *batch);
+
   std::string GetDesc() const override;
 
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
   CommandResponse CommandSetBurst(const bess::pb::NFVCoreCommandSetBurstArg &arg);
-
-  void UpdateEpochStats(bess::PacketBatch *batch);
-  bool update_traffic_stats();
 
  private:
   int Resize(int slots);
@@ -59,6 +89,14 @@ class NFVCore final : public Module {
   int burst_;
   uint64_t size_;
 
+  // Software queues borrowed from NFVCtrl
+  int sw_q_count;
+  std::unordered_map<Flow, int, FlowHash> flow_to_sw_q_;
+  struct llring* sw_q[DEFAULT_SWQ_COUNT];
+
+  // Metadata field ID
+  int flow_stats_attr_id_; // for maintaining per-flow stats
+
   // Time-related
   uint64_t curr_ts_ns_;
 
@@ -69,9 +107,10 @@ class NFVCore final : public Module {
   uint32_t epoch_packet_processed_;
   uint32_t epoch_packet_queued_;
 
-  // Flow cache
-  std::unordered_map<Flow, bool, FlowHash> epoch_flow_cache_;
-  std::unordered_map<Flow, uint32_t, FlowHash> per_flow_packet_counter_;
+  // For recording active flows in an epoch
+  std::unordered_map<Flow, FlowState*, FlowHash> epoch_flow_cache_;
+  // For maintaining (per-core) FlowState structs
+  std::unordered_map<Flow, FlowState*, FlowHash> per_flow_states_;
 };
 
 #endif // BESS_MODULES_NFV_CORE_H_
