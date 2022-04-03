@@ -548,7 +548,10 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   for (uint32_t i = 0; i < reta_size_; i++) {
     reta_conf_[i / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
   }
-  reta_table_ = new uint16_t(reta_size_);
+  for (uint16_t i = 0; i < reta_size_; i++) {
+    reta_table_.push_back(0);
+  }
+  //reta_table_ = new uint16_t(reta_size_);
   UpdateRssReta();
 
   // Run a set of NIC RSS benchmarks

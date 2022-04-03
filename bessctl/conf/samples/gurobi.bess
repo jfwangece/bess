@@ -15,6 +15,8 @@ short_update_stats_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"2")
 pkt_rate=int($BESS_PKT_RATE!'1000000')
 pkt_size=int($BESS_PKT_SIZE!'100')
+PACKET_OVERHEAD=24
+short_update_stats_period = int(slo / 2)
 
 # By default, pick MLX NICs
 pcie0, offset0="5e:00.0", 1
@@ -28,7 +30,7 @@ core_addrs = [
     {'l2_port': 2, 'l2_mac': '2e:c7:8b:7b:8d:a8'},
     {'l2_port': 3, 'l2_mac': '2a:9d:fd:13:15:01'},
     {'l2_port': 4, 'l2_mac': '32:a5:0f:e0:04:0b'},
-    {'l2_port': 5, 'l2_mac': '06:8a:62:fb:51:51'},
+#    {'l2_port': 5, 'l2_mac': '06:8a:62:fb:51:51'},
 #    {'l2_port': 6, 'l2_mac': 'ce:2e:14:c4:a0:cb'},
 #    {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
 #    {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
@@ -48,7 +50,6 @@ for i in range(lb_cnt / 20):
 
 # Module
 port0::PMDPort(pci=pcie0, num_inc_q=core_cnt, num_out_q=core_cnt, bench_rss=False)
-nfvctrl::NFVCtrl(core_addrs=core_addrs, slo_ns=slo)
 pinc0 = {}
 pout0 = {}
 fw = {}
@@ -80,6 +81,10 @@ for i in range(len(core_addrs)):
         pinc0[i] = NFVCore(core_id=i, port=port0, qid=i)
         nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
+    elif exp_idx == 3:
+        pinc0[i] = Queue()
+        nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
+        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
     else:
         pinc0[i] = QueueInc(port=port0, qid=i)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> pout0[i]
@@ -89,6 +94,7 @@ for i in range(core_cnt):
     pinc0[i].set_burst(burst=burst_size)
 
 # Core
+nfvctrl::NFVCtrl(core_addrs=core_addrs, slo_ns=slo)
 bess.add_worker(wid=nfvctrl_core, core=nfvctrl_core)
 nfvctrl.attach_task(wid=nfvctrl_core)
 
@@ -114,10 +120,6 @@ pkt = eth/ip/tcp/payload
 pkt_data = bytes(pkt)
 print("Packet size = %d bytes" %(len(pkt_data)))
 
-port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1, loopback=1)
-pinc0::PortInc(port=port0)
-nfv_monitor::NFVMonitor(update_stats_period_ns=update_stats_period)
-pout0::PortOut(port=port0)
 fg0::FlowGen(
     template=pkt_data,
     pps=pkt_rate, flow_rate=100, flow_duration=10,

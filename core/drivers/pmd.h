@@ -173,7 +173,7 @@ class PMDPort final : public Port {
   struct rte_eth_rss_reta_entry64 reta_conf_[8];
   uint32_t reta_size_;
   std::vector<rte_flow*> reta_flows_;
-  uint16_t *reta_table_;
+  std::vector<uint16_t> reta_table_;
 
  private:
   /*!
