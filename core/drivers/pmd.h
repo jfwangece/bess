@@ -226,6 +226,7 @@ class PMDPort final : public Port {
   placement_constraint node_placement_;
 
   std::string driver_;  // ixgbe, i40e, ...
+  uint16_t *reta_table_;
 };
 
 #endif  // BESS_DRIVERS_PMD_H_
