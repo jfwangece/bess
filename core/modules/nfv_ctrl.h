@@ -5,6 +5,7 @@
 
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
+#include "../drivers/pmd.h"
 
 #include "../utils/cpu_core.h"
 
@@ -37,6 +38,8 @@ class NFVCtrl final : public Module {
 
  private:
   // All available per-core packet queues in a cluster
+  std::map<uint16_t, uint16_t> longTermOptimization(std::vector<double> flow_rate_per_bucket);
+  std::map<uint16_t, uint16_t> findMoves(double flow_rate_per_cpu[], std::vector<uint16_t> to_be_moved, std::vector<double> flow_rate_per_bucket);
   std::vector<WorkerCore> cpu_cores_;
   uint64_t long_epoch_update_period_;
   uint64_t long_epoch_last_update_time_;
@@ -45,6 +48,10 @@ class NFVCtrl final : public Module {
 
   // The lock for maintaining a pool of software queues
   mutable std::shared_mutex sw_q_mtx_;
+  PMDPort *port_;
+  std::map<uint16_t, std::vector<uint16_t>> core_bucket_mapping_;
+  uint64_t flow_rate_threshold_;
+  uint64_t flow_count_threshold_;
 
   uint64_t curr_ts_ns_;
 };

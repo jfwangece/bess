@@ -165,6 +165,7 @@ class PMDPort final : public Port {
 
   void UpdateRssReta();
   void UpdateRssFlow();
+  void UpdateRssReta(std::map<uint16_t, uint16_t> moves);
   void BenchUpdateRssReta();
   void BenchRXQueueCount();
 
@@ -172,6 +173,7 @@ class PMDPort final : public Port {
   struct rte_eth_rss_reta_entry64 reta_conf_[8];
   uint32_t reta_size_;
   std::vector<rte_flow*> reta_flows_;
+  uint16_t *reta_table_;
 
  private:
   /*!
@@ -226,7 +228,6 @@ class PMDPort final : public Port {
   placement_constraint node_placement_;
 
   std::string driver_;  // ixgbe, i40e, ...
-  uint16_t *reta_table_;
 };
 
 #endif  // BESS_DRIVERS_PMD_H_

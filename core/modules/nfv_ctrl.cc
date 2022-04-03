@@ -153,8 +153,27 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
     bess::utils::slo_ns = arg.slo_ns();
   }
 
-  return CommandSuccess();
+  if (!arg.port().empty()) {
+    const char *port_name = arg.port().c_str();
+    const auto &it = PortBuilder::all_ports().find(port_name);
+    if (it == PortBuilder::all_ports().end()) {
+      return CommandFailure(ENODEV, "Port %s not found", port_name);
+    }
+    port_ = ((PMDPort*)it->second);
+    //create and save the core to bucket mapping
+    for(uint16_t i = 0; i < port_->reta_size_; i++) {
+      uint16_t core_id = port_->reta_table_[i];
+      assert(core_id < total_core_count_);
+      if (core_bucket_mapping_.find(core_id) == core_bucket_mapping_.end()) {
+        core_bucket_mapping_[core_id] = std::vector<uint16_t>();
+      }
+      core_bucket_mapping_[core_id].push_back(i);
+    }
+  }
+   
+   return CommandSuccess();
 }
+/*
 void WriteToGurobi(uint32_t num_cores, std::vector<float> flow_rates, float latency_bound) {
   LOG(INFO) << num_cores << flow_rates.size() << latency_bound;
   std::ofstream file_out;
@@ -167,9 +186,59 @@ void WriteToGurobi(uint32_t num_cores, std::vector<float> flow_rates, float late
   }
  file_out.close();
 }
+*/
+
+std::map<uint16_t, uint16_t> NFVCtrl::findMoves(double flow_rate_per_cpu[], std::vector<uint16_t> to_be_moved, std::vector<double> flow_rate_per_bucket) {
+  std::map<uint16_t, uint16_t> moves;
+  for (auto it: to_be_moved) {
+    double flow_rate = flow_rate_per_bucket[it];
+    for (uint16_t i = 0; i < total_core_count_; i++) {
+      if (flow_rate_per_cpu[i] + flow_rate < flow_rate_threshold_) {
+        flow_rate_per_cpu[i] += flow_rate;
+        moves[it] = i;
+        core_bucket_mapping_[i].push_back(it);
+        break;
+      }
+    }
+  }
+  return moves;
+}
+
+std::map<uint16_t, uint16_t> NFVCtrl::longTermOptimization(std::vector<double> flow_rate_per_bucket) {
+  //compute total flow rate per cpu
+  double flow_rate_per_cpu[total_core_count_];
+  for (uint16_t i = 0; i < total_core_count_; i++) {
+    flow_rate_per_cpu[i] = 0;
+    for (auto it: core_bucket_mapping_[i]) {
+      flow_rate_per_cpu[i] += flow_rate_per_bucket[it];
+    }
+  }
+
+
+  std::vector<uint16_t> to_be_moved;
+  // Find if any CPU is exceeding threshold and add it to the to be moved list
+  for (uint16_t i = 0; i < total_core_count_; i++) {
+    while (flow_rate_per_cpu[i] > flow_rate_threshold_) {
+      //find a bucket to move and do this till all flow rate comes down the threshold
+      uint16_t bucket = core_bucket_mapping_[i].back();
+      to_be_moved.push_back(bucket);
+      core_bucket_mapping_[i].pop_back();
+      flow_rate_per_cpu[i] -= flow_rate_per_bucket[bucket];
+    }
+  }
+
+  //Find a cpu for the buckets to be moved
+  // we should pass flow_rate_per_cpu by reference
+  std::map<uint16_t, uint16_t> moves = findMoves(flow_rate_per_cpu, to_be_moved, flow_rate_per_bucket);
+  for (auto it: moves) {
+    flow_rate_per_cpu[it.second] += flow_rate_per_bucket[it.first];
+  }
+  return moves;
+
+}
 
 void NFVCtrl::UpdateFlowAssignment() {
-  std::vector<float> flow_rate_per_bucket;
+  std::vector<double> flow_rate_per_bucket;
   int i = 0;
   bess::utils::bucket_stats.bucket_table_lock.lock();
   for (i=0; i< RETA_SIZE; i++) {
@@ -178,7 +247,15 @@ void NFVCtrl::UpdateFlowAssignment() {
   }
   bess::utils::bucket_stats.bucket_table_lock.unlock();
   
-  WriteToGurobi(total_core_count_, flow_rate_per_bucket,slo_p50_);
+  std::map<uint16_t, uint16_t> moves = longTermOptimization(flow_rate_per_bucket);
+  //Create reta table and upadate rss
+  /*
+  for (auto it:moves) {
+    port_->reta_table_[it.first] = it.second;
+  }
+  */
+  port_->UpdateRssReta(moves);
+//  WriteToGurobi(total_core_count_, flow_rate_per_bucket,slo_p50_);
 }
 
 void NFVCtrl::DeInit() {

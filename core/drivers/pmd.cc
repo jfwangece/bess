@@ -124,6 +124,16 @@ void PMDPort::UpdateRssReta() {
   }
 }
 
+void PMDPort::UpdateRssReta(std::map<uint16_t, uint16_t> moves) {
+  for (auto it: moves) {
+    reta_conf_[it.first / RTE_RETA_GROUP_SIZE].reta[it.first % RTE_RETA_GROUP_SIZE] = it.second;
+  }
+  int ret = rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
+  if (ret != 0) {
+    LOG(ERROR) << "Failed to set NIC reta table: " << rte_strerror(ret);
+  }
+}
+
 void PMDPort::UpdateRssFlow() {
   if (AddFlowRedirectRule(dpdk_port_id_, 0, 1) != nullptr) {
     LOG(INFO) << "Group table rule supported";
@@ -538,7 +548,7 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   for (uint32_t i = 0; i < reta_size_; i++) {
     reta_conf_[i / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
   }
-  reta_table_ = new uint16_t(erta_size_);
+  reta_table_ = new uint16_t(reta_size_);
   UpdateRssReta();
 
   // Run a set of NIC RSS benchmarks
