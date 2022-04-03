@@ -1,0 +1,136 @@
+#
+# Test NF chain #5: a stateful NF chain used by Dyssect
+# NAT -> Snort
+#
+import scapy.all as scapy
+import random
+
+nic=int($BESS_NIC!'1')
+burst_size=int($BESS_BURST!'32')
+acl_cnt=int($BESS_ACL!'2000')
+lb_cnt=int($BESS_LB!'100')
+slo = int($BESS_SLO!"200000")
+long_update_stats_period = int($BESS_LSTATS_PERIOD!"200000000")
+short_update_stats_period = int(slo / 2)
+exp_idx = int($BESS_EXP!"2")
+pkt_rate=int($BESS_PKT_RATE!'1000000')
+pkt_size=int($BESS_PKT_SIZE!'100')
+
+# By default, pick MLX NICs
+pcie0, offset0="5e:00.0", 1
+
+# NFVCtrl runs on its own core
+nfvctrl_core = 14
+
+core_addrs = [
+    {'l2_port': 0, 'l2_mac': '82:a3:ae:74:72:30'},
+    {'l2_port': 1, 'l2_mac': 'a2:87:fd:f8:72:21'},
+    {'l2_port': 2, 'l2_mac': '2e:c7:8b:7b:8d:a8'},
+    {'l2_port': 3, 'l2_mac': '2a:9d:fd:13:15:01'},
+    {'l2_port': 4, 'l2_mac': '32:a5:0f:e0:04:0b'},
+    {'l2_port': 5, 'l2_mac': '06:8a:62:fb:51:51'},
+#    {'l2_port': 6, 'l2_mac': 'ce:2e:14:c4:a0:cb'},
+#    {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
+#    {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
+]
+core_cnt=len(core_addrs)
+
+acl_rules = []
+for i in range(acl_cnt / 50):
+    for j in range(50):
+        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
+acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
+
+nat_hosts = []
+for i in range(lb_cnt / 20):
+    for j in range(20):
+        nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
+
+# Module
+port0::PMDPort(pci=pcie0, num_inc_q=core_cnt, num_out_q=core_cnt, bench_rss=False)
+nfvctrl::NFVCtrl(core_addrs=core_addrs, slo_ns=slo)
+pinc0 = {}
+pout0 = {}
+fw = {}
+lb = {}
+monitor = {}
+nfvig = {}
+nfvmo = {}
+
+# Pipeline
+for i in range(len(core_addrs)):
+    pout0[i] = QueueOut(port=port0, qid=i)
+    fw[i] = FlowACL(rules=acl_rules)
+    lb[i] = FlowLB(endpoints=nat_hosts)
+    monitor[i] = FlowCounter()
+
+    if exp_idx == 0:
+        pinc0[i] = QueueInc(port=port0, qid=i)
+        nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
+        if i == 0:
+            pinc0[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
+        else:
+            pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
+    elif exp_idx == 1:
+        pinc0[i] = QueueInc(port=port0, qid=i)
+        nfvig[i] = NFVCore(core_id=i, port="", qid=0)
+        nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
+        pinc0[i] -> nfvig[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
+    elif exp_idx == 2:
+        pinc0[i] = NFVCore(core_id=i, port=port0, qid=i)
+        nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
+        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
+    else:
+        pinc0[i] = QueueInc(port=port0, qid=i)
+        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> pout0[i]
+
+# Burst
+for i in range(core_cnt):
+    pinc0[i].set_burst(burst=burst_size)
+
+# Core
+bess.add_worker(wid=nfvctrl_core, core=nfvctrl_core)
+nfvctrl.attach_task(wid=nfvctrl_core)
+
+for i in range(core_cnt):
+    bess.add_worker(wid=i+offset0, core=i+offset0)
+    pinc0[i].attach_task(wid=i+offset0)
+
+src_ether = 'ec:0d:9a:67:ff:68'
+dst_ether = '0a:14:69:37:5f:f2'
+src_ip = '204.57.0.1'
+dst_ip = '68.128.0.1'
+src_port = 10001
+dst_port = 8080
+
+# Create a "template" packet to use for generated flows.
+# All packets in flow will follow this formula; flowgen
+# changes dst IP to generate new connections.
+eth = scapy.Ether(src=src_ether, dst=dst_ether)
+ip = scapy.IP(src=src_ip, dst=dst_ip)
+tcp = scapy.TCP(sport=src_port, dport=dst_port)
+payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+pkt = eth/ip/tcp/payload
+pkt_data = bytes(pkt)
+print("Packet size = %d bytes" %(len(pkt_data)))
+
+port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1, loopback=1)
+pinc0::PortInc(port=port0)
+nfv_monitor::NFVMonitor(update_stats_period_ns=update_stats_period)
+pout0::PortOut(port=port0)
+fg0::FlowGen(
+    template=pkt_data,
+    pps=pkt_rate, flow_rate=100, flow_duration=10,
+    arrival='uniform', duration='uniform', quick_rampup=True,
+    port_src_range=255, port_dst_range=255,
+)
+pcie1, offset1="af:00.0", 7
+port_out::PMDPort(pci=pcie1, num_out_q=1, bench_rss=False)
+pgen = QueueOut(port=port_out, qid=0)
+
+fg0 -> pgen
+
+bess.add_worker(wid=7, core=7)
+fg0.attach_task(wid=7)
+
+bess.resume_all()
