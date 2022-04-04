@@ -43,15 +43,14 @@ class NFVCtrl final : public Module {
   std::vector<WorkerCore> cpu_cores_;
   uint64_t long_epoch_update_period_;
   uint64_t long_epoch_last_update_time_;
-  int total_core_count_ = 0;
+  uint16_t total_core_count_ = 0;
   uint64_t slo_p50_ = 200000000; //200ms
 
   // The lock for maintaining a pool of software queues
   mutable std::shared_mutex sw_q_mtx_;
   PMDPort *port_;
   std::map<uint16_t, std::vector<uint16_t>> core_bucket_mapping_;
-  uint64_t flow_rate_threshold_;
-  uint64_t flow_count_threshold_;
+  std::map<uint64_t, uint64_t> threshold_;
 
   uint64_t curr_ts_ns_;
 };

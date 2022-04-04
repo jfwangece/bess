@@ -94,7 +94,7 @@ for i in range(core_cnt):
     pinc0[i].set_burst(burst=burst_size)
 
 # Core
-nfvctrl::NFVCtrl(core_addrs=core_addrs, slo_ns=slo)
+nfvctrl::NFVCtrl(core_addrs=core_addrs, slo_ns=slo, port=port0)
 bess.add_worker(wid=nfvctrl_core, core=nfvctrl_core)
 nfvctrl.attach_task(wid=nfvctrl_core)
 

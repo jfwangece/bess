@@ -155,8 +155,10 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
 
   if (!arg.port().empty()) {
     const char *port_name = arg.port().c_str();
+    LOG(INFO) << port_name;
     const auto &it = PortBuilder::all_ports().find(port_name);
     if (it == PortBuilder::all_ports().end()) {
+      LOG(INFO) << "Failed to find port";
       return CommandFailure(ENODEV, "Port %s not found", port_name);
     }
     port_ = ((PMDPort*)it->second);
@@ -169,6 +171,14 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
       }
       core_bucket_mapping_[core_id].push_back(i);
     }
+  }
+  std::ifstream file("long_term_threshold");
+  while (!file.eof()) {
+    uint64_t pps;
+    uint64_t flow_count;
+    file >> pps;
+    file >> flow_count;
+    threshold_[flow_count] = pps;
   }
    
    return CommandSuccess();
@@ -190,15 +200,21 @@ void WriteToGurobi(uint32_t num_cores, std::vector<float> flow_rates, float late
 
 std::map<uint16_t, uint16_t> NFVCtrl::findMoves(double flow_rate_per_cpu[], std::vector<uint16_t> to_be_moved, std::vector<double> flow_rate_per_bucket) {
   std::map<uint16_t, uint16_t> moves;
+  //if not found return error
   for (auto it: to_be_moved) {
     double flow_rate = flow_rate_per_bucket[it];
+    bool found = false;
     for (uint16_t i = 0; i < total_core_count_; i++) {
-      if (flow_rate_per_cpu[i] + flow_rate < flow_rate_threshold_) {
+      if (flow_rate_per_cpu[i] + flow_rate < threshold_[1000]) {
         flow_rate_per_cpu[i] += flow_rate;
         moves[it] = i;
         core_bucket_mapping_[i].push_back(it);
+        found = true;
         break;
       }
+    }
+    if (!found) {
+      LOG(INFO) << "Need a new CPU";
     }
   }
   return moves;
@@ -218,7 +234,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::longTermOptimization(std::vector<double> f
   std::vector<uint16_t> to_be_moved;
   // Find if any CPU is exceeding threshold and add it to the to be moved list
   for (uint16_t i = 0; i < total_core_count_; i++) {
-    while (flow_rate_per_cpu[i] > flow_rate_threshold_) {
+    while (flow_rate_per_cpu[i] > threshold_[1000]) {
       //find a bucket to move and do this till all flow rate comes down the threshold
       uint16_t bucket = core_bucket_mapping_[i].back();
       to_be_moved.push_back(bucket);
@@ -233,6 +249,20 @@ std::map<uint16_t, uint16_t> NFVCtrl::longTermOptimization(std::vector<double> f
   for (auto it: moves) {
     flow_rate_per_cpu[it.second] += flow_rate_per_bucket[it.first];
   }
+  // Find the CPU with minimum flow rate and delete it
+  uint16_t smallest_core = 0;
+  double min_flow = flow_rate_per_cpu[0];
+  for(uint16_t i = 1; i < total_core_count_; i++) {
+    if (flow_rate_per_cpu[i] < min_flow) {
+      min_flow = flow_rate_per_cpu[i];
+      smallest_core = i;
+    }
+  }
+  LOG(INFO) << "rying to remove: " << smallest_core;
+  flow_rate_per_cpu[smallest_core] = threshold_[1000];
+  std::map<uint16_t, uint16_t> moves_tmp = findMoves(flow_rate_per_cpu, core_bucket_mapping_[smallest_core], flow_rate_per_bucket);
+  moves.insert(moves_tmp.begin(), moves_tmp.end());
+  LOG(INFO) << "Total moves: " << moves.size();
   return moves;
 
 }
@@ -249,11 +279,9 @@ void NFVCtrl::UpdateFlowAssignment() {
   
   std::map<uint16_t, uint16_t> moves = longTermOptimization(flow_rate_per_bucket);
   //Create reta table and upadate rss
-  /*
   for (auto it:moves) {
-    port_->reta_table_[it.first] = it.second;
+  LOG(INFO) << it.first << " " << it.second;
   }
-  */
   port_->UpdateRssReta(moves);
 //  WriteToGurobi(total_core_count_, flow_rate_per_bucket,slo_p50_);
 }
