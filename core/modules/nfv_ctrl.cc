@@ -9,7 +9,8 @@
 #include "../module_graph.h"
 #include "../utils/sys_measure.h"
 
-#define UPDATE_PERIOD 5000000000
+#define UPDATE_PERIOD 500000000
+#define HEAD_ROOM 0.1
 
 namespace {
 std::chrono::milliseconds DEFAULT_SLEEP_DURATION(100);
@@ -155,7 +156,6 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
 
   if (!arg.port().empty()) {
     const char *port_name = arg.port().c_str();
-    LOG(INFO) << port_name;
     const auto &it = PortBuilder::all_ports().find(port_name);
     if (it == PortBuilder::all_ports().end()) {
       LOG(INFO) << "Failed to find port";
@@ -163,12 +163,12 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
     }
     port_ = ((PMDPort*)it->second);
     //create and save the core to bucket mapping
+    for (uint16_t i = 0; i < total_core_count_; i++) {
+      core_bucket_mapping_[i] = std::vector<uint16_t>();
+    }
     for(uint16_t i = 0; i < port_->reta_size_; i++) {
       uint16_t core_id = port_->reta_table_[i];
       assert(core_id < total_core_count_);
-      if (core_bucket_mapping_.find(core_id) == core_bucket_mapping_.end()) {
-        core_bucket_mapping_[core_id] = std::vector<uint16_t>();
-      }
       core_bucket_mapping_[core_id].push_back(i);
     }
   }
@@ -176,8 +176,8 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   while (!file.eof()) {
     uint64_t pps;
     uint64_t flow_count;
-    file >> pps;
     file >> flow_count;
+    file >> pps;
     threshold_[flow_count] = pps;
   }
    
@@ -198,6 +198,7 @@ void WriteToGurobi(uint32_t num_cores, std::vector<float> flow_rates, float late
 }
 */
 
+
 std::map<uint16_t, uint16_t> NFVCtrl::findMoves(double flow_rate_per_cpu[], std::vector<uint16_t> to_be_moved, std::vector<double> flow_rate_per_bucket) {
   std::map<uint16_t, uint16_t> moves;
   //if not found return error
@@ -205,7 +206,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::findMoves(double flow_rate_per_cpu[], std:
     double flow_rate = flow_rate_per_bucket[it];
     bool found = false;
     for (uint16_t i = 0; i < total_core_count_; i++) {
-      if (flow_rate_per_cpu[i] + flow_rate < threshold_[1000]) {
+      if (flow_rate_per_cpu[i]>0 && flow_rate_per_cpu[i] + flow_rate < (threshold_[10000] * (1-HEAD_ROOM))) {
         flow_rate_per_cpu[i] += flow_rate;
         moves[it] = i;
         core_bucket_mapping_[i].push_back(it);
@@ -214,7 +215,15 @@ std::map<uint16_t, uint16_t> NFVCtrl::findMoves(double flow_rate_per_cpu[], std:
       }
     }
     if (!found) {
-      LOG(INFO) << "Need a new CPU";
+      // find a cpu with 0 flow rate and enable it.
+      for (uint16_t i = 0; i < total_core_count_; i++) {
+        if (flow_rate_per_cpu[i] == 0) {
+          flow_rate_per_cpu[i] += flow_rate;
+          moves[it] = i;
+          core_bucket_mapping_[i].push_back(it);
+          LOG(INFO) << "Added new CPU: " << i;
+        }
+      }
     }
   }
   return moves;
@@ -222,19 +231,25 @@ std::map<uint16_t, uint16_t> NFVCtrl::findMoves(double flow_rate_per_cpu[], std:
 
 std::map<uint16_t, uint16_t> NFVCtrl::longTermOptimization(std::vector<double> flow_rate_per_bucket) {
   //compute total flow rate per cpu
+  //uint64_t start, end;
   double flow_rate_per_cpu[total_core_count_];
+  //start = rdtsc();
   for (uint16_t i = 0; i < total_core_count_; i++) {
     flow_rate_per_cpu[i] = 0;
     for (auto it: core_bucket_mapping_[i]) {
       flow_rate_per_cpu[i] += flow_rate_per_bucket[it];
     }
   }
+  //end = rdtsc();
+  //LOG(INFO) << "Etime calc flow/cpu: " << tsc_to_ns(end-start);
 
 
   std::vector<uint16_t> to_be_moved;
   // Find if any CPU is exceeding threshold and add it to the to be moved list
+  LOG(INFO) << threshold_[10000];
+  //start = rdtsc();
   for (uint16_t i = 0; i < total_core_count_; i++) {
-    while (flow_rate_per_cpu[i] > threshold_[1000]) {
+    while (flow_rate_per_cpu[i] > threshold_[10000]) {
       //find a bucket to move and do this till all flow rate comes down the threshold
       uint16_t bucket = core_bucket_mapping_[i].back();
       to_be_moved.push_back(bucket);
@@ -242,25 +257,55 @@ std::map<uint16_t, uint16_t> NFVCtrl::longTermOptimization(std::vector<double> f
       flow_rate_per_cpu[i] -= flow_rate_per_bucket[bucket];
     }
   }
+  //end = rdtsc();
+  //LOG(INFO) << "Etime find violations: " << tsc_to_ns(end-start);
 
+  LOG(INFO) << "To move threshold: "<<to_be_moved.size();
   //Find a cpu for the buckets to be moved
   // we should pass flow_rate_per_cpu by reference
+  //start = rdtsc();
   std::map<uint16_t, uint16_t> moves = findMoves(flow_rate_per_cpu, to_be_moved, flow_rate_per_bucket);
   for (auto it: moves) {
     flow_rate_per_cpu[it.second] += flow_rate_per_bucket[it.first];
   }
+  //end = rdtsc();
+  //LOG(INFO) << "Etime find moves for violations: " << tsc_to_ns(end-start);
   // Find the CPU with minimum flow rate and delete it
   uint16_t smallest_core = 0;
   double min_flow = flow_rate_per_cpu[0];
+  //start = rdtsc();
   for(uint16_t i = 1; i < total_core_count_; i++) {
-    if (flow_rate_per_cpu[i] < min_flow) {
+    // We check greater than 0 to avoid idle cores
+    if (flow_rate_per_cpu[i] != 0 && min_flow == 0) {
+      smallest_core = i;
+      min_flow = flow_rate_per_cpu[i];
+      continue;
+    }
+    if (flow_rate_per_cpu[i] < min_flow && flow_rate_per_cpu[i] > 0) {
       min_flow = flow_rate_per_cpu[i];
       smallest_core = i;
     }
   }
-  LOG(INFO) << "rying to remove: " << smallest_core;
-  flow_rate_per_cpu[smallest_core] = threshold_[1000];
+  //end = rdtsc();
+  //LOG(INFO) << "Etime find smallest core: " << tsc_to_ns(end-start);
+  LOG(INFO) << "Trying to remove: " << smallest_core << " rate: " << flow_rate_per_cpu[smallest_core];
+  //start = rdtsc();
+  flow_rate_per_cpu[smallest_core] = threshold_[10000];
+  std::vector<uint16_t> old_buckets = core_bucket_mapping_[smallest_core];
   std::map<uint16_t, uint16_t> moves_tmp = findMoves(flow_rate_per_cpu, core_bucket_mapping_[smallest_core], flow_rate_per_bucket);
+  if (moves_tmp.size() != old_buckets.size()) {
+    for (auto it: moves_tmp) {
+    //Undo all changes
+      // since we always add new buckets to the end
+      core_bucket_mapping_[it.second].pop_back();
+    }
+    moves_tmp.clear();
+  } else {
+    core_bucket_mapping_[smallest_core].clear();
+  }
+  //end = rdtsc();
+  //LOG(INFO) << "Etime find moves for cpu removal: " << tsc_to_ns(end-start);
+  
   moves.insert(moves_tmp.begin(), moves_tmp.end());
   LOG(INFO) << "Total moves: " << moves.size();
   return moves;
@@ -279,9 +324,6 @@ void NFVCtrl::UpdateFlowAssignment() {
   
   std::map<uint16_t, uint16_t> moves = longTermOptimization(flow_rate_per_bucket);
   //Create reta table and upadate rss
-  for (auto it:moves) {
-  LOG(INFO) << it.first << " " << it.second;
-  }
   port_->UpdateRssReta(moves);
 //  WriteToGurobi(total_core_count_, flow_rate_per_bucket,slo_p50_);
 }
@@ -302,7 +344,10 @@ CommandResponse NFVCtrl::CommandGetSummary([[maybe_unused]]const bess::pb::Empty
 
 struct task_result NFVCtrl::RunTask(Context *ctx, bess::PacketBatch *batch, void *) {
   if (tsc_to_ns(rdtsc()) - long_epoch_last_update_time_ > long_epoch_update_period_) {
+    uint64_t start = rdtsc();
     UpdateFlowAssignment();
+    uint64_t end = rdtsc();
+    LOG(INFO) << "Total time: " << tsc_to_ns(end-start);;
     long_epoch_last_update_time_ = tsc_to_ns(rdtsc());
   }
   RunNextModule(ctx, batch); // To avoid [-Werror=unused-parameter] error

@@ -122,7 +122,7 @@ print("Packet size = %d bytes" %(len(pkt_data)))
 
 fg0::FlowGen(
     template=pkt_data,
-    pps=pkt_rate, flow_rate=100, flow_duration=10,
+    pps=pkt_rate, flow_rate=10000, flow_duration=10,
     arrival='uniform', duration='uniform', quick_rampup=True,
     port_src_range=255, port_dst_range=255,
 )

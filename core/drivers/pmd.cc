@@ -127,6 +127,7 @@ void PMDPort::UpdateRssReta() {
 void PMDPort::UpdateRssReta(std::map<uint16_t, uint16_t> moves) {
   for (auto it: moves) {
     reta_conf_[it.first / RTE_RETA_GROUP_SIZE].reta[it.first % RTE_RETA_GROUP_SIZE] = it.second;
+    reta_table_[it.first] = it.second;
   }
   int ret = rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
   if (ret != 0) {
@@ -515,9 +516,12 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   }
   dpdk_port_id_ = ret_port_id;
 
+  /*
   int numa_node = rte_eth_dev_socket_id(static_cast<int>(ret_port_id));
   node_placement_ =
       numa_node == -1 ? UNCONSTRAINED_SOCKET : (1ull << numa_node);
+  */
+  node_placement_ = UNCONSTRAINED_SOCKET;
 
   rte_eth_macaddr_get(dpdk_port_id_,
                       reinterpret_cast<rte_ether_addr *>(conf_.mac_addr.bytes));
