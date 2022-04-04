@@ -58,8 +58,10 @@ void NFVCtrlMsgDeInit() {
 
 // Transfer the ownership of (at most) |n| software packet queues
 // to NFVCore (who calls this function)
-void NFVCtrlRequestSwQ(cpu_core_t core_id, int n) {
+uint64_t NFVCtrlRequestSwQ(cpu_core_t core_id, int n) {
   if (nfv_cores[core_id] == nullptr) {
+    LOG(ERROR) << "Core " << core_id << " is used but not registered";
+    // To register all normal CPU cores
     for (int i = 0; i < DEFAULT_INVALID_CORE_ID; i++){
       std::string core_name = "nfv_core" + std::to_string(i);
       for (const auto &it : ModuleGraph::GetAllModules()) {
@@ -70,12 +72,12 @@ void NFVCtrlRequestSwQ(cpu_core_t core_id, int n) {
     }
   }
 
-  if (nfv_ctrl != nullptr) {
-    uint64_t bitmask = nfv_ctrl->RequestNSwQ(core_id, n);
-    if (bitmask > 0) {
-      return;
-    }
+  if (nfv_ctrl == nullptr) {
+    LOG(ERROR) << "NFVCtrl is used but not registered";
+    return 0;
   }
+
+  return nfv_ctrl->RequestNSwQ(core_id, n);
 }
 
 // NFVCtrl helper functions

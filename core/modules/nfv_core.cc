@@ -127,7 +127,13 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   nfv_cores[core_id_] = this;
 
   // Begin with 0 software queue
-  sw_q_mask_ = 0;
+  sw_q_mask_ = NFVCtrlRequestSwQ(core_id_, 4);
+  for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
+    if (((1 << i) & sw_q_mask_) != 0) {
+      auto &it = sw_q_.emplace_back (i);
+      it.sw_q = sw_q[i];
+    }
+  }
 
   epoch_flow_thresh_ = 35;
   epoch_packet_thresh_ = 80;
@@ -319,16 +325,20 @@ bool NFVCore::ShortEpochProcess() {
     // |epoch_flow_cache_| has all flows that have arrivals in this epoch
     // |flow_to_sw_q_| has all flows that are offloaded to reserved cores
     // |sw_q_mask_| has all software queues that borrowed from NFVCtrl
-    // Greedy algorithm: first-fit
-    // For flows that have not been offloaded, we do the following:
-    // 1) check if they can be handled by NFVCore in an epoch
-    // 2) if not, then:
-    // - a) to decide the number of additional borrowed queues
+    //
+    // Flow Assignment Algorithm: (Greedy) first-fit
+    // 0) check whether the NIC queue cannot be handled by NFVCore in the next epoch
+    // 1) update |unoffload_flows_|
+    // 2) update |sw_q| for packet room for in-use software queues
+    // 3) If |unoffload_flows_| need to be offloaded:
+    // - a) to decide the number of additional software queues to borrow
     // - b) to assign flows to new software queues
-    // What if |sw_q| has more packets than |epoch_packet_thresh_|?
-    // 3) handle overloaded software queues
+    // 4) If |sw_q| has more packets than |epoch_packet_thresh_|?
+    // - a) handle overloaded software queues
+    // 5) Split the NF chain to deal with super-bursty flows
+    // 6) release idle software queues if they have not been used for N epochs
 
-    // Get |unoffload_flows_|
+    // Update |unoffload_flows_|
     for (auto &it : epoch_flow_cache_) {
       it.second->queued_packet_count = it.second->ingress_packet_count - it.second->egress_packet_count;
       if (it.second == nullptr || flow_to_sw_q_.find(it.first) != flow_to_sw_q_.end()) {
@@ -360,9 +370,9 @@ bool NFVCore::ShortEpochProcess() {
       }
     }
 
-    unoffload_flows_.clear();
+    // Determine the number of software queues to borrow / return.
 
-    // RequestNSwQ(core_id_, 4);
+    unoffload_flows_.clear();
 
     CoreStats* stats_ptr = nullptr;
     while (all_core_stats_chan[core_id_]->Size()) {

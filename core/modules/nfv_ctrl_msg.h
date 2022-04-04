@@ -37,4 +37,6 @@ extern struct llring* sw_q[DEFAULT_SWQ_COUNT];
 extern SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT];
 extern bool rcore_state[DEFAULT_INVALID_CORE_ID];
 
+uint64_t NFVCtrlRequestSwQ(cpu_core_t core_id, int n);
+
 #endif // BESS_MODULES_NFV_CTRL_MSG_H_
