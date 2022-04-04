@@ -516,12 +516,9 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   }
   dpdk_port_id_ = ret_port_id;
 
-  /*
   int numa_node = rte_eth_dev_socket_id(static_cast<int>(ret_port_id));
   node_placement_ =
       numa_node == -1 ? UNCONSTRAINED_SOCKET : (1ull << numa_node);
-  */
-  node_placement_ = UNCONSTRAINED_SOCKET;
 
   rte_eth_macaddr_get(dpdk_port_id_,
                       reinterpret_cast<rte_ether_addr *>(conf_.mac_addr.bytes));
