@@ -2,7 +2,6 @@
 
 #include <fstream>
 
-#include "../port.h"
 #include "../drivers/pmd.h"
 #include "../utils/ether.h"
 #include "../utils/format.h"
@@ -89,11 +88,12 @@ int NFVCore::Resize(int slots) {
   return 0;
 }
 
-CommandResponse NFVCore::Init([[maybe_unused]]const bess::pb::NFVCoreArg &arg) {
+CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   const char *port_name;
   task_id_t tid;
   burst_ = bess::PacketBatch::kMaxBurst;
 
+  // Configure the target NIC queue
   if (!arg.port().empty()) {
     port_name = arg.port().c_str();
     qid_ = arg.qid();
@@ -111,6 +111,7 @@ CommandResponse NFVCore::Init([[maybe_unused]]const bess::pb::NFVCoreArg &arg) {
     Resize(2048);
   }
 
+  // Configure the target CPU core ID
   core_id_ = 0;
   if (arg.core_id() > 0) {
     core_id_ = arg.core_id();
@@ -124,6 +125,9 @@ CommandResponse NFVCore::Init([[maybe_unused]]const bess::pb::NFVCoreArg &arg) {
 
   // Init
   nfv_cores[core_id_] = this;
+
+  // Begin with 0 software queue
+  sw_q_mask_ = 0;
 
   epoch_flow_thresh_ = 35;
   epoch_packet_thresh_ = 80;
@@ -312,6 +316,52 @@ bool NFVCore::ShortEpochProcess() {
     // At the end of one epoch, NFVCore requests software queues to
     // absorb the existing packet queue in the coming epoch.
 
+    // |epoch_flow_cache_| has all flows that have arrivals in this epoch
+    // |flow_to_sw_q_| has all flows that are offloaded to reserved cores
+    // |sw_q_mask_| has all software queues that borrowed from NFVCtrl
+    // Greedy algorithm: first-fit
+    // For flows that have not been offloaded, we do the following:
+    // 1) check if they can be handled by NFVCore in an epoch
+    // 2) if not, then:
+    // - a) to decide the number of additional borrowed queues
+    // - b) to assign flows to new software queues
+    // What if |sw_q| has more packets than |epoch_packet_thresh_|?
+    // 3) handle overloaded software queues
+
+    // Get |unoffload_flows_|
+    for (auto &it : epoch_flow_cache_) {
+      it.second->queued_packet_count = it.second->ingress_packet_count - it.second->egress_packet_count;
+      if (it.second == nullptr || flow_to_sw_q_.find(it.first) != flow_to_sw_q_.end()) {
+        unoffload_flows_.emplace(it.first, it.second);
+      }
+    }
+
+    // Check qlen of exisitng software queues
+    for (auto &sw_q_it : sw_q_) {
+      sw_q_it.assigned_packet_count = llring_count(sw_q_it.sw_q);
+    }
+
+    // Greedy assignment: first-fit
+    auto flow_it = unoffload_flows_.begin();
+    while (flow_it != unoffload_flows_.end()) {
+      uint32_t task_size = flow_it->second->queued_packet_count;
+      if (task_size <= epoch_packet_thresh_) {
+        for (auto &sw_q_it : sw_q_) {
+          if (sw_q_it.QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
+            flow_it->second->sw_q_id = sw_q_it.sw_q_id;
+            sw_q_it.assigned_packet_count += task_size;
+            break;
+          }
+        }
+
+        flow_it = unoffload_flows_.erase(flow_it);
+      } else {
+        flow_it++;
+      }
+    }
+
+    unoffload_flows_.clear();
+
     // RequestNSwQ(core_id_, 4);
 
     CoreStats* stats_ptr = nullptr;
@@ -334,4 +384,4 @@ bool NFVCore::ShortEpochProcess() {
   return false;
 }
 
-ADD_MODULE(NFVCore, "nfv_core", "It handles traffic burstiness at each core")
+ADD_MODULE(NFVCore, "nfv_core", "It handles traffic burstiness at a normal core")

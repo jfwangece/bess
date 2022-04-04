@@ -19,20 +19,22 @@ class SoftwareQueue {
 // Forward declaration
 class NFVCtrl;
 class NFVCore;
+class NFVRCore;
 
 // The only instance of NFVCtrl on this worker
 extern NFVCtrl* nfv_ctrl;
 
 extern NFVCore* nfv_cores[DEFAULT_INVALID_CORE_ID];
 
-// extern NFVRcore* nfv_rcores[DEFAULT_INVALID_CORE_ID];
+extern NFVRCore* nfv_rcores[DEFAULT_INVALID_CORE_ID];
 
 // Note: only NFVCtrl can access data structures below
 
 // A pool of software packet queues
 extern struct llring* sw_q[DEFAULT_SWQ_COUNT];
 
-// A pool of atomic variables for all software packet queues
+// States for maintaining software packet queues, reserved cores.
 extern SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT];
+extern bool rcore_state[DEFAULT_INVALID_CORE_ID];
 
 #endif // BESS_MODULES_NFV_CTRL_MSG_H_
