@@ -10,7 +10,7 @@
 #include "../module_graph.h"
 #include "../utils/sys_measure.h"
 
-#define UPDATE_PERIOD 500000000
+#define LONG_TERM_UPDATE_PERIOD 500000000
 #define HEAD_ROOM 0.1
 
 namespace {
@@ -81,24 +81,7 @@ uint64_t NFVCtrlRequestSwQ(cpu_core_t core_id, int n) {
   return nfv_ctrl->RequestNSwQ(core_id, n);
 }
 
-// NFVCtrl helper functions
-
-// Query the Gurobi optimization server to get a core assignment scheme.
-void WriteToGurobi(uint32_t num_cores, std::vector<float> flow_rates, float latency_bound) {
-  LOG(INFO) << num_cores << flow_rates.size() << latency_bound;
-  std::ofstream file_out;
-  file_out.open("./gurobi_in");
-  file_out << num_cores <<std::endl;
-  file_out << flow_rates.size() << std::endl;
-  file_out << std::fixed <<latency_bound <<std::endl;
-  for (auto &it : flow_rates) {
-    file_out << it<< std::endl;
-  }
- file_out.close();
-}
-
 /// NFVCtrl's own functions
-
 const Commands NFVCtrl::cmds = {
     {"get_summary", "EmptyArg", MODULE_CMD_FUNC(&NFVCtrl::CommandGetSummary),
      Command::THREAD_SAFE},
@@ -188,7 +171,7 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   }
 
   total_core_count_ = 0;
-  long_epoch_update_period_ = UPDATE_PERIOD;
+  long_epoch_update_period_ = LONG_TERM_UPDATE_PERIOD;
   long_epoch_last_update_time_ = tsc_to_ns(rdtsc());
   for (const auto &core_addr : arg.core_addrs()) {
     cpu_cores_.push_back(
@@ -231,35 +214,23 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
     uint64_t flow_count;
     file >> flow_count;
     file >> pps;
-    threshold_[flow_count] = pps;
+    flow_count_pps_threshold_[flow_count] = pps;
   }
    
    return CommandSuccess();
 }
+
 /*
-void WriteToGurobi(uint32_t num_cores, std::vector<float> flow_rates, float latency_bound) {
-  LOG(INFO) << num_cores << flow_rates.size() << latency_bound;
-  std::ofstream file_out;
-  file_out.open("./gurobi_in");
-  file_out << num_cores <<std::endl;
-  file_out << flow_rates.size() << std::endl;
-  file_out << std::fixed <<latency_bound <<std::endl;
-  for (auto &it : flow_rates) {
-    file_out << it<< std::endl;
-  }
- file_out.close();
-}
-*/
-
-
-std::map<uint16_t, uint16_t> NFVCtrl::findMoves(double flow_rate_per_cpu[], std::vector<uint16_t> to_be_moved, std::vector<double> flow_rate_per_bucket) {
+ * Uses first fit algorithm to find the best CPU for the RSS bucket
+ */
+// TODO: make the parameters pass by reference
+std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(double flow_rate_per_cpu[], std::vector<uint16_t> to_be_moved, std::vector<double> flow_rate_per_bucket) {
   std::map<uint16_t, uint16_t> moves;
-  //if not found return error
   for (auto it: to_be_moved) {
     double flow_rate = flow_rate_per_bucket[it];
     bool found = false;
     for (uint16_t i = 0; i < total_core_count_; i++) {
-      if (flow_rate_per_cpu[i]>0 && flow_rate_per_cpu[i] + flow_rate < (threshold_[10000] * (1-HEAD_ROOM))) {
+      if (flow_rate_per_cpu[i]>0 && flow_rate_per_cpu[i] + flow_rate < (flow_count_pps_threshold_[10000] * (1-HEAD_ROOM))) {
         flow_rate_per_cpu[i] += flow_rate;
         moves[it] = i;
         core_bucket_mapping_[i].push_back(it);
@@ -267,6 +238,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::findMoves(double flow_rate_per_cpu[], std:
         break;
       }
     }
+    // No CPU found need to add a new CPU
     if (!found) {
       // find a cpu with 0 flow rate and enable it.
       for (uint16_t i = 0; i < total_core_count_; i++) {
@@ -274,35 +246,33 @@ std::map<uint16_t, uint16_t> NFVCtrl::findMoves(double flow_rate_per_cpu[], std:
           flow_rate_per_cpu[i] += flow_rate;
           moves[it] = i;
           core_bucket_mapping_[i].push_back(it);
-          LOG(INFO) << "Added new CPU: " << i;
+          found = true;
+          break;
         }
+      }
+      if (!found) {
+        //This should never happen. Not enough CPUs to hand the load
+        LOG(INFO) << "No new CPU found for the flow: " << flow_rate;
       }
     }
   }
   return moves;
 }
 
-std::map<uint16_t, uint16_t> NFVCtrl::longTermOptimization(std::vector<double> flow_rate_per_bucket) {
+std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(std::vector<double> flow_rate_per_bucket) {
   //compute total flow rate per cpu
-  //uint64_t start, end;
   double flow_rate_per_cpu[total_core_count_];
-  //start = rdtsc();
   for (uint16_t i = 0; i < total_core_count_; i++) {
     flow_rate_per_cpu[i] = 0;
     for (auto it: core_bucket_mapping_[i]) {
       flow_rate_per_cpu[i] += flow_rate_per_bucket[it];
     }
   }
-  //end = rdtsc();
-  //LOG(INFO) << "Etime calc flow/cpu: " << tsc_to_ns(end-start);
-
 
   std::vector<uint16_t> to_be_moved;
   // Find if any CPU is exceeding threshold and add it to the to be moved list
-  LOG(INFO) << threshold_[10000];
-  //start = rdtsc();
   for (uint16_t i = 0; i < total_core_count_; i++) {
-    while (flow_rate_per_cpu[i] > threshold_[10000]) {
+    while (flow_rate_per_cpu[i] > flow_count_pps_threshold_[10000]) {
       //find a bucket to move and do this till all flow rate comes down the threshold
       uint16_t bucket = core_bucket_mapping_[i].back();
       to_be_moved.push_back(bucket);
@@ -310,23 +280,16 @@ std::map<uint16_t, uint16_t> NFVCtrl::longTermOptimization(std::vector<double> f
       flow_rate_per_cpu[i] -= flow_rate_per_bucket[bucket];
     }
   }
-  //end = rdtsc();
-  //LOG(INFO) << "Etime find violations: " << tsc_to_ns(end-start);
 
-  LOG(INFO) << "To move threshold: "<<to_be_moved.size();
   //Find a cpu for the buckets to be moved
   // we should pass flow_rate_per_cpu by reference
-  //start = rdtsc();
-  std::map<uint16_t, uint16_t> moves = findMoves(flow_rate_per_cpu, to_be_moved, flow_rate_per_bucket);
+  std::map<uint16_t, uint16_t> moves = FindMoves(flow_rate_per_cpu, to_be_moved, flow_rate_per_bucket);
   for (auto it: moves) {
     flow_rate_per_cpu[it.second] += flow_rate_per_bucket[it.first];
   }
-  //end = rdtsc();
-  //LOG(INFO) << "Etime find moves for violations: " << tsc_to_ns(end-start);
   // Find the CPU with minimum flow rate and delete it
   uint16_t smallest_core = 0;
   double min_flow = flow_rate_per_cpu[0];
-  //start = rdtsc();
   for(uint16_t i = 1; i < total_core_count_; i++) {
     // We check greater than 0 to avoid idle cores
     if (flow_rate_per_cpu[i] != 0 && min_flow == 0) {
@@ -339,13 +302,9 @@ std::map<uint16_t, uint16_t> NFVCtrl::longTermOptimization(std::vector<double> f
       smallest_core = i;
     }
   }
-  //end = rdtsc();
-  //LOG(INFO) << "Etime find smallest core: " << tsc_to_ns(end-start);
-  LOG(INFO) << "Trying to remove: " << smallest_core << " rate: " << flow_rate_per_cpu[smallest_core];
-  //start = rdtsc();
-  flow_rate_per_cpu[smallest_core] = threshold_[10000];
+  flow_rate_per_cpu[smallest_core] = flow_count_pps_threshold_[10000];
   std::vector<uint16_t> old_buckets = core_bucket_mapping_[smallest_core];
-  std::map<uint16_t, uint16_t> moves_tmp = findMoves(flow_rate_per_cpu, core_bucket_mapping_[smallest_core], flow_rate_per_bucket);
+  std::map<uint16_t, uint16_t> moves_tmp = FindMoves(flow_rate_per_cpu, core_bucket_mapping_[smallest_core], flow_rate_per_bucket);
   if (moves_tmp.size() != old_buckets.size()) {
     for (auto it: moves_tmp) {
     //Undo all changes
@@ -356,11 +315,8 @@ std::map<uint16_t, uint16_t> NFVCtrl::longTermOptimization(std::vector<double> f
   } else {
     core_bucket_mapping_[smallest_core].clear();
   }
-  //end = rdtsc();
-  //LOG(INFO) << "Etime find moves for cpu removal: " << tsc_to_ns(end-start);
   
   moves.insert(moves_tmp.begin(), moves_tmp.end());
-  LOG(INFO) << "Total moves: " << moves.size();
   return moves;
 
 }
@@ -375,10 +331,9 @@ void NFVCtrl::UpdateFlowAssignment() {
   }
   bess::utils::bucket_stats.bucket_table_lock.unlock();
   
-  std::map<uint16_t, uint16_t> moves = longTermOptimization(flow_rate_per_bucket);
+  std::map<uint16_t, uint16_t> moves = LongTermOptimization(flow_rate_per_bucket);
   //Create reta table and upadate rss
   port_->UpdateRssReta(moves);
-//  WriteToGurobi(total_core_count_, flow_rate_per_bucket,slo_p50_);
 }
 
 void NFVCtrl::DeInit() {
@@ -397,10 +352,8 @@ CommandResponse NFVCtrl::CommandGetSummary(const bess::pb::EmptyArg &arg) {
 
 struct task_result NFVCtrl::RunTask(Context *ctx, bess::PacketBatch *batch, void *) {
   if (tsc_to_ns(rdtsc()) - long_epoch_last_update_time_ > long_epoch_update_period_) {
-    uint64_t start = rdtsc();
     UpdateFlowAssignment();
     uint64_t end = rdtsc();
-    LOG(INFO) << "Total time: " << tsc_to_ns(end-start);;
     long_epoch_last_update_time_ = tsc_to_ns(rdtsc());
   }
 
