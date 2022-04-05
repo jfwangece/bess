@@ -23,15 +23,32 @@ using bess::utils::WorkerCore;
 
 struct FlowState {
   FlowState() {
-    ingress_packet_count = 0;
+    ingress_packet_count = egress_packet_count = queued_packet_count = 0;
     short_epoch_packet_count = 0;
-    egress_packet_count = 0;
+    sw_q_id = DEFAULT_SWQ_COUNT;
   }
 
   uint32_t ingress_packet_count; // packet counter at ingress
   uint32_t short_epoch_packet_count; // short-term epoch packet counter
   uint32_t egress_packet_count; // packet counter at egress
-  uint32_t unused;
+  uint32_t queued_packet_count; // packet count in the system
+  int sw_q_id; // |this| flow sent to software queue if |sw_q_id| is valid
+};
+
+// The assignment state for each software queue.
+// |sw_q_id| is the global software queue index seen by NFVCtrl.
+// |sw_q| is the (borrowed) software queue's pointer;
+// |assigned_packet_count| is the number of packets to be enqueued;
+struct SoftwareQueueState {
+  SoftwareQueueState(int id) : sw_q_id(id) {
+    sw_q = nullptr; assigned_packet_count = 0;
+  }
+
+  uint32_t QLenAfterAssignment() { return assigned_packet_count; }
+
+  int sw_q_id;
+  struct llring* sw_q;
+  uint32_t assigned_packet_count;
 };
 
 class NFVCore final : public Module {
@@ -53,6 +70,11 @@ class NFVCore final : public Module {
   // if it will lead to SLO violations.
   // Returns true if a new epoch started.
   bool ShortEpochProcess();
+
+  // Work on all flows in |unoffload_flows_|.
+  // Decide the number of additional software queues and
+  // assign flows to them.
+  int PackFlowsToSoftwareQueues();
 
   // OnFetch:
   // - Add the per-flow state pointer to each packet's metadata.
@@ -90,9 +112,10 @@ class NFVCore final : public Module {
   uint64_t size_;
 
   // Software queues borrowed from NFVCtrl
-  int sw_q_count;
+  uint64_t sw_q_mask_;
+  std::vector<SoftwareQueueState> sw_q_;
   std::unordered_map<Flow, int, FlowHash> flow_to_sw_q_;
-  struct llring* sw_q[DEFAULT_SWQ_COUNT];
+  std::unordered_map<Flow, FlowState*, FlowHash> unoffload_flows_;
 
   // Metadata field ID
   int flow_stats_attr_id_; // for maintaining per-flow stats
@@ -100,9 +123,12 @@ class NFVCore final : public Module {
   // Time-related
   uint64_t curr_ts_ns_;
 
-  // Max number of new flows processed in a epoch
+  // Per-core admission control to avoid latency SLO violations
+  // Based on our design, it approximates the NF profile curve
   uint32_t epoch_packet_thresh_;
   uint32_t epoch_flow_thresh_;
+
+  // Max number of new flows processed in a epoch
   uint32_t epoch_packet_arrival_;
   uint32_t epoch_packet_processed_;
   uint32_t epoch_packet_queued_;
