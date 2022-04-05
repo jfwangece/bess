@@ -44,7 +44,7 @@ class NFVCtrl final : public Module {
   uint64_t slo_p50_ = 200000000; //200ms
 
   // The lock for maintaining a pool of software queues
-  mutable std::shared_mutex sw_q_mtx_;
+  mutable std::mutex sw_q_mtx_;
 
   uint64_t curr_ts_ns_;
 };
