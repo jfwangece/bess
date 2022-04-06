@@ -124,8 +124,8 @@ void PMDPort::UpdateRssReta() {
   }
 }
 
-void PMDPort::UpdateRssReta(std::map<uint16_t, uint16_t> moves) {
-  for (auto it: moves) {
+void PMDPort::UpdateRssReta(std::map<uint16_t, uint16_t>& moves) {
+  for (auto &it: moves) {
     reta_conf_[it.first / RTE_RETA_GROUP_SIZE].reta[it.first % RTE_RETA_GROUP_SIZE] = it.second;
     reta_table_[it.first] = it.second;
   }

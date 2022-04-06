@@ -1,6 +1,6 @@
 #
-# Test NF chain #5: a stateful NF chain used by Dyssect
-# NAT -> Snort
+# Test chain 4 for long term optimization
+# It uses flowgen to generate varying flow rate
 #
 import scapy.all as scapy
 import random

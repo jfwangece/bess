@@ -10,7 +10,9 @@
 #include "../module_graph.h"
 #include "../utils/sys_measure.h"
 
+// The time interval for the long term optimization to run
 #define LONG_TERM_UPDATE_PERIOD 500000000
+// The amount of space to leave when packing buckets into CPUs
 #define HEAD_ROOM 0.1
 
 namespace {
@@ -220,11 +222,9 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
    return CommandSuccess();
 }
 
-/*
- * Uses first fit algorithm to find the best CPU for the RSS bucket
- */
+// Uses first fit algorithm to find the best CPU for the RSS bucket
 // TODO: make the parameters pass by reference
-std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(double flow_rate_per_cpu[], std::vector<uint16_t> to_be_moved, std::vector<double> flow_rate_per_bucket) {
+std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& flow_rate_per_cpu, std::vector<uint16_t>& to_be_moved, const std::vector<double>& flow_rate_per_bucket) {
   std::map<uint16_t, uint16_t> moves;
   for (auto it: to_be_moved) {
     double flow_rate = flow_rate_per_bucket[it];
@@ -259,9 +259,9 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(double flow_rate_per_cpu[], std:
   return moves;
 }
 
-std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(std::vector<double> flow_rate_per_bucket) {
+std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(const std::vector<double> &flow_rate_per_bucket) {
   //compute total flow rate per cpu
-  double flow_rate_per_cpu[total_core_count_];
+  std::vector<double> flow_rate_per_cpu (total_core_count_);
   for (uint16_t i = 0; i < total_core_count_; i++) {
     flow_rate_per_cpu[i] = 0;
     for (auto it: core_bucket_mapping_[i]) {
@@ -284,9 +284,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(std::vector<double> f
   //Find a cpu for the buckets to be moved
   // we should pass flow_rate_per_cpu by reference
   std::map<uint16_t, uint16_t> moves = FindMoves(flow_rate_per_cpu, to_be_moved, flow_rate_per_bucket);
-  for (auto it: moves) {
-    flow_rate_per_cpu[it.second] += flow_rate_per_bucket[it.first];
-  }
+  
   // Find the CPU with minimum flow rate and delete it
   uint16_t smallest_core = 0;
   double min_flow = flow_rate_per_cpu[0];
@@ -306,10 +304,12 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(std::vector<double> f
   std::vector<uint16_t> old_buckets = core_bucket_mapping_[smallest_core];
   std::map<uint16_t, uint16_t> moves_tmp = FindMoves(flow_rate_per_cpu, core_bucket_mapping_[smallest_core], flow_rate_per_bucket);
   if (moves_tmp.size() != old_buckets.size()) {
-    for (auto it: moves_tmp) {
+    flow_rate_per_cpu[smallest_core] = min_flow;
+    for (auto &it: moves_tmp) {
     //Undo all changes
       // since we always add new buckets to the end
       core_bucket_mapping_[it.second].pop_back();
+      flow_rate_per_cpu[it.second] -= flow_rate_per_bucket[it.first];
     }
     moves_tmp.clear();
   } else {
@@ -353,7 +353,6 @@ CommandResponse NFVCtrl::CommandGetSummary(const bess::pb::EmptyArg &arg) {
 struct task_result NFVCtrl::RunTask(Context *ctx, bess::PacketBatch *batch, void *) {
   if (tsc_to_ns(rdtsc()) - long_epoch_last_update_time_ > long_epoch_update_period_) {
     UpdateFlowAssignment();
-    uint64_t end = rdtsc();
     long_epoch_last_update_time_ = tsc_to_ns(rdtsc());
   }
 

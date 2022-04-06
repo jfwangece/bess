@@ -165,7 +165,7 @@ class PMDPort final : public Port {
 
   void UpdateRssReta();
   void UpdateRssFlow();
-  void UpdateRssReta(std::map<uint16_t, uint16_t> moves);
+  void UpdateRssReta(std::map<uint16_t, uint16_t>& moves);
   void BenchUpdateRssReta();
   void BenchRXQueueCount();
 

@@ -38,15 +38,13 @@ class NFVCtrl final : public Module {
 
  private:
 
-  /*
-   * LongTermOptimzation adjusts the system for long term changes in the flow
-   * behavior. It makes sure that none of the cores are violating p50 SLO. It
-   * also reduces resource consumption by packing flows tightly and freeing up
-   * CPUs.
-   */
-  std::map<uint16_t, uint16_t> LongTermOptimization(std::vector<double> flow_rate_per_bucket);
-  /* It uses the first fit algorithm to find a CPU for the flow to be moved */
-  std::map<uint16_t, uint16_t> FindMoves(double flow_rate_per_cpu[], std::vector<uint16_t> to_be_moved, std::vector<double> flow_rate_per_bucket);
+   // LongTermOptimzation adjusts the system for long term changes in the flow
+   // behavior. It makes sure that none of the cores are violating p50 SLO. It
+   // also reduces resource consumption by packing flows tightly and freeing up
+   // CPUs.
+  std::map<uint16_t, uint16_t> LongTermOptimization(const std::vector<double> &flow_rate_per_bucket);
+  // It uses the first fit algorithm to find a CPU for the flow to be moved
+  std::map<uint16_t, uint16_t> FindMoves(std::vector<double>& flow_rate_per_cpu, std::vector<uint16_t>& to_be_moved, const std::vector<double>& flow_rate_per_bucket);
   // All available per-core packet queues in a cluster
   std::vector<WorkerCore> cpu_cores_;
   uint64_t long_epoch_update_period_;
