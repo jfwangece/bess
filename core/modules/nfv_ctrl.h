@@ -52,12 +52,12 @@ class NFVCtrl final : public Module {
   uint16_t total_core_count_ = 0;
   uint64_t slo_p50_ = 200000000; //200ms
 
-  // The lock for maintaining a pool of software queues
-  mutable std::shared_mutex sw_q_mtx_;
   PMDPort *port_;
   std::map<uint16_t, std::vector<uint16_t>> core_bucket_mapping_;
   // packet rate threshold given the flow count. Values are found using offline profiling
   std::map<uint64_t, uint64_t> flow_count_pps_threshold_;
+  // The lock for maintaining a pool of software queues
+  mutable std::mutex sw_q_mtx_;
 
   uint64_t curr_ts_ns_;
 };

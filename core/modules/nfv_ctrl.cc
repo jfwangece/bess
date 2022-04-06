@@ -40,11 +40,21 @@ void NFVCtrlMsgInit(int slots) {
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     sw_q[i] =
         reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+
+    // Note: each SoftwareQueue object has to be initialized as
+    // 'rte_malloc' does not initialize it when allocating memory
+    sw_q_state[i] =
+        reinterpret_cast<SoftwareQueue *>(std::aligned_alloc(alignof(SoftwareQueue), sizeof(SoftwareQueue)));
+    sw_q_state[i]->up_core_id = DEFAULT_INVALID_CORE_ID;
+    sw_q_state[i]->down_core_id = DEFAULT_INVALID_CORE_ID;
   }
+
+  LOG(INFO) << "NFV control messages are initialized";
 }
 
 void NFVCtrlMsgDeInit() {
   struct llring *q = nullptr;
+  SoftwareQueue *q_state = nullptr;
   bess::Packet *pkt = nullptr;
 
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
@@ -53,17 +63,25 @@ void NFVCtrlMsgDeInit() {
       while (llring_sc_dequeue(q, (void **)&pkt) == 0) {
         bess::Packet::Free(pkt);
       }
+      std::free(q);
     }
-    std::free(q);
     q = nullptr;
+
+    q_state = sw_q_state[i];
+    if (q_state) {
+      std::free(q_state);
+    }
+    q_state = nullptr;
   }
+
+  LOG(INFO) << "NFV control messages are de-initialized";
 }
 
 // Transfer the ownership of (at most) |n| software packet queues
 // to NFVCore (who calls this function)
 uint64_t NFVCtrlRequestSwQ(cpu_core_t core_id, int n) {
   if (nfv_cores[core_id] == nullptr) {
-    LOG(ERROR) << "Core " << core_id << " is used but not registered";
+    LOG(ERROR) << "Core " << core_id << " is used but not created";
     // To register all normal CPU cores
     for (int i = 0; i < DEFAULT_INVALID_CORE_ID; i++){
       std::string core_name = "nfv_core" + std::to_string(i);
@@ -76,7 +94,7 @@ uint64_t NFVCtrlRequestSwQ(cpu_core_t core_id, int n) {
   }
 
   if (nfv_ctrl == nullptr) {
-    LOG(ERROR) << "NFVCtrl is used but not registered";
+    LOG(ERROR) << "NFVCtrl is used but not created";
     return 0;
   }
 
@@ -90,21 +108,21 @@ const Commands NFVCtrl::cmds = {
 };
 
 uint64_t NFVCtrl::RequestNSwQ(cpu_core_t core_id, int n) {
-  uint64_t bitmask = 0;
+  uint64_t bitmask = 0ULL;
   if (core_id == DEFAULT_INVALID_CORE_ID) {
     return bitmask;
   }
 
-  int cnt = 0;
-
   // Only one NFVCore can call the following session at a time.
-  std::unique_lock lock(sw_q_mtx_);
+  const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
+  int assigned = 0;
   // Find a (idle) software queue
-  for (int i = 0; (i < DEFAULT_SWQ_COUNT) && (cnt < n); i++) {
+  for (int i = 0; (i < DEFAULT_SWQ_COUNT) && (assigned < n); i++) {
     if (sw_q_state[i]->up_core_id == DEFAULT_INVALID_CORE_ID) {
+      assigned += 1;
       sw_q_state[i]->up_core_id = core_id;
-      bitmask |= 1 << i;
+      bitmask |= 1ULL << i;
 
       // Find a (idle) reserved core
       for (int j = 0; j < DEFAULT_INVALID_CORE_ID; j++) {
@@ -128,7 +146,7 @@ int NFVCtrl::RequestSwQ(cpu_core_t core_id) {
   }
 
   // Only one NFVCore can call the following session at a time.
-  std::unique_lock lock(sw_q_mtx_);
+  const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     if (sw_q_state[i]->up_core_id == DEFAULT_INVALID_CORE_ID) {
@@ -152,7 +170,7 @@ int NFVCtrl::RequestSwQ(cpu_core_t core_id) {
 }
 
 void NFVCtrl::ReleaseSwQ(int q_id) {
-  std::unique_lock lock(sw_q_mtx_);
+  const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
   if (q_id >= 0 && q_id < DEFAULT_SWQ_COUNT) {
     cpu_core_t down = sw_q_state[q_id]->down_core_id;
@@ -351,7 +369,7 @@ CommandResponse NFVCtrl::CommandGetSummary(const bess::pb::EmptyArg &arg) {
 }
 
 struct task_result NFVCtrl::RunTask(Context *ctx, bess::PacketBatch *batch, void *) {
-  if (tsc_to_ns(rdtsc()) - long_epoch_last_update_time_ > long_epoch_update_period_) {
+  if (false && tsc_to_ns(rdtsc()) - long_epoch_last_update_time_ > long_epoch_update_period_) {
     UpdateFlowAssignment();
     long_epoch_last_update_time_ = tsc_to_ns(rdtsc());
   }

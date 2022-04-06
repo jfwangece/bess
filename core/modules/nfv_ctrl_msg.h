@@ -6,6 +6,7 @@
 // Number of software packet queues
 #define DEFAULT_SWQ_COUNT 40
 
+// |SoftwareQueue| tracks the mapping of (NFVCore, sw_q, NFVRCore)
 class SoftwareQueue {
  public:
   SoftwareQueue() {
