@@ -134,7 +134,7 @@ class NFVSwitch final : public Module {
 
   // The number of normal / reserved CPU cores
   // |normal_core_count_| + |idle_core_count_| <= |total_core_count_|
-  int total_core_count_ = 0;
+  uint16_t total_core_count_ = 0;
   int normal_core_count_ = 0;
   int idle_core_count_ = 0;
 

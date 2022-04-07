@@ -10,7 +10,7 @@
 #include "../utils/time.h"
 #include "../utils/udp.h"
 
-#define DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS 200000000 // 200 ms
+#define DEFAULT_TRAFFIC_STATS_LONG_TERM_UPDATE_PERIOD_NS 200000000 // 200 ms
 #define DEFAULT_PER_CORE_MIGRATION_PERIOD_US 200000000 // 200 ms
 #define DEFAULT_ACTIVE_FLOW_WINDOW_NS 2000000000 // 2000 ms
 #define DEFAULT_PACKET_COUNT_THRESH 1000000
@@ -57,7 +57,7 @@ CommandResponse NFVMonitor::Init([[maybe_unused]]const bess::pb::NFVMonitorArg &
   last_update_traffic_stats_ts_ns_ = curr_ts_ns_;
   next_epoch_id_ = 0;
 
-  update_traffic_stats_period_ns_ = DEFAULT_TRAFFIC_STATS_UPDATE_PERIOD_NS;
+  update_traffic_stats_period_ns_ = DEFAULT_TRAFFIC_STATS_LONG_TERM_UPDATE_PERIOD_NS;
   if (arg.update_stats_period_ns() > 0) {
     update_traffic_stats_period_ns_ = (uint64_t)arg.update_stats_period_ns();
   }

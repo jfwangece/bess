@@ -5,6 +5,7 @@
 
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
+#include "../drivers/pmd.h"
 
 #include "../utils/cpu_core.h"
 
@@ -36,13 +37,25 @@ class NFVCtrl final : public Module {
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &arg);
 
  private:
+
+   // LongTermOptimzation adjusts the system for long term changes in the flow
+   // behavior. It makes sure that none of the cores are violating p50 SLO. It
+   // also reduces resource consumption by packing flows tightly and freeing up
+   // CPUs.
+  std::map<uint16_t, uint16_t> LongTermOptimization(const std::vector<double> &flow_rate_per_bucket);
+  // It uses the first fit algorithm to find a CPU for the flow to be moved
+  std::map<uint16_t, uint16_t> FindMoves(std::vector<double>& flow_rate_per_cpu, std::vector<uint16_t>& to_be_moved, const std::vector<double>& flow_rate_per_bucket);
   // All available per-core packet queues in a cluster
   std::vector<WorkerCore> cpu_cores_;
   uint64_t long_epoch_update_period_;
   uint64_t long_epoch_last_update_time_;
-  int total_core_count_ = 0;
+  uint16_t total_core_count_ = 0;
   uint64_t slo_p50_ = 200000000; //200ms
 
+  PMDPort *port_;
+  std::map<uint16_t, std::vector<uint16_t>> core_bucket_mapping_;
+  // packet rate threshold given the flow count. Values are found using offline profiling
+  std::map<uint64_t, uint64_t> flow_count_pps_threshold_;
   // The lock for maintaining a pool of software queues
   mutable std::mutex sw_q_mtx_;
 
