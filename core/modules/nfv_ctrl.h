@@ -26,8 +26,16 @@ class NFVCtrl final : public Module {
   uint64_t RequestNSwQ(cpu_core_t core_id, int n);
   // Returns the software queue's index.
   int RequestSwQ(cpu_core_t core_id);
+
+  // Releases many software queues back to the pool.
+  void ReleaseNSwQ(cpu_core_t core_id, uint64_t q_mask);
   // Releases a software queue back to NFVCtrl.
   void ReleaseSwQ(int q_id);
+
+  // Finds an idle NFVRCore to work on sw_q |q_id|.
+  bool NotifyRCoreToWork(cpu_core_t core_id, int q_id);
+  // Notifies the NFVRCore to stop working on sw_q |q_id|.
+  void NotifyRCoreToRest(cpu_core_t core_id, int q_id);
 
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg) override;
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;

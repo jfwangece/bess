@@ -76,7 +76,7 @@ void NFVCtrlMsgDeInit() {
 
 // Transfer the ownership of (at most) |n| software packet queues
 // to NFVCore (who calls this function)
-uint64_t NFVCtrlRequestSwQ(cpu_core_t core_id, int n) {
+uint64_t NFVCtrlRequestNSwQ(cpu_core_t core_id, int n) {
   if (nfv_cores[core_id] == nullptr) {
     LOG(ERROR) << "Core " << core_id << " is used but not created";
     // To register all normal CPU cores
@@ -98,6 +98,18 @@ uint64_t NFVCtrlRequestSwQ(cpu_core_t core_id, int n) {
   return nfv_ctrl->RequestNSwQ(core_id, n);
 }
 
+void NFVCtrlReleaseNSwQ(cpu_core_t core_id, uint64_t q_mask) {
+  nfv_ctrl->ReleaseNSwQ(core_id, q_mask);
+}
+
+bool NFVCtrlNotifyRCoreToWork(cpu_core_t core_id, int q_id) {
+  return nfv_ctrl->NotifyRCoreToWork(core_id, q_id);
+}
+
+void NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id) {
+  nfv_ctrl->NotifyRCoreToRest(core_id, q_id);
+}
+
 // NFVCtrl helper functions
 
 // Query the Gurobi optimization server to get a core assignment scheme.
@@ -111,7 +123,7 @@ void WriteToGurobi(uint32_t num_cores, std::vector<float> flow_rates, float late
   for (auto &it : flow_rates) {
     file_out << it<< std::endl;
   }
- file_out.close();
+  file_out.close();
 }
 
 /// NFVCtrl's own functions
@@ -165,34 +177,63 @@ int NFVCtrl::RequestSwQ(cpu_core_t core_id) {
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     if (sw_q_state[i]->up_core_id == DEFAULT_INVALID_CORE_ID) {
       sw_q_state[i]->up_core_id = core_id;
-
-      // Find a (idle) reserved core
-      for (int j = 0; j < DEFAULT_INVALID_CORE_ID; j++) {
-        if (!rcore_state[j]) {
-          continue;
-        }
-
-        rcore_state[j] = false;
-        nfv_rcores[j]->AddQueue(sw_q[i]);
-        sw_q_state[i]->down_core_id = j;
-        break;
-      }
       return i;
     }
   }
   return DEFAULT_SWQ_COUNT;
 }
 
+void NFVCtrl::ReleaseNSwQ(cpu_core_t core_id, uint64_t q_mask) {
+  const std::lock_guard<std::mutex> lock(sw_q_mtx_);
+
+  for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
+    uint64_t sw_q_idx = (1ULL << i) & q_mask;
+    if (sw_q_idx != 0 && sw_q_state[i]->up_core_id == core_id) {
+      sw_q_state[i]->up_core_id = DEFAULT_INVALID_CORE_ID;
+    }
+  }
+}
+
 void NFVCtrl::ReleaseSwQ(int q_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
-  if (q_id >= 0 && q_id < DEFAULT_SWQ_COUNT) {
-    cpu_core_t down = sw_q_state[q_id]->down_core_id;
-    nfv_rcores[down]->RemoveQueue(sw_q[q_id]);
-    rcore_state[down] = true; // reset so that it can be assigned later
-    sw_q_state[q_id]->up_core_id = DEFAULT_INVALID_CORE_ID;
-    sw_q_state[q_id]->down_core_id = DEFAULT_INVALID_CORE_ID;
+  sw_q_state[q_id]->up_core_id = DEFAULT_INVALID_CORE_ID;
+}
+
+bool NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
+  const std::lock_guard<std::mutex> lock(sw_q_mtx_);
+
+  // Do not assign if sw_q |q_id| does not belong to NFVCore |core_id|
+  if (sw_q_state[q_id]->up_core_id != core_id) {
+    return false;
   }
+
+  // Find an idle reserved core
+  for (int i = 0; i < DEFAULT_INVALID_CORE_ID; i++) {
+    if (!rcore_state[i]) {
+      continue;
+    }
+
+    rcore_state[i] = false;
+    nfv_rcores[i]->AddQueue(sw_q[q_id]);
+    sw_q_state[q_id]->down_core_id = i;
+    return true;
+  }
+  return false;
+}
+
+void NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
+  const std::lock_guard<std::mutex> lock(sw_q_mtx_);
+
+  // Do not change if sw_q |q_id| does not belong to NFVCore |core_id|
+  if (sw_q_state[q_id]->up_core_id != core_id) {
+    return;
+  }
+
+  cpu_core_t down = sw_q_state[q_id]->down_core_id;
+  nfv_rcores[down]->RemoveQueue(sw_q[q_id]);
+  rcore_state[down] = true; // reset so that it can be assigned later
+  sw_q_state[q_id]->down_core_id = DEFAULT_INVALID_CORE_ID;
 }
 
 CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
