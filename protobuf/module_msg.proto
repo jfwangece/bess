@@ -981,6 +981,7 @@ message NFVIngressArg {
 message NFVCtrlArg {
   repeated CoreAddr core_addrs = 1; /// list of routing addresses for available CPU cores in the cluster
   int32 slo_ns = 2; /// The target NF chain's tail latency SLO (in ns)
+  string port = 3; /// NIC PMD port number to manage
 }
 
 message NFVMonitorArg {
