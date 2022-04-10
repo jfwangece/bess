@@ -6,6 +6,11 @@
 // Number of software packet queues
 #define DEFAULT_SWQ_COUNT 40
 
+// Forward declaration
+class NFVCtrl;
+class NFVCore;
+class NFVRCore;
+
 // |SoftwareQueue| tracks the mapping of (NFVCore, sw_q, NFVRCore)
 class SoftwareQueue {
  public:
@@ -16,11 +21,6 @@ class SoftwareQueue {
   cpu_core_t up_core_id;
   cpu_core_t down_core_id;
 };
-
-// Forward declaration
-class NFVCtrl;
-class NFVCore;
-class NFVRCore;
 
 // The only instance of NFVCtrl on this worker
 extern NFVCtrl* nfv_ctrl;

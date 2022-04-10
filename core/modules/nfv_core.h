@@ -39,16 +39,21 @@ struct FlowState {
 // |sw_q_id| is the global software queue index seen by NFVCtrl.
 // |sw_q| is the (borrowed) software queue's pointer;
 // |assigned_packet_count| is the number of packets to be enqueued;
+// |idle_epoch_count|: the number of epoches with no packet arrivals;
 struct SoftwareQueueState {
-  SoftwareQueueState(int id) : sw_q_id(id) {
-    sw_q = nullptr; assigned_packet_count = 0;
+  SoftwareQueueState(int qid) : sw_q_id(qid) {
+    sw_q = bess::ctrl::sw_q[qid];
+    idle_epoch_count = 0;
+    assigned_packet_count = 0; processed_packet_count = 0;
   }
 
   uint32_t QLenAfterAssignment() { return assigned_packet_count; }
 
-  int sw_q_id;
   struct llring* sw_q;
+  int sw_q_id;
+  int idle_epoch_count;
   uint32_t assigned_packet_count;
+  uint32_t processed_packet_count;
 };
 
 class NFVCore final : public Module {
