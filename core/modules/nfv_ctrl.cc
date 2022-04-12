@@ -292,16 +292,20 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
       core_bucket_mapping_[core_id].push_back(i);
     }
   }
-  std::ifstream file("long_term_threshold");
-  while (!file.eof()) {
-    uint64_t pps;
-    uint64_t flow_count;
-    file >> flow_count;
-    file >> pps;
-    flow_count_pps_threshold_[flow_count] = pps;
+
+  std::ifstream file("long_term_threshold", std::ifstream::in);
+  if (file.is_open()) {
+    while (!file.eof()) {
+      uint64_t pps;
+      uint64_t flow_count;
+      file >> flow_count;
+      file >> pps;
+      flow_count_pps_threshold_[flow_count] = pps;
+    }
+    file.close();
   }
-   
-   return CommandSuccess();
+
+  return CommandSuccess();
 }
 
 // Uses first fit algorithm to find the best CPU for the RSS bucket
