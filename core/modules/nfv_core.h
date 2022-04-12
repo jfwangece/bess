@@ -21,20 +21,6 @@ using bess::utils::WorkerCore;
 // if |active_flow_count| increases, |packet_count| will decrease
 // Then, the admission process can be a packing problem.
 
-struct FlowState {
-  FlowState() {
-    ingress_packet_count = egress_packet_count = queued_packet_count = 0;
-    short_epoch_packet_count = 0;
-    sw_q_id = DEFAULT_SWQ_COUNT;
-  }
-
-  uint32_t ingress_packet_count; // packet counter at ingress
-  uint32_t short_epoch_packet_count; // short-term epoch packet counter
-  uint32_t egress_packet_count; // packet counter at egress
-  uint32_t queued_packet_count; // packet count in the system
-  int sw_q_id; // |this| flow sent to software queue if |sw_q_id| is valid
-};
-
 // The assignment state for each software queue.
 // |sw_q_id| is the global software queue index seen by NFVCtrl.
 // |sw_q| is the (borrowed) software queue's pointer;
@@ -49,18 +35,38 @@ struct SoftwareQueueState {
 
   uint32_t QLenAfterAssignment() { return assigned_packet_count; }
 
+  void EnqueueBatch() {
+    llring_sp_enqueue_burst(sw_q, (void**)sw_batch->pkts(), sw_batch->cnt());
+    processed_packet_count += sw_batch->cnt();
+  }
+
   struct llring* sw_q;
+  bess::PacketBatch* sw_batch;
   int sw_q_id;
   int idle_epoch_count;
   uint32_t assigned_packet_count;
   uint32_t processed_packet_count;
 };
 
+struct FlowState {
+  FlowState() {
+    ingress_packet_count = egress_packet_count = queued_packet_count = 0;
+    short_epoch_packet_count = 0;
+    sw_q_state = nullptr;
+  }
+
+  uint32_t ingress_packet_count; // packet counter at ingress
+  uint32_t short_epoch_packet_count; // short-term epoch packet counter
+  uint32_t egress_packet_count; // packet counter at egress
+  uint32_t queued_packet_count; // packet count in the system
+  SoftwareQueueState *sw_q_state; // |this| flow sent to software queue w/ valid |sw_q_state|
+};
+
 class NFVCore final : public Module {
  public:
   static const Commands cmds;
 
-  NFVCore() : Module(), queue_(0), burst_(32), size_(2048) {
+  NFVCore() : Module(), local_queue_(0), burst_(32), size_(2048) {
     max_allowed_workers_ = 1;
   }
 
@@ -80,6 +86,9 @@ class NFVCore final : public Module {
   // Decide the number of additional software queues and
   // assign flows to them.
   int PackFlowsToSoftwareQueues();
+
+  // Enqueue packets in this batch to different queues.
+  void SplitAndEnqueueBatch(bess::PacketBatch *batch);
 
   // OnFetch:
   // - Add the per-flow state pointer to each packet's metadata.
@@ -112,7 +121,8 @@ class NFVCore final : public Module {
   queue_t qid_;
 
   // Software queue that holds packets
-  struct llring *queue_;
+  struct llring *local_queue_;
+  bess::PacketBatch *local_batch_;
   int burst_;
   uint64_t size_;
 

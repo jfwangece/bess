@@ -7,9 +7,13 @@
 #define DEFAULT_SWQ_COUNT 40
 
 // Forward declaration
+struct llring;
 class NFVCtrl;
 class NFVCore;
 class NFVRCore;
+
+namespace bess {
+namespace ctrl {
 
 // |SoftwareQueue| tracks the mapping of (NFVCore, sw_q, NFVRCore)
 class SoftwareQueue {
@@ -55,5 +59,8 @@ bool NFVCtrlNotifyRCoreToWork(cpu_core_t core_id, int q_id);
 // This function will un-schedule the NFVRCore and make it idle.
 // Afterwards, the NFVRCore is ready to handle another sw_q.
 void NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id);
+
+} // namespace ctrl
+} // namespace bess
 
 #endif // BESS_MODULES_NFV_CTRL_MSG_H_

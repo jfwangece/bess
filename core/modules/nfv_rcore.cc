@@ -20,8 +20,8 @@ CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
   burst_ = bess::PacketBatch::kMaxBurst;
 
   // Init
-  nfv_rcores[core_id_] = this;
-  rcore_state[core_id_] = true;
+  bess::ctrl::nfv_rcores[core_id_] = this;
+  bess::ctrl::rcore_state[core_id_] = true;
 
   int bytes = llring_bytes_with_slots(256);
   to_add_queue_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));

@@ -31,7 +31,10 @@ core_addrs = [
     {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
     {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
 ]
-core_cnt=len(core_addrs)
+core_cnt=8 
+rcore_cnt=0
+total_core_cnt = core_cnt + rcore_cnt
+print("normal core:%d, reserved core:%d" %(core_cnt, rcore_cnt))
 
 acl_rules = []
 for i in range(acl_cnt / 50):
@@ -46,7 +49,8 @@ for i in range(lb_cnt / 20):
 
 # Module
 nfvctrl::NFVCtrl(core_addrs=core_addrs, slo_ns=slo)
-port0::PMDPort(pci=pcie0, num_inc_q=core_cnt, num_out_q=core_cnt, bench_rss=False)
+port0::PMDPort(pci=pcie0,
+    num_inc_q=core_cnt, num_out_q=total_core_cnt, bench_rss=False)
 pinc0 = {}
 pout0 = {}
 fw = {}
@@ -56,7 +60,7 @@ nfvig = {}
 nfvmo = {}
 
 # Pipeline
-for i in range(len(core_addrs)):
+for i in range(core_cnt):
     pout0[i] = QueueOut(port=port0, qid=i)
     fw[i] = FlowACL(rules=acl_rules)
     lb[i] = FlowLB(endpoints=nat_hosts)
@@ -70,17 +74,18 @@ for i in range(len(core_addrs)):
         else:
             pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
     elif exp_idx == 1:
-        pinc0[i] = QueueInc(port=port0, qid=i)
-        nfvig[i] = NFVCore(core_id=i, port="", qid=0)
-        nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
-        pinc0[i] -> nfvig[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
-    elif exp_idx == 2:
         pinc0[i] = NFVCore(core_id=i, port=port0, qid=i)
         nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
     else:
         pinc0[i] = QueueInc(port=port0, qid=i)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> pout0[i]
+
+for i in range(rcore_cnt):
+    rcore_id = core_cnt + i
+    pinc0[rcore_id] = NFVRCore(core_id=rcore_id)
+    pout0[rcore_id] = QueueOut(port=port0, qid=rcore_id)
+    pinc0[rcore_id] -> pout0[rcore_id]
 
 # Burst
 for i in range(core_cnt):
@@ -93,5 +98,8 @@ nfvctrl.attach_task(wid=nfvctrl_core)
 for i in range(core_cnt):
     bess.add_worker(wid=i+offset0, core=i+offset0)
     pinc0[i].attach_task(wid=i+offset0)
+
+for i in range(rcore_cnt):
+    bess.add_worker(wid=i+offset0, core=i+offset0)
 
 bess.resume_all()

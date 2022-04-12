@@ -52,7 +52,7 @@ bool ParseFlowFromPacket(Flow *flow, bess::Packet *pkt) {
 
 // NFVCore member functions
 int NFVCore::Resize(int slots) {
-  struct llring *old_queue = queue_;
+  struct llring *old_queue = local_queue_;
   struct llring *new_queue;
 
   int bytes = llring_bytes_with_slots(slots);
@@ -83,7 +83,7 @@ int NFVCore::Resize(int slots) {
     std::free(old_queue);
   }
 
-  queue_ = new_queue;
+  local_queue_ = new_queue;
   size_ = slots;
 
   return 0;
@@ -110,6 +110,8 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
     }
 
     Resize(2048);
+    local_batch_ = reinterpret_cast<bess::PacketBatch *>
+          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   }
 
   // Configure the target CPU core ID
@@ -125,14 +127,16 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   flow_stats_attr_id_ = AddMetadataAttr(attr_name, sizeof(uint64_t), AccessMode::kWrite);
 
   // Init
-  nfv_cores[core_id_] = this;
+  bess::ctrl::nfv_cores[core_id_] = this;
 
   // Begin with 0 software queue
-  sw_q_mask_ = NFVCtrlRequestNSwQ(core_id_, 4);
+  sw_q_mask_ = bess::ctrl::NFVCtrlRequestNSwQ(core_id_, 4);
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     uint64_t sw_q_idx = (1ULL << i) & sw_q_mask_;
     if (sw_q_idx != 0) {
-      auto &it = sw_q_.emplace_back (i);
+      sw_q_.emplace_back (i);
+      sw_q_.back().sw_batch = reinterpret_cast<bess::PacketBatch *>
+          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
     }
   }
   LOG(INFO) << "Core " << core_id_ << " has " << sw_q_.size() << " sw_q. q_mask: " << std::bitset<64> (sw_q_mask_);
@@ -150,11 +154,30 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
 void NFVCore::DeInit() {
   bess::Packet *pkt;
 
-  if (queue_) {
-    while (llring_sc_dequeue(queue_, (void **)&pkt) == 0) {
+  // Clean (borrowed) software queues
+  for (auto &it : sw_q_) {
+    if (it.sw_q) {
+      while (llring_sc_dequeue(it.sw_q, (void**)&pkt) == 0) {
+        bess::Packet::Free(pkt);
+      }
+    }
+    if (it.sw_batch) {
+      std::free(it.sw_batch);
+    }
+  }
+  bess::ctrl::NFVCtrlReleaseNSwQ(core_id_, sw_q_mask_);
+  sw_q_.clear();
+  LOG(INFO) << "Core " << core_id_ << " releases " << sw_q_.size() << " sw_q. q_mask: " << std::bitset<64> (sw_q_mask_);
+
+  // Clean the local software queue
+  if (local_queue_) {
+    while (llring_sc_dequeue(local_queue_, (void **)&pkt) == 0) {
       bess::Packet::Free(pkt);
     }
-    std::free(queue_);
+    std::free(local_queue_);
+  }
+  if (local_batch_) {
+    std::free(local_batch_);
   }
 }
 
@@ -182,7 +205,7 @@ CommandResponse NFVCore::CommandSetBurst(
 }
 
 std::string NFVCore::GetDesc() const {
-  return bess::utils::Format("%s:%hhu/%d", port_->name().c_str(), qid_, llring_count(queue_));
+  return bess::utils::Format("%s:%hhu/%d", port_->name().c_str(), qid_, llring_count(local_queue_));
 }
 
 /* Get a batch from NIC and send it to downstream */
@@ -198,13 +221,11 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   // Busy pulling from the NIC queue
   while (1) {
-    // Should check llring_free_count(queue_)
     batch->set_cnt(p->RecvPackets(qid, batch->pkts(), 32));
     if (batch->cnt()) {
-      // Note: need to consider possible drops due to |queue_| overflow
-      llring_sp_enqueue_burst(queue_, (void **)batch->pkts(), batch->cnt());
-
-      // To update |per_flow_states_|, |epoch_flow_cache_|, |epoch_packet_arrival_|
+      // To append |per_flow_states_|
+      // Update the number of packets / flows that have arrived:
+      // Update |epoch_packet_arrival_| and |epoch_flow_cache_|
       UpdateStatsOnFetchBatch(batch);
     }
 
@@ -214,8 +235,9 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   }
 
   // Process one batch
-  uint32_t cnt = llring_sc_dequeue_burst(queue_, (void **)batch->pkts(), burst);
+  uint32_t cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), burst);
   if (cnt == 0) {
+    // Call PostProcessBatch here.
     return {.block = false, .packets = 0, .bits = 0};
   }
   batch->set_cnt(cnt);
@@ -225,6 +247,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     total_bytes += batch->pkts()[i]->total_len();
   }
 
+  // Update the number of packets / flows processed:
+  // |epoch_packet_processed_| and |per_flow_states_|
   UpdateStatsPreProcessBatch(batch);
 
   ProcessBatch(ctx, batch);
@@ -239,6 +263,11 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   Flow flow;
   FlowState *state = nullptr;
+
+  local_batch_->clear();
+  for (auto &sw_q_it : sw_q_) {
+    sw_q_it.sw_batch->clear();
+  }
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
@@ -263,12 +292,47 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     }
     state->short_epoch_packet_count += 1;
 
+    if (state->sw_q_state) {
+      state->sw_q_state->sw_batch->add(pkt);
+    } else {
+      local_batch_->add(pkt);
+    }
+
     // Append the pointer of this flow's stats
     set_attr<FlowState*>(this, flow_stats_attr_id_, pkt, state);
   }
 
   // Update per-epoch packet counter
   epoch_packet_arrival_ += cnt;
+
+  // Note: need to consider possible drops due to |local_queue_| overflow
+  llring_sp_enqueue_burst(local_queue_, (void **)local_batch_->pkts(), local_batch_->cnt());
+  for (auto &sw_q_it : sw_q_) {
+    sw_q_it.EnqueueBatch();
+  }
+}
+
+void NFVCore::SplitAndEnqueueBatch(bess::PacketBatch *batch) {
+  FlowState *state = nullptr;
+  int cnt = batch->cnt();
+  for (int i = 0; i < cnt; i++) {
+    bess::Packet *pkt = batch->pkts()[i];
+    state = get_attr<FlowState*>(this, flow_stats_attr_id_, pkt);
+    if (state == nullptr) {
+      continue;
+    }
+    if (state->sw_q_state) {
+      state->sw_q_state->sw_batch->add(pkt);
+    } else {
+      local_batch_->add(pkt);
+    }
+  }
+
+  // Note: need to consider possible drops due to |local_queue_| overflow
+  llring_sp_enqueue_burst(local_queue_, (void **)local_batch_->pkts(), local_batch_->cnt());
+  for (auto &sw_q_it : sw_q_) {
+    sw_q_it.EnqueueBatch();
+  }
 }
 
 void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
@@ -285,19 +349,18 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
     bess::utils::bucket_stats.bucket_table_lock.lock_shared();
     bess::utils::bucket_stats.per_bucket_packet_counter[id] += 1;
     bess::utils::bucket_stats.bucket_table_lock.unlock_shared();
+
     state = get_attr<FlowState*>(this, flow_stats_attr_id_, pkt);
     if (state == nullptr) {
       continue;
     }
 
     state->egress_packet_count += 1;
-
-    
   }
 
   // Update per-epoch packet counter
   epoch_packet_processed_ += cnt;
-  epoch_packet_queued_ = llring_count(queue_);
+  epoch_packet_queued_ = llring_count(local_queue_);
 
   // Update for NFVMonitor (the current epoch info)
   all_local_core_stats[core_id_]->active_flow_count = epoch_flow_cache_.size();
@@ -331,52 +394,83 @@ bool NFVCore::ShortEpochProcess() {
     //
     // Flow Assignment Algorithm: (Greedy) first-fit
     // 0) check whether the NIC queue cannot be handled by NFVCore in the next epoch
-    // 1) update |unoffload_flows_|
-    // 2) update |sw_q| for packet room for in-use software queues
+    //    - if the number of packets in |local_queue_| is too large, then go to the next step;
+    //    - otherwise, stop here;
+    // 1) update |sw_q| for packet room for in-use software queues
+    // 2) update |unoffload_flows_|
+    //    if |unoffload_flows_| is empty, stop here;
     // 3) If |unoffload_flows_| need to be offloaded:
-    // - a) to decide the number of additional software queues to borrow
-    // - b) to assign flows to new software queues
+    //    - a) to decide the number of additional software queues to borrow
+    //    - b) to assign flows to new software queues
     // 4) If |sw_q| has more packets than |epoch_packet_thresh_|?
-    // - a) handle overloaded software queues
+    //    - a) handle overloaded software queues
     // 5) Split the NF chain to deal with super-bursty flows
     // 6) release idle software queues if they have not been used for N epochs
 
-    // Update |unoffload_flows_|
-    for (auto &it : epoch_flow_cache_) {
-      it.second->queued_packet_count = it.second->ingress_packet_count - it.second->egress_packet_count;
-      if (it.second == nullptr || flow_to_sw_q_.find(it.first) != flow_to_sw_q_.end()) {
-        unoffload_flows_.emplace(it.first, it.second);
-      }
-    }
-
     // Check qlen of exisitng software queues
     for (auto &sw_q_it : sw_q_) {
+      if (sw_q_it.processed_packet_count == 0) {
+        sw_q_it.idle_epoch_count += 1;
+      }
       sw_q_it.assigned_packet_count = llring_count(sw_q_it.sw_q);
     }
 
+    // Update |unoffload_flows_|
+    for (auto &it : epoch_flow_cache_) {
+      if (it.second != nullptr) {
+        it.second->queued_packet_count = it.second->ingress_packet_count - it.second->egress_packet_count;
+        if (it.second->sw_q_state != nullptr) {
+          // flows that have been assigned
+          continue;
+        }
+      }
+      unoffload_flows_.emplace(it.first, it.second);
+    }
+
     // Greedy assignment: first-fit
+    uint32_t local_assigned = 0;
     auto flow_it = unoffload_flows_.begin();
     while (flow_it != unoffload_flows_.end()) {
       uint32_t task_size = flow_it->second->queued_packet_count;
       if (task_size <= epoch_packet_thresh_) {
-        for (auto &sw_q_it : sw_q_) {
-          if (sw_q_it.QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
-            flow_it->second->sw_q_id = sw_q_it.sw_q_id;
-            sw_q_it.assigned_packet_count += task_size;
-            break;
+        if (local_assigned + task_size < epoch_packet_thresh_) {
+          local_assigned += task_size;
+          flow_it = unoffload_flows_.erase(flow_it);
+        } else {
+          for (auto &sw_q_it : sw_q_) {
+            if (sw_q_it.QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
+              flow_it->second->sw_q_state = &sw_q_it;
+              sw_q_it.assigned_packet_count += task_size;
+              flow_it = unoffload_flows_.erase(flow_it);
+              break;
+            }
           }
         }
-
-        flow_it = unoffload_flows_.erase(flow_it);
+        // LOG(ERROR) << "Core " << core_id_ << " runs out of sw_q";
       } else {
         flow_it++;
       }
     }
 
-    // Determine the number of software queues to borrow / return.
+    // Notify reserved cores to do the work.
+    for (auto &sw_q_it : sw_q_) {
+      if (sw_q_it.idle_epoch_count > 0 &&
+          sw_q_it.assigned_packet_count > 0) { // got things to do
+        bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, sw_q_it.sw_q_id);
+        sw_q_it.idle_epoch_count = 0;
+      } else {
+        // |idle_epoch_count| == 0 || |assigned_packet_count| == 0
+        if (sw_q_it.idle_epoch_count >= 10) { // idle for a while
+          bess::ctrl::NFVCtrlNotifyRCoreToRest(core_id_, sw_q_it.sw_q_id);
+        }
+      }
+      sw_q_it.processed_packet_count = 0;
+    }
 
+    // Handle super-bursty flows by splitting a chain into several cores
     unoffload_flows_.clear();
 
+    // Clear
     CoreStats* stats_ptr = nullptr;
     while (all_core_stats_chan[core_id_]->Size()) {
       all_core_stats_chan[core_id_]->Pop(stats_ptr);
@@ -390,7 +484,6 @@ bool NFVCore::ShortEpochProcess() {
     epoch_flow_cache_.clear();
     epoch_packet_arrival_ = 0;
     epoch_packet_processed_ = 0;
-
     return true;
   }
 

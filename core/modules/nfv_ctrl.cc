@@ -21,6 +21,8 @@ std::chrono::milliseconds DEFAULT_SLEEP_DURATION(100);
 } // namespace
 
 /// Initialize global NFV control messages
+namespace bess {
+namespace ctrl {
 
 NFVCtrl* nfv_ctrl = nullptr;
 
@@ -114,6 +116,9 @@ void NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   nfv_ctrl->NotifyRCoreToRest(core_id, q_id);
 }
 
+} // namespace ctrl
+} // namespace bess
+
 // NFVCtrl helper functions
 
 // Query the Gurobi optimization server to get a core assignment scheme.
@@ -149,20 +154,20 @@ uint64_t NFVCtrl::RequestNSwQ(cpu_core_t core_id, int n) {
   int assigned = 0;
   // Find a (idle) software queue
   for (int i = 0; (i < DEFAULT_SWQ_COUNT) && (assigned < n); i++) {
-    if (sw_q_state[i]->up_core_id == DEFAULT_INVALID_CORE_ID) {
+    if (bess::ctrl::sw_q_state[i]->up_core_id == DEFAULT_INVALID_CORE_ID) {
       assigned += 1;
-      sw_q_state[i]->up_core_id = core_id;
+      bess::ctrl::sw_q_state[i]->up_core_id = core_id;
       bitmask |= 1ULL << i;
 
       // Find a (idle) reserved core
       for (int j = 0; j < DEFAULT_INVALID_CORE_ID; j++) {
-        if (!rcore_state[j]) {
+        if (!bess::ctrl::rcore_state[j]) {
           continue;
         }
 
-        rcore_state[j] = false;
-        nfv_rcores[j]->AddQueue(sw_q[i]);
-        sw_q_state[i]->down_core_id = j;
+        bess::ctrl::rcore_state[j] = false;
+        bess::ctrl::nfv_rcores[j]->AddQueue(bess::ctrl::sw_q[i]);
+        bess::ctrl::sw_q_state[i]->down_core_id = j;
         break;
       }
     }
@@ -179,8 +184,8 @@ int NFVCtrl::RequestSwQ(cpu_core_t core_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
-    if (sw_q_state[i]->up_core_id == DEFAULT_INVALID_CORE_ID) {
-      sw_q_state[i]->up_core_id = core_id;
+    if (bess::ctrl::sw_q_state[i]->up_core_id == DEFAULT_INVALID_CORE_ID) {
+      bess::ctrl::sw_q_state[i]->up_core_id = core_id;
       return i;
     }
   }
@@ -192,8 +197,8 @@ void NFVCtrl::ReleaseNSwQ(cpu_core_t core_id, uint64_t q_mask) {
 
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     uint64_t sw_q_idx = (1ULL << i) & q_mask;
-    if (sw_q_idx != 0 && sw_q_state[i]->up_core_id == core_id) {
-      sw_q_state[i]->up_core_id = DEFAULT_INVALID_CORE_ID;
+    if (sw_q_idx != 0 && bess::ctrl::sw_q_state[i]->up_core_id == core_id) {
+      bess::ctrl::sw_q_state[i]->up_core_id = DEFAULT_INVALID_CORE_ID;
     }
   }
 }
@@ -201,26 +206,26 @@ void NFVCtrl::ReleaseNSwQ(cpu_core_t core_id, uint64_t q_mask) {
 void NFVCtrl::ReleaseSwQ(int q_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
-  sw_q_state[q_id]->up_core_id = DEFAULT_INVALID_CORE_ID;
+  bess::ctrl::sw_q_state[q_id]->up_core_id = DEFAULT_INVALID_CORE_ID;
 }
 
 bool NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
   // Do not assign if sw_q |q_id| does not belong to NFVCore |core_id|
-  if (sw_q_state[q_id]->up_core_id != core_id) {
+  if (bess::ctrl::sw_q_state[q_id]->up_core_id != core_id) {
     return false;
   }
 
   // Find an idle reserved core
   for (int i = 0; i < DEFAULT_INVALID_CORE_ID; i++) {
-    if (!rcore_state[i]) {
+    if (!bess::ctrl::rcore_state[i]) {
       continue;
     }
 
-    rcore_state[i] = false;
-    nfv_rcores[i]->AddQueue(sw_q[q_id]);
-    sw_q_state[q_id]->down_core_id = i;
+    bess::ctrl::rcore_state[i] = false;
+    bess::ctrl::nfv_rcores[i]->AddQueue(bess::ctrl::sw_q[q_id]);
+    bess::ctrl::sw_q_state[q_id]->down_core_id = i;
     return true;
   }
   return false;
@@ -230,19 +235,19 @@ void NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
   // Do not change if sw_q |q_id| does not belong to NFVCore |core_id|
-  if (sw_q_state[q_id]->up_core_id != core_id) {
+  if (bess::ctrl::sw_q_state[q_id]->up_core_id != core_id) {
     return;
   }
 
-  cpu_core_t down = sw_q_state[q_id]->down_core_id;
-  nfv_rcores[down]->RemoveQueue(sw_q[q_id]);
-  rcore_state[down] = true; // reset so that it can be assigned later
-  sw_q_state[q_id]->down_core_id = DEFAULT_INVALID_CORE_ID;
+  cpu_core_t down = bess::ctrl::sw_q_state[q_id]->down_core_id;
+  bess::ctrl::nfv_rcores[down]->RemoveQueue(bess::ctrl::sw_q[q_id]);
+  bess::ctrl::rcore_state[down] = true; // reset so that it can be assigned later
+  bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_INVALID_CORE_ID;
 }
 
 CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
-  nfv_ctrl = this;
-  NFVCtrlMsgInit(1024);
+  bess::ctrl::nfv_ctrl = this;
+  bess::ctrl::NFVCtrlMsgInit(1024);
 
   task_id_t tid = RegisterTask(nullptr);
   if (tid == INVALID_TASK_ID) {
@@ -414,8 +419,8 @@ void NFVCtrl::UpdateFlowAssignment() {
 }
 
 void NFVCtrl::DeInit() {
-  nfv_ctrl = nullptr;
-  NFVCtrlMsgDeInit();
+  bess::ctrl::nfv_ctrl = nullptr;
+  bess::ctrl::NFVCtrlMsgDeInit();
 }
 
 CommandResponse NFVCtrl::CommandGetSummary(const bess::pb::EmptyArg &arg) {
