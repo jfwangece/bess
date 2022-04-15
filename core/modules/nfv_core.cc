@@ -437,16 +437,21 @@ bool NFVCore::ShortEpochProcess() {
           local_assigned += task_size;
           flow_it = unoffload_flows_.erase(flow_it);
         } else {
+          bool assigned = false;
           for (auto &sw_q_it : sw_q_) {
             if (sw_q_it.QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
               flow_it->second->sw_q_state = &sw_q_it;
               sw_q_it.assigned_packet_count += task_size;
               flow_it = unoffload_flows_.erase(flow_it);
+              assigned = true;
               break;
             }
           }
+          if (!assigned) { // need more software queues (current ones cannot hold this flow)
+            // LOG(ERROR) << "Core " << core_id_ << " runs out of sw_q";
+            flow_it++;
+          }
         }
-        // LOG(ERROR) << "Core " << core_id_ << " runs out of sw_q";
       } else {
         flow_it++;
       }
