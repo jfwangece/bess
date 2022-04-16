@@ -234,6 +234,10 @@ bool NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
 void NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
+  // RCore not assigned to sw_q
+  if (bess::ctrl::sw_q_state[q_id]->down_core_id == DEFAULT_INVALID_CORE_ID) {
+    return;
+  }
   // Do not change if sw_q |q_id| does not belong to NFVCore |core_id|
   if (bess::ctrl::sw_q_state[q_id]->up_core_id != core_id) {
     return;
