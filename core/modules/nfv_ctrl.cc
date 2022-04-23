@@ -420,9 +420,9 @@ void NFVCtrl::UpdateFlowAssignment() {
   bess::utils::bucket_stats.bucket_table_lock.unlock();
 
   std::map<uint16_t, uint16_t> moves = LongTermOptimization(per_bucket_pkt_rate);
-
-  // Create reta table and upadate rss
-  port_->UpdateRssReta(moves);
+  if (moves.size()) {
+    port_->UpdateRssReta(moves);
+  }
 }
 
 void NFVCtrl::DeInit() {
@@ -439,14 +439,13 @@ CommandResponse NFVCtrl::CommandGetSummary(const bess::pb::EmptyArg &arg) {
   return CommandSuccess();
 }
 
-struct task_result NFVCtrl::RunTask(Context *ctx, bess::PacketBatch *batch, void *) {
+struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *, void *) {
   uint64_t curr_ts_ns = tsc_to_ns(rdtsc());
   if (curr_ts_ns - long_epoch_last_update_time_ > long_epoch_update_period_) {
     UpdateFlowAssignment();
     long_epoch_last_update_time_ = curr_ts_ns;
   }
 
-  RunNextModule(ctx, batch); // To avoid [-Werror=unused-parameter] error
   return {.block = false, .packets = 0, .bits = 0};
 }
 

@@ -1,0 +1,127 @@
+#
+# Test NF chain #5: a stateful NF chain used by Dyssect
+# ACL/Firewall -> LB -> Monitor
+#
+import scapy.all as scapy
+
+pcie0 = "af:00.0" # intel
+pcie1 = "5e:00.0" # mlnx
+print("traffic port:%s, worker port:%s" %(pcie0, pcie1))
+
+core_offset, core_cnt = 1, 8
+rcore_offset, rcore_cnt = 9, 0
+traffic_offset, traffic_cnt = 12, 3
+ctrl_offset, ctrl_cnt = 15, 1
+
+total_core_cnt = core_cnt + rcore_cnt
+print("normal core:%d, reserved core:%d" %(core_cnt, rcore_cnt))
+
+PCAPFILE = $PCAP!"./equinix-nyc.dirA.20190117-125910.UTC.short.pcap"
+playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
+playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
+playback_speed = float($BESS_SPEED!"1")
+tag_offset = 72
+
+burst_size=int($BESS_BURST!'32')
+acl_cnt=int($BESS_ACL!'2000')
+lb_cnt=int($BESS_LB!'100')
+slo = int($BESS_SLO!"200000")
+short_epoch_period = int(slo / 2)
+long_epoch_period = int($BESS_LSTATS_PERIOD!"200000000")
+
+# Traffic
+pcap_file = '{}'.format(PCAPFILE)
+pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
+pcap_src = PortInc(port=pcap_port)
+pcap_q = Queue(size=pow(2,24))
+if playback_rate_mpps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
+elif playback_rate_mbps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
+else:
+    replayer = Replayer(offset=tag_offset, speed=playback_speed)
+traffic_pmd::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+traffic_pout0::PortOut(port=traffic_pmd)
+traffic_pinc0::PortInc(port=traffic_pmd)
+
+pcap_src -> pcap_q -> replayer -> Timestamp(offset=tag_offset) -> traffic_pout0
+traffic_pinc0 -> Measure(offset=tag_offset) -> Sink()
+
+# normal cores and reserved cores
+core_addrs = [
+    {'l2_port': 0, 'l2_mac': '82:a3:ae:74:72:30'},
+    {'l2_port': 1, 'l2_mac': 'a2:87:fd:f8:72:21'},
+    {'l2_port': 2, 'l2_mac': '2e:c7:8b:7b:8d:a8'},
+    {'l2_port': 3, 'l2_mac': '2a:9d:fd:13:15:01'},
+    {'l2_port': 4, 'l2_mac': '32:a5:0f:e0:04:0b'},
+    {'l2_port': 5, 'l2_mac': '06:8a:62:fb:51:51'},
+    {'l2_port': 6, 'l2_mac': 'ce:2e:14:c4:a0:cb'},
+    {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
+    {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
+]
+
+acl_rules = []
+for i in range(acl_cnt / 50):
+    for j in range(50):
+        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
+acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
+
+nat_hosts = []
+for i in range(lb_cnt / 20):
+    for j in range(20):
+        nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
+
+# Module
+worker_pmd::PMDPort(pci=pcie1,
+    num_inc_q=core_cnt, num_out_q=total_core_cnt, bench_rss=False)
+pinc0 = {}
+pout0 = {}
+fw = {}
+lb = {}
+monitor = {}
+nfvig = {}
+nfvmo = {}
+
+# Pipeline
+for i in range(core_cnt):
+    fw[i] = FlowACL(rules=acl_rules)
+    lb[i] = FlowLB(endpoints=nat_hosts)
+    monitor[i] = FlowCounter()
+
+    pinc0[i] = NFVCore(core_id=i, port=worker_pmd, qid=i)
+    pout0[i] = QueueOut(port=worker_pmd, qid=i)
+    nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_epoch_period)
+    pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
+
+for i in range(rcore_cnt):
+    rcore_id = core_cnt + i
+    pinc0[rcore_id] = NFVRCore(core_id=rcore_id)
+    pout0[rcore_id] = QueueOut(port=worker_pmd, qid=rcore_id)
+    pinc0[rcore_id] -> pout0[rcore_id]
+
+# Burst
+for i in range(core_cnt):
+    pinc0[i].set_burst(burst=burst_size)
+
+# Control
+nfvctrl::NFVCtrl(core_addrs=core_addrs[:core_cnt], slo_ns=slo)
+
+# Core
+bess.add_worker(wid=ctrl_offset, core=ctrl_offset)
+nfvctrl.attach_task(wid=ctrl_offset)
+
+for i in range(core_cnt):
+    bess.add_worker(wid=i+core_offset, core=i+core_offset)
+    pinc0[i].attach_task(wid=i+core_offset)
+
+for i in range(rcore_cnt):
+    bess.add_worker(wid=i+rcore_offset, core=i+rcore_offset)
+
+bess.add_worker(wid=12, core=12)
+bess.add_worker(wid=13, core=13)
+bess.add_worker(wid=14, core=14)
+pcap_src.attach_task(wid=12)
+pcap_q.attach_task(wid=13)
+traffic_pinc0.attach_task(wid=14)
+
+bess.resume_all()
