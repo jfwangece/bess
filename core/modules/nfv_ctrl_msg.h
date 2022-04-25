@@ -1,6 +1,7 @@
 #ifndef BESS_MODULES_NFV_CTRL_MSG_H_
 #define BESS_MODULES_NFV_CTRL_MSG_H_
 
+#include "../drivers/pmd.h"
 #include "../utils/cpu_core.h"
 
 // Number of software packet queues
@@ -33,14 +34,29 @@ extern NFVCore* nfv_cores[DEFAULT_INVALID_CORE_ID];
 
 extern NFVRCore* nfv_rcores[DEFAULT_INVALID_CORE_ID];
 
+extern PMDPort *pmd_port;
+
+//static int ready_components = 0;
+
 // Note: only NFVCtrl can access data structures below
 
 // A pool of software packet queues
 extern struct llring* sw_q[DEFAULT_SWQ_COUNT];
 
-// States for maintaining software packet queues, reserved cores.
+// States for maintaining software packet queues, normal and reserved cores.
 extern SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT];
+extern bool core_state[DEFAULT_INVALID_CORE_ID];
 extern bool rcore_state[DEFAULT_INVALID_CORE_ID];
+
+// Create software queues and reset flags
+void NFVCtrlMsgInit(int slots);
+void NFVCtrlMsgDeInit();
+
+// Check if all NFV components are ready. If yes:
+// 1) initialize all management data;
+// 2) update NIC RSS;
+// 3) start the long-term optimization;
+void NFVCtrlCheckAllComponents();
 
 // Request |n| software queues from the global software queue pool.
 // The return value is a bit-mask that records the assignment of

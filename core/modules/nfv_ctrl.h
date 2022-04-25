@@ -6,7 +6,6 @@
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
 #include "../drivers/pmd.h"
-
 #include "../utils/cpu_core.h"
 
 using bess::utils::WorkerCore;
@@ -21,6 +20,8 @@ class NFVCtrl final : public Module {
 
   CommandResponse Init(const bess::pb::NFVCtrlArg &arg);
   void DeInit() override;
+
+  void InitPMD(PMDPort* port);
 
   // Returns |n| (idle) software queue's index as a bitmask.
   // Once assigned, the software queue is uniquely accessed by NFVCore (the caller).
@@ -50,8 +51,8 @@ class NFVCtrl final : public Module {
   // packing flows tightly and freeing up CPU cores.
   std::map<uint16_t, uint16_t> LongTermOptimization(const std::vector<double>& per_bucket_pkt_rate);
 
-  // It uses the first fit algorithm to find a CPU for the flow to be moved
-  std::map<uint16_t, uint16_t> FindMoves(std::vector<double>& per_core_pkt_rate, std::vector<uint16_t>& to_be_moved, const std::vector<double>& per_bucket_pkt_rate);
+  // Apply first-fit to find the best core for the set of RSS buckets to be migrated
+  std::map<uint16_t, uint16_t> FindMoves(std::vector<double>& per_core_pkt_rate, std::vector<uint16_t>& to_move_cores, const std::vector<double>& per_bucket_pkt_rate);
 
   uint64_t long_epoch_update_period_;
   uint64_t long_epoch_last_update_time_;
@@ -66,7 +67,8 @@ class NFVCtrl final : public Module {
   PMDPort *port_;
   // Normal cores and reserved cores
   std::vector<WorkerCore> cpu_cores_;
-  uint16_t total_core_count_ = 0;
+  uint16_t total_core_count_;
+  uint16_t active_core_count_;
 
   // The lock for maintaining a pool of software queues
   mutable std::mutex sw_q_mtx_;

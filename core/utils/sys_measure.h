@@ -64,18 +64,20 @@ class CoreStats {
 };
 
 class BucketStats {
-  public:
-   BucketStats() {}
-   uint64_t per_bucket_packet_counter[RETA_SIZE] = {0};
-   uint64_t per_bucket_flow_counter[RETA_SIZE] = {0};
-   std::shared_mutex bucket_table_lock;
-   uint32_t RSSHashToID(uint32_t hash) {
-     return hash & (RETA_SIZE-1);
-   }
+ public:
+  BucketStats() {}
+  uint32_t RSSHashToID(uint32_t hash) {
+    return hash & (RETA_SIZE-1);
+  }
+
+  uint64_t per_bucket_packet_counter[RETA_SIZE] = {0};
+  uint64_t per_bucket_flow_counter[RETA_SIZE] = {0};
+  std::shared_mutex bucket_table_lock;
 };
 
 // Used to maintain packet counts per RSS bucket
-extern BucketStats bucket_stats;
+extern BucketStats *volatile bucket_stats;
+
 // Core statistics buffer
 extern CoreStats *volatile all_local_core_stats[20];
 

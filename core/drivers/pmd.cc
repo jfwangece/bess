@@ -29,6 +29,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include "pmd.h"
+#include "../modules/nfv_ctrl_msg.h"
 
 #include <rte_bus_pci.h>
 
@@ -110,28 +111,33 @@ static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
 }
 
 void PMDPort::UpdateRssReta() {
-  int remapping_count = 1;
   for (size_t j = 0; j < reta_size_; j++) {
-    reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = j % 5;
-    reta_table_[j] = j%5;
+    reta_table_[j] = 0;
+    reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = 0;
   }
 
-  if (remapping_count) {
-    int ret = rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
-    if (ret != 0) {
-      LOG(ERROR) << "Failed to set NIC reta table: " << rte_strerror(ret);
-    }
+  int ret = rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
+  if (ret != 0) {
+    LOG(ERROR) << "Failed to set NIC reta table: " << rte_strerror(ret);
   }
 }
 
 void PMDPort::UpdateRssReta(std::map<uint16_t, uint16_t>& moves) {
-  for (auto &it: moves) {
-    reta_conf_[it.first / RTE_RETA_GROUP_SIZE].reta[it.first % RTE_RETA_GROUP_SIZE] = it.second;
+  // first = bucket ID; second = core ID;
+  int remapping = 0;
+  for (auto &it : moves) {
+    if (reta_table_[it.first] != it.second) {
+      remapping += 1;
+    }
     reta_table_[it.first] = it.second;
+    reta_conf_[it.first / RTE_RETA_GROUP_SIZE].reta[it.first % RTE_RETA_GROUP_SIZE] = it.second;
   }
-  int ret = rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
-  if (ret != 0) {
-    LOG(ERROR) << "Failed to set NIC reta table: " << rte_strerror(ret);
+
+  if (remapping) {
+    int ret = rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
+    if (ret != 0) {
+      LOG(ERROR) << "Failed to set NIC reta table: " << rte_strerror(ret);
+    }
   }
 }
 
@@ -552,7 +558,6 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   for (uint16_t i = 0; i < reta_size_; i++) {
     reta_table_.push_back(0);
   }
-  UpdateRssReta();
 
   // Run a set of NIC RSS benchmarks
   if (bench_rss_) {
@@ -565,6 +570,10 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   } else {
     LOG(INFO) << "RX queue count func is not supported. Error code: " << q_pkt_count;
   }
+
+  // Set the global pmd pointer used by NFVCtrl
+  bess::ctrl::pmd_port = this;
+  bess::ctrl::NFVCtrlCheckAllComponents();
 
   return CommandSuccess();
 }
