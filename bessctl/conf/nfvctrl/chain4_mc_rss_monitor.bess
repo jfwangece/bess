@@ -8,7 +8,7 @@ burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 slo = int($BESS_SLO!"200000")
-long_update_stats_period = int($BESS_LSTATS_PERIOD!"200000000")
+long_update_stats_period = int($BESS_LSTATS_PERIOD!"500000000")
 short_update_stats_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
 
@@ -32,7 +32,7 @@ core_addrs = [
     {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
 ]
 core_cnt=8 
-rcore_cnt=0
+rcore_cnt=4
 total_core_cnt = core_cnt + rcore_cnt
 print("normal core:%d, reserved core:%d" %(core_cnt, rcore_cnt))
 
@@ -100,6 +100,8 @@ for i in range(core_cnt):
     pinc0[i].attach_task(wid=i+offset0)
 
 for i in range(rcore_cnt):
-    bess.add_worker(wid=i+offset0, core=i+offset0)
+    rcore_id = core_cnt + i
+    bess.add_worker(wid=rcore_id+offset0, core=rcore_id+offset0)
+    pinc0[rcore_id].attach_task(wid=rcore_id+offset0)
 
 bess.resume_all()

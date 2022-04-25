@@ -111,10 +111,16 @@ void NFVCtrlReleaseNSwQ(cpu_core_t core_id, uint64_t q_mask) {
 }
 
 bool NFVCtrlNotifyRCoreToWork(cpu_core_t core_id, int q_id) {
+  if (nfv_ctrl == nullptr) {
+    return false;
+  }
   return nfv_ctrl->NotifyRCoreToWork(core_id, q_id);
 }
 
 void NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id) {
+  if (nfv_ctrl == nullptr) {
+    return;
+  }
   nfv_ctrl->NotifyRCoreToRest(core_id, q_id);
 }
 

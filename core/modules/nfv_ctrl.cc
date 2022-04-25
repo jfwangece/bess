@@ -120,7 +120,8 @@ bool NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
 
   // Find an idle reserved core
   for (int i = 0; i < DEFAULT_INVALID_CORE_ID; i++) {
-    if (!bess::ctrl::rcore_state[i]) {
+    if (bess::ctrl::nfv_rcores[i] == nullptr ||
+        !bess::ctrl::rcore_state[i]) {
       continue;
     }
 
@@ -302,6 +303,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(const std::vector<dou
   if (active_core_count_ == 1) {
     return moves;
   }
+  return moves;
 
   // Find the CPU with minimum flow rate and delete it
   uint16_t min_rate_core = 0;
