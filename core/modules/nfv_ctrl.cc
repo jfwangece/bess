@@ -117,6 +117,10 @@ bool NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
   if (bess::ctrl::sw_q_state[q_id]->up_core_id != core_id) {
     return false;
   }
+  // Do not assign if sw_q |q_id| has already been assigned
+  if (bess::ctrl::sw_q_state[q_id]->down_core_id == DEFAULT_INVALID_CORE_ID) {
+    return false;
+  }
 
   // Find an idle reserved core
   for (int i = 0; i < DEFAULT_INVALID_CORE_ID; i++) {

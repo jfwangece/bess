@@ -62,9 +62,12 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch,
                                      void *) {
   // 1) check |remove|
   if (llring_count(to_remove_queue_) == 1) {
-    llring_sc_dequeue(to_remove_queue_, (void**)&sw_q_);
-    sw_q_ = nullptr;
-    return {.block = false, .packets = 0, .bits = 0};
+    llring *q = nullptr;
+    llring_sc_dequeue(to_remove_queue_, (void**)&q);
+    if (q == sw_q_) {
+      sw_q_ = nullptr;
+      return {.block = false, .packets = 0, .bits = 0};
+    }
   }
 
   // 2) check |assign|

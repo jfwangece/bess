@@ -32,11 +32,11 @@ class NFVRCore final : public Module {
 
   // |NFVRCore| will start working on |q| when the next round starts
   inline void AddQueue(struct llring* q) {
-    llring_sp_enqueue(to_add_queue_, (void*)q);
+    llring_mp_enqueue(to_add_queue_, (void*)q);
   }
   // |NFVRCore| will stop working on |q| when the next round starts
   inline void RemoveQueue(struct llring* q) {
-    llring_sp_enqueue(to_remove_queue_, (void*)q);
+    llring_mp_enqueue(to_remove_queue_, (void*)q);
   }
 
  private:
