@@ -22,9 +22,10 @@ using bess::utils::WorkerCore;
 // Then, the admission process can be a packing problem.
 
 // The assignment state for each software queue.
-// |sw_q_id| is the global software queue index seen by NFVCtrl.
-// |sw_q| is the (borrowed) software queue's pointer;
-// |assigned_packet_count| is the number of packets to be enqueued;
+// |sw_q_id|: the global software queue index seen by NFVCtrl.
+// |sw_q|: the (borrowed) software queue's pointer;
+// |assigned_packet_count|: the number of packets to be enqueued;
+// |processed_packet_count|: the number of packets seen by the queue;
 // |idle_epoch_count|: the number of epoches with no packet arrivals;
 struct SoftwareQueueState {
   SoftwareQueueState(int qid) : sw_q_id(qid) {
@@ -35,9 +36,19 @@ struct SoftwareQueueState {
 
   uint32_t QLenAfterAssignment() { return assigned_packet_count; }
 
-  void EnqueueBatch() {
-    llring_sp_enqueue_burst(sw_q, (void**)sw_batch->pkts(), sw_batch->cnt());
+  inline void EnqueueBatch() {
+    if (sw_batch->cnt() == 0) {
+      return;
+    }
     processed_packet_count += sw_batch->cnt();
+    int queued = llring_sp_enqueue_burst(sw_q, (void**)sw_batch->pkts(), sw_batch->cnt());
+    if (queued < 0) {
+      queued = queued & (~RING_QUOT_EXCEED);
+    }
+    if (queued < sw_batch->cnt()) {
+      int to_drop = sw_batch->cnt() - queued;
+      bess::Packet::Free(sw_batch->pkts() + queued, to_drop);
+    }
   }
 
   struct llring* sw_q;
@@ -86,9 +97,6 @@ class NFVCore final : public Module {
   // Decide the number of additional software queues and
   // assign flows to them.
   int PackFlowsToSoftwareQueues();
-
-  // Enqueue packets in this batch to different queues.
-  void SplitAndEnqueueBatch(bess::PacketBatch *batch);
 
   // OnFetch:
   // - Add the per-flow state pointer to each packet's metadata.
