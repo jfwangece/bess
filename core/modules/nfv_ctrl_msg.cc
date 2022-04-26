@@ -30,6 +30,8 @@ bool core_state[DEFAULT_INVALID_CORE_ID] = {false}; // core is in-use if true
 
 bool rcore_state[DEFAULT_INVALID_CORE_ID] = {false}; // rcore can be assigned if true
 
+int core_liveness[DEFAULT_INVALID_CORE_ID] = {0}; // the number of long epochs in which a core has been live
+
 // Global software queue / reserved core management functions
 
 void NFVCtrlMsgInit(int slots) {

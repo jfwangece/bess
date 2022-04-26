@@ -47,6 +47,7 @@ extern struct llring* sw_q[DEFAULT_SWQ_COUNT];
 extern SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT];
 extern bool core_state[DEFAULT_INVALID_CORE_ID];
 extern bool rcore_state[DEFAULT_INVALID_CORE_ID];
+extern int core_liveness[DEFAULT_INVALID_CORE_ID];
 
 // Create software queues and reset flags
 void NFVCtrlMsgInit(int slots);

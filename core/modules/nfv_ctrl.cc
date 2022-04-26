@@ -14,7 +14,8 @@
 #define LONG_TERM_UPDATE_PERIOD 500000000
 
 // The amount of space to leave when packing buckets into CPUs
-#define HEAD_ROOM 0.1
+#define MIGRATE_HEAD_ROOM 0.1
+#define ASSIGN_HEAD_ROOM 0.2
 
 namespace {
 std::chrono::milliseconds DEFAULT_SLEEP_DURATION(100);
@@ -30,7 +31,7 @@ void WriteToGurobi(uint32_t num_cores, std::vector<float> flow_rates, float late
   file_out << num_cores <<std::endl;
   file_out << flow_rates.size() << std::endl;
   file_out << std::fixed <<latency_bound <<std::endl;
-  for (auto &it : flow_rates) {
+  for (auto& it : flow_rates) {
     file_out << it<< std::endl;
   }
   file_out.close();
@@ -168,7 +169,7 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   total_core_count_ = 0;
   long_epoch_update_period_ = LONG_TERM_UPDATE_PERIOD;
   long_epoch_last_update_time_ = tsc_to_ns(rdtsc());
-  for (const auto &core_addr : arg.core_addrs()) {
+  for (const auto& core_addr : arg.core_addrs()) {
     cpu_cores_.push_back(
       WorkerCore {
         core_id: total_core_count_,
@@ -224,9 +225,6 @@ void NFVCtrl::InitPMD(PMDPort* port) {
   }
 
   LOG(INFO) << "NIC init: " << active_core_count_ << " active normal cores";
-
-  // Call NIC's function to make the RSS assignment valid
-  // UpdateFlowAssignment();
   port_->UpdateRssReta();
 }
 
@@ -239,7 +237,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt
     bool found = false;
     for (uint16_t i = 0; i < total_core_count_; i++) {
       if (bess::ctrl::core_state[i] &&
-          per_cpu_pkt_rate[i] + bucket_pkt_rate < (flow_count_pps_threshold_[10000] * (1 - HEAD_ROOM))) {
+          per_cpu_pkt_rate[i] + bucket_pkt_rate < (flow_count_pps_threshold_[10000] * (1 - ASSIGN_HEAD_ROOM))) {
         per_cpu_pkt_rate[i] += bucket_pkt_rate;
         moves[bucket] = i;
         core_bucket_mapping_[i].push_back(bucket);
@@ -255,9 +253,11 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt
           per_cpu_pkt_rate[i] += bucket_pkt_rate;
           moves[bucket] = i;
           core_bucket_mapping_[i].push_back(bucket);
-          bess::ctrl::core_state[i] = true;
-          active_core_count_ += 1;
           found = true;
+
+          bess::ctrl::core_state[i] = true;
+          bess::ctrl::core_liveness[i] = 1;
+          active_core_count_ += 1;
           break;
         }
       }
@@ -282,6 +282,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(const std::vector<dou
         per_cpu_pkt_rate[i] += per_bucket_pkt_rate[it];
       }
       bess::ctrl::core_state[i] = true;
+      bess::ctrl::core_liveness[i] += 1;
       active_core_count_ += 1;
     }
   }
@@ -293,11 +294,13 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(const std::vector<dou
       continue;
     }
     // Move a bucket and do this until the aggregated packet rate is below the threshold
-    while (per_cpu_pkt_rate[i] > flow_count_pps_threshold_[10000] && core_bucket_mapping_[i].size() > 0) {
+    while (per_cpu_pkt_rate[i] > flow_count_pps_threshold_[10000] * (1 - MIGRATE_HEAD_ROOM) &&
+          core_bucket_mapping_[i].size() > 0) {
       uint16_t bucket = core_bucket_mapping_[i].back();
       to_move_buckets.push_back(bucket);
       core_bucket_mapping_[i].pop_back();
       per_cpu_pkt_rate[i] -= per_bucket_pkt_rate[bucket];
+      bess::ctrl::core_liveness[i] = 1;
     }
   }
 
@@ -307,39 +310,57 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(const std::vector<dou
   if (active_core_count_ == 1) {
     return moves;
   }
-  return moves;
 
   // Find the CPU with minimum flow rate and delete it
-  uint16_t min_rate_core = 0;
+  uint16_t min_rate_core = DEFAULT_INVALID_CORE_ID;
   double min_rate = 0;
   for(uint16_t i = 0; i < total_core_count_; i++) {
-    if (!bess::ctrl::core_state[i]) {
+    if (!bess::ctrl::core_state[i] ||
+        bess::ctrl::core_liveness[i] <= 4) {
       continue;
     }
-    if (min_rate == 0) {
+
+    if (min_rate_core == DEFAULT_INVALID_CORE_ID) {
       min_rate_core = i;
       min_rate = per_cpu_pkt_rate[i];
-    } else if (per_cpu_pkt_rate[i] < min_rate) {
+      continue;
+    }
+    if (per_cpu_pkt_rate[i] < min_rate) {
       min_rate_core = i;
       min_rate = per_cpu_pkt_rate[i];
     }
   }
 
+  // Do nothing to avoid oscillations. If:
+  // - no min-rate core is found;
+  // - the min-rate core's rate is too large;
+  if (min_rate_core == DEFAULT_INVALID_CORE_ID ||
+      min_rate > flow_count_pps_threshold_[10000] / 2) {
+    return moves;
+  }
+
   // Move all buckets at the min-rate core; before that, save the current state
   per_cpu_pkt_rate[min_rate_core] = flow_count_pps_threshold_[10000];
-  std::vector<uint16_t> old_buckets = core_bucket_mapping_[min_rate_core];
+  int org_active_cores = active_core_count_;
+  std::vector<uint16_t> org_buckets = core_bucket_mapping_[min_rate_core];
 
   std::map<uint16_t, uint16_t> tmp_moves = FindMoves(per_cpu_pkt_rate, core_bucket_mapping_[min_rate_core], per_bucket_pkt_rate);
-  if (tmp_moves.size() != old_buckets.size()) {
+
+  if (active_core_count_ > org_active_cores ||
+      tmp_moves.size() != org_buckets.size()) {
     // If this trial fails, undo all changes
+    // - case 1: |FindMoves| uses more cores;
+    // - case 2: |org_buckets| cannot be fit into normal cores;
     per_cpu_pkt_rate[min_rate_core] = min_rate;
-    for (auto &it: tmp_moves) {
-      core_bucket_mapping_[it.second].pop_back();
-      per_cpu_pkt_rate[it.second] -= per_bucket_pkt_rate[it.first];
+    for (auto& m_it : tmp_moves) {
+      core_bucket_mapping_[m_it.second].pop_back();
+      per_cpu_pkt_rate[m_it.second] -= per_bucket_pkt_rate[m_it.first];
     }
   } else {
     core_bucket_mapping_[min_rate_core].clear();
-    moves.insert(tmp_moves.begin(), tmp_moves.end());
+    for (auto& m_it : tmp_moves) {
+      moves[m_it.first] = m_it.second;
+    }
 
     bess::ctrl::core_state[min_rate_core] = false;
     active_core_count_ -= 1;
@@ -360,8 +381,8 @@ void NFVCtrl::UpdateFlowAssignment() {
   bess::utils::bucket_stats->bucket_table_lock.unlock();
 
   std::map<uint16_t, uint16_t> moves = LongTermOptimization(per_bucket_pkt_rate);
+  LOG(INFO) << "(UpdateFlowAssignment) moves: " << moves.size();
   if (moves.size()) {
-    LOG(INFO) << "(UpdateFlowAssignment) moves: " << moves.size();
     if (port_) {
       port_->UpdateRssReta(moves);
     }
@@ -374,7 +395,7 @@ void NFVCtrl::DeInit() {
 }
 
 CommandResponse NFVCtrl::CommandGetSummary(const bess::pb::EmptyArg &arg) {
-  for (const auto &it : ModuleGraph::GetAllModules()) {
+  for (const auto& it : ModuleGraph::GetAllModules()) {
     if (it.first.find("nfv_monitor") != std::string::npos) {
       ((NFVMonitor *)(it.second))->CommandGetSummary(arg);
     }

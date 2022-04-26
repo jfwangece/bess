@@ -118,7 +118,7 @@ void PMDPort::UpdateRssReta() {
 
   int ret = rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
   if (ret != 0) {
-    LOG(ERROR) << "Failed to set NIC reta table: " << rte_strerror(ret);
+    LOG(INFO) << "Failed to set NIC reta table: " << rte_strerror(ret);
   }
 }
 
@@ -136,7 +136,7 @@ void PMDPort::UpdateRssReta(std::map<uint16_t, uint16_t>& moves) {
   if (remapping) {
     int ret = rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
     if (ret != 0) {
-      LOG(ERROR) << "Failed to set NIC reta table: " << rte_strerror(ret);
+      LOG(INFO) << "Failed to set NIC reta table: " << rte_strerror(ret);
     }
   }
 }
@@ -552,11 +552,11 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
 
   reta_size_ = dev_info.reta_size;
   memset(reta_conf_, 0, sizeof(reta_conf_));
-  for (uint32_t i = 0; i < reta_size_; i++) {
-    reta_conf_[i / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
-  }
-  for (uint16_t i = 0; i < reta_size_; i++) {
+
+  for (size_t j = 0; j < reta_size_; j++) {
     reta_table_.push_back(0);
+    reta_conf_[j / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
+    reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = 0;
   }
 
   // Run a set of NIC RSS benchmarks
