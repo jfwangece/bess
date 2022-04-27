@@ -111,6 +111,16 @@ void NFVCtrl::ReleaseSwQ(int q_id) {
   bess::ctrl::sw_q_state[q_id]->up_core_id = DEFAULT_INVALID_CORE_ID;
 }
 
+void DumpQueueBatch(struct llring* q) {
+  bess::PacketBatch *batch = reinterpret_cast<bess::PacketBatch *>
+          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+  uint32_t cnt = 0;
+  uint32_t total_freed = 0;
+  while ((cnt = llring_sc_dequeue_burst(q, (void **)batch->pkts(), batch->kMaxBurst))!=0) {
+    bess::Packet::Free(batch->pkts() + total_freed, cnt);
+    total_freed += cnt;
+  }
+}
 bool NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
@@ -135,6 +145,10 @@ bool NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
     bess::ctrl::sw_q_state[q_id]->down_core_id = i;
     return true;
   }
+  // No RCores found. System Overloaded! Drop packets
+  sw_q_to_drop_.push_back(bess::ctrl::sw_q[q_id]);
+  bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_NFVCTRL_CORE_ID;
+  LOG(INFO) << "Queue " << q_id << " assigned to nfv_ctrl";
   return false;
 }
 
@@ -151,8 +165,16 @@ void NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   }
 
   cpu_core_t down = bess::ctrl::sw_q_state[q_id]->down_core_id;
-  bess::ctrl::nfv_rcores[down]->RemoveQueue(bess::ctrl::sw_q[q_id]);
-  bess::ctrl::rcore_state[down] = true; // reset so that it can be assigned later
+  if (down == DEFAULT_NFVCTRL_CORE_ID) {
+    // Queue has been assigned to nfv_ctrl for dumping.
+   LOG(INFO) << "Queue " << q_id << " assigned to nfv_ctrl released";
+   std::vector<struct llring*>::iterator it = std::find(sw_q_to_drop_.begin(), sw_q_to_drop_.end(), bess::ctrl::sw_q[q_id]);
+    assert (it != sw_q_to_drop_.end());
+    sw_q_to_drop_.erase(it);
+  } else {
+   bess::ctrl::nfv_rcores[down]->RemoveQueue(bess::ctrl::sw_q[q_id]);
+   bess::ctrl::rcore_state[down] = true; // reset so that it can be assigned later
+  }
   bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_INVALID_CORE_ID;
 }
 
@@ -411,9 +433,14 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *, void *) {
   }
 
   uint64_t curr_ts_ns = tsc_to_ns(rdtsc());
-  if (curr_ts_ns - long_epoch_last_update_time_ > long_epoch_update_period_) {
+  if (false &&curr_ts_ns - long_epoch_last_update_time_ > long_epoch_update_period_) {
     UpdateFlowAssignment();
     long_epoch_last_update_time_ = curr_ts_ns;
+  }
+  if (unlikely(sw_q_to_drop_.size() > 0)) {
+    for(uint32_t i = 0; i < sw_q_to_drop_.size(); i++) {
+      DumpQueueBatch(sw_q_to_drop_[i]);
+    }
   }
 
   return {.block = false, .packets = 0, .bits = 0};
