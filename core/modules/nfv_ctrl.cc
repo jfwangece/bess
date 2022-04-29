@@ -431,7 +431,7 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *, void *) {
   }
 
   uint64_t curr_ts_ns = tsc_to_ns(rdtsc());
-  if (false &&curr_ts_ns - long_epoch_last_update_time_ > long_epoch_update_period_) {
+  if (curr_ts_ns - long_epoch_last_update_time_ > long_epoch_update_period_) {
     UpdateFlowAssignment();
     long_epoch_last_update_time_ = curr_ts_ns;
   }
