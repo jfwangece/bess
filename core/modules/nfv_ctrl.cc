@@ -225,7 +225,8 @@ void NFVCtrl::InitPMD(PMDPort* port) {
   }
 
   LOG(INFO) << "NIC init: " << active_core_count_ << " active normal cores";
-  port_->UpdateRssReta();
+  // port_->UpdateRssReta();
+  port_->UpdateRssFlow();
 }
 
 std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt_rate,
@@ -384,7 +385,8 @@ void NFVCtrl::UpdateFlowAssignment() {
   LOG(INFO) << "(UpdateFlowAssignment) moves: " << moves.size();
   if (moves.size()) {
     if (port_) {
-      port_->UpdateRssReta(moves);
+      // port_->UpdateRssReta(moves);
+      port_->UpdateRssFlow(moves);
     }
   }
 }

@@ -52,43 +52,6 @@ struct sched_param RT_HIGH_PRIORITY = { .sched_priority = 41, };
 void SyncClockInit(PMDPort *p) {
   p->SyncClock();
 }
-
-inline rte_flow* AddFlowRedirectRule(int port_id, int from, int to, int priority = 0) {
-  struct rte_flow_attr attr;
-  memset(&attr, 0, sizeof(struct rte_flow_attr));
-  attr.ingress = 1;
-  attr.group = from;
-  attr.priority =  priority;
-
-  struct rte_flow_action action[2];
-  struct rte_flow_action_jump jump;
-  jump.group = to;
-  memset(action, 0, sizeof(struct rte_flow_action) * 2);
-  action[0].type = RTE_FLOW_ACTION_TYPE_JUMP;
-  action[0].conf = &jump;
-  action[1].type = RTE_FLOW_ACTION_TYPE_END;
-
-  std::vector<rte_flow_item> pattern;
-  rte_flow_item pat;
-  pat.type = RTE_FLOW_ITEM_TYPE_ETH;
-  pat.spec = 0;
-  pat.mask = 0;
-  pat.last = 0;
-  pattern.push_back(pat);
-
-  rte_flow_item end;
-  memset(&end, 0, sizeof(struct rte_flow_item));
-  end.type =  RTE_FLOW_ITEM_TYPE_END;
-  pattern.push_back(end);
-
-  struct rte_flow_error error;
-  if (rte_flow_validate(port_id, &attr, pattern.data(), action, &error) == 0) {
-    struct rte_flow *flow = rte_flow_create(port_id, &attr, pattern.data(), action, &error);
-    return flow;
-  }
-
-  return nullptr;
-}
 } /// namespace
 
 static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
@@ -108,102 +71,6 @@ static const rte_eth_conf default_eth_conf(const rte_eth_dev_info &dev_info,
   };
 
   return ret;
-}
-
-void PMDPort::UpdateRssReta() {
-  for (size_t j = 0; j < reta_size_; j++) {
-    reta_table_[j] = 0;
-    reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = 0;
-  }
-
-  int ret = rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
-  if (ret != 0) {
-    LOG(INFO) << "Failed to set NIC reta table: " << rte_strerror(ret);
-  }
-}
-
-void PMDPort::UpdateRssReta(std::map<uint16_t, uint16_t>& moves) {
-  // first = bucket ID; second = core ID;
-  int remapping = 0;
-  for (auto &it : moves) {
-    if (reta_table_[it.first] != it.second) {
-      remapping += 1;
-    }
-    reta_table_[it.first] = it.second;
-    reta_conf_[it.first / RTE_RETA_GROUP_SIZE].reta[it.first % RTE_RETA_GROUP_SIZE] = it.second;
-  }
-
-  if (remapping) {
-    int ret = rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
-    if (ret != 0) {
-      LOG(INFO) << "Failed to set NIC reta table: " << rte_strerror(ret);
-    }
-  }
-}
-
-void PMDPort::UpdateRssFlow() {
-  if (AddFlowRedirectRule(dpdk_port_id_, 0, 1) != nullptr) {
-    LOG(INFO) << "Group table rule supported";
-  } else {
-    LOG(INFO) << "No group table rule supported";
-  }
-
-  // Update the flow-rule in 2 steps
-  // int tot = 1;
-  // struct rte_flow_attr attr;
-  // for (int i = 0; i < tot; i++) {
-  //   memset(&attr, 0, sizeof(struct rte_flow_attr));
-  //   attr.ingress = 1;
-  //   struct rte_flow_action action[3];
-  //   struct rte_flow_action_mark mark;
-  //   struct rte_flow_action_rss rss;
-  //   memset(action, 0, sizeof(action));
-  //   memset(&rss, 0, sizeof(rss));
-  // }
-}
-
-void PMDPort::BenchUpdateRssReta() {
-  uint64_t start, sum_cycle;
-
-  // Reta update
-  sum_cycle = 0;
-  for (int i = 0; i < 3; i++) {
-    start = rdtsc();
-    UpdateRssReta();
-    sum_cycle += rdtsc() - start;
-    rte_delay_ms(500);
-  }
-
-  LOG(INFO) << "Bench rss: reta update";
-  LOG(INFO) << " - reta table size: " << reta_size_;
-  LOG(INFO) << " - update time: " << tsc_to_us(sum_cycle / 3) << " usec";
-
-  // Flow update
-  sum_cycle = 0;
-  for (int i = 0; i < 3; i++) {
-    start = rdtsc();
-    UpdateRssFlow();
-    sum_cycle += rdtsc() - start;
-    rte_delay_ms(500);
-  }
-
-  LOG(INFO) << "Bench rss: flow table update";
-  LOG(INFO) << " - update time: " << tsc_to_us(sum_cycle / 3) << " usec";
-}
-
-void PMDPort::BenchRXQueueCount() {
-  uint64_t start, sum_cycle;
-
-  sum_cycle = 0;
-  for (int i = 0; i < 5; i++) {
-    start = rdtsc();
-    rte_eth_rx_queue_count(dpdk_port_id_, 0);
-    sum_cycle += rdtsc() - start;
-    rte_delay_ms(100);
-  }
-
-  LOG(INFO) << "Bench rx_queue_count:";
-  LOG(INFO) << " - query time: " << tsc_to_us(sum_cycle / 5) << " usec";
 }
 
 void PMDPort::TurnOnOffIntr(queue_t qid, bool on) {
@@ -504,6 +371,11 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   }
 
   rte_eth_promiscuous_enable(ret_port_id);
+  struct rte_flow_error error;
+  ret = rte_flow_isolate(ret_port_id, 0, &error);
+  if (ret != 0) {
+    LOG(ERROR) << "Quitting isolate mode failed. " << error.message;
+  }
 
   int offload_mask = 0;
   offload_mask |= arg.vlan_offload_rx_strip() ? ETH_VLAN_STRIP_OFFLOAD : 0;
@@ -521,6 +393,7 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
     return CommandFailure(-ret, "rte_eth_dev_start() failed");
   }
   dpdk_port_id_ = ret_port_id;
+  dpdk_port_conf_ = &eth_conf;
 
   int numa_node = rte_eth_dev_socket_id(static_cast<int>(ret_port_id));
   node_placement_ =
@@ -550,14 +423,23 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
     std::thread(SyncClockInit, this).detach();
   }
 
+  // is_use_group_table_ = false;
+  // if (AddFlowRedirectRule(dpdk_port_id_, 0, 1) != nullptr) {
+  //   is_use_group_table_ = true;
+  // }
+
   reta_size_ = dev_info.reta_size;
   memset(reta_conf_, 0, sizeof(reta_conf_));
-
   for (size_t j = 0; j < reta_size_; j++) {
     reta_table_.push_back(0);
     reta_conf_[j / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
     reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = 0;
   }
+  for (size_t j = 0; j < 3; j++) {
+    rte_flow* f = nullptr;
+    reta_flows_.push_back(f);
+  }
+  rte_flow_id_ = 0;
 
   // Run a set of NIC RSS benchmarks
   if (bench_rss_) {

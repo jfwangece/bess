@@ -166,21 +166,34 @@ class PMDPort final : public Port {
   void UpdateRssReta();
   void UpdateRssFlow();
   void UpdateRssReta(std::map<uint16_t, uint16_t>& moves);
+  void UpdateRssFlow(std::map<uint16_t, uint16_t>& moves);
   void BenchUpdateRssReta();
   void BenchRXQueueCount();
 
-  // NIC's RSS indirection table; Mellanox: 512;
-  struct rte_eth_rss_reta_entry64 reta_conf_[8];
+  // Mellanox: 512;
   uint32_t reta_size_;
-  std::vector<rte_flow*> reta_flows_;
+  // NIC's RSS indirection table;
+  struct rte_eth_rss_reta_entry64 reta_conf_[8];
   // In memory copy of the reta table on NIC.
   std::vector<uint16_t> reta_table_;
+  // NIC's flow table entry for applying RSS.
+  // 0: a flow rule redirecting traffic to 1 or 2.
+  // 1/2: a flow rule w/ RSS as the action.
+  std::vector<rte_flow*> reta_flows_;
+  // At this moment, the effective reta_flow* in |reta_flows_|.
+  int rte_flow_id_;
+  bool is_use_group_table_ = true;
 
  private:
   /*!
    * The DPDK port ID number (set after binding).
    */
   dpdk_port_t dpdk_port_id_;
+
+  /*!
+   * The DPDK port Ethernet configuration.
+   */
+  rte_eth_conf* dpdk_port_conf_;
 
   /*!
    * True if device did not exist when bessd started and was later patched in.
