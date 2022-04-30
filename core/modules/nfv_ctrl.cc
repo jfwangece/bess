@@ -111,9 +111,7 @@ void NFVCtrl::ReleaseSwQ(int q_id) {
   bess::ctrl::sw_q_state[q_id]->up_core_id = DEFAULT_INVALID_CORE_ID;
 }
 
-void DumpQueueBatch(struct llring* q) {
-  bess::PacketBatch *batch = reinterpret_cast<bess::PacketBatch *>
-          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+void DumpQueueBatch(struct llring* q, bess::PacketBatch *batch) {
   uint32_t cnt = 0;
   uint32_t total_freed = 0;
   while ((cnt = llring_sc_dequeue_burst(q, (void **)batch->pkts(), batch->kMaxBurst))!=0) {
@@ -427,7 +425,7 @@ CommandResponse NFVCtrl::CommandGetSummary(const bess::pb::EmptyArg &arg) {
   return CommandSuccess();
 }
 
-struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *, void *) {
+struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *) {
   if (port_ == nullptr) {
     return {.block = false, .packets = 0, .bits = 0};
   }
@@ -439,7 +437,7 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *, void *) {
   }
   if (unlikely(sw_q_to_drop_.size() > 0)) {
     for(uint32_t i = 0; i < sw_q_to_drop_.size(); i++) {
-      DumpQueueBatch(sw_q_to_drop_[i]);
+      DumpQueueBatch(sw_q_to_drop_[i], batch);
     }
   }
 
