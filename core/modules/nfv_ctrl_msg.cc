@@ -39,7 +39,7 @@ void NFVCtrlMsgInit(int slots) {
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     sw_q[i] =
         reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-
+    llring_init(sw_q[i], slots, 1, 1);
     // Note: each SoftwareQueue object has to be initialized as
     // 'rte_malloc' does not initialize it when allocating memory
     sw_q_state[i] =
