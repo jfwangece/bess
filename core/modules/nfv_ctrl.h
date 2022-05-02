@@ -7,6 +7,7 @@
 #include "../pb/module_msg.pb.h"
 #include "../drivers/pmd.h"
 #include "../utils/cpu_core.h"
+#include "../utils/lock_less_queue.h"
 
 using bess::utils::WorkerCore;
 
@@ -45,6 +46,13 @@ class NFVCtrl final : public Module {
   // Notifies the NFVRCore to stop working on sw_q |q_id|.
   int NotifyRCoreToRest(cpu_core_t core_id, int q_id);
 
+  inline void AddQueue(struct llring* q) {
+    llring_mp_enqueue(to_add_queue_, (void*)q);
+  }
+  inline void RemoveQueue(struct llring* q) {
+    llring_mp_enqueue(to_remove_queue_, (void*)q);
+  }
+
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg) override;
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
   void UpdateFlowAssignment();
@@ -78,7 +86,11 @@ class NFVCtrl final : public Module {
 
   // The lock for maintaining a pool of software queues
   mutable std::mutex sw_q_mtx_;
-  std::vector<struct llring*> sw_q_to_drop_;
+
+  // A vector of software queues that cannot be assigned to a reserved core
+  std::vector<struct llring*> to_dump_sw_q_;
+  struct llring *to_add_queue_;
+  struct llring *to_remove_queue_;
 
   uint64_t curr_ts_ns_;
 };

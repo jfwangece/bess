@@ -39,14 +39,6 @@ CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
 }
 
 void NFVRCore::DeInit() {
-  if (sw_q_) {
-    bess::Packet *pkt;
-    while (llring_sc_dequeue(sw_q_, (void **)&pkt) == 0) {
-      bess::Packet::Free(pkt);
-    }
-    sw_q_ = nullptr;
-  }
-
   if (to_add_queue_) {
     while (llring_sc_dequeue(to_add_queue_, (void **)&sw_q_) == 0) { continue; }
     std::free(to_add_queue_);
@@ -55,6 +47,14 @@ void NFVRCore::DeInit() {
   if (to_remove_queue_) {
     while (llring_sc_dequeue(to_remove_queue_, (void **)&sw_q_) == 0) { continue; }
     std::free(to_remove_queue_);
+  }
+
+  if (sw_q_) {
+    bess::Packet *pkt;
+    while (llring_sc_dequeue(sw_q_, (void **)&pkt) == 0) {
+      bess::Packet::Free(pkt);
+    }
+    sw_q_ = nullptr;
   }
 }
 
@@ -70,7 +70,7 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
   }
 
-  // 2) check |assign|
+  // 2) check |add|
   if (sw_q_ == nullptr) {
     if (llring_count(to_add_queue_) != 1) {
       return {.block = false, .packets = 0, .bits = 0};

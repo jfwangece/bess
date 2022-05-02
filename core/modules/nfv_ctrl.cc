@@ -37,6 +37,16 @@ void WriteToGurobi(uint32_t num_cores, std::vector<float> flow_rates, float late
   file_out.close();
 }
 
+void DumpSoftwareQueue(struct llring* q, bess::PacketBatch *batch) {
+  uint32_t cnt = 0;
+  batch->clear();
+  while ((cnt = llring_sc_dequeue_burst(q,
+                (void **)batch->pkts(), batch->kMaxBurst)) > 16) {
+    bess::Packet::Free(batch->pkts(), cnt);
+    batch->clear();
+  }
+}
+
 /// NFVCtrl's own functions
 
 const Commands NFVCtrl::cmds = {
@@ -99,15 +109,6 @@ void NFVCtrl::ReleaseSwQ(int q_id) {
   bess::ctrl::sw_q_state[q_id]->up_core_id = DEFAULT_INVALID_CORE_ID;
 }
 
-void DumpQueueBatch(struct llring* q, bess::PacketBatch *batch) {
-  uint32_t cnt = 0;
-  batch->clear();
-  while ((cnt = llring_sc_dequeue_burst(q, (void **)batch->pkts(), batch->kMaxBurst))!=0) {
-    bess::Packet::Free(batch->pkts(), cnt);
-    batch->clear();
-  }
-}
-
 int NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
@@ -132,8 +133,9 @@ int NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
     bess::ctrl::sw_q_state[q_id]->down_core_id = i;
     return 0;
   }
-  // No RCores found. System Overloaded! Drop packets
-  sw_q_to_drop_.push_back(bess::ctrl::sw_q[q_id]);
+
+  // No RCores found. System Overloaded! Hand-off to NFVCtrl
+  this->AddQueue(bess::ctrl::sw_q[q_id]);
   bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_NFVCTRL_CORE_ID;
   return 3;
 }
@@ -153,13 +155,12 @@ int NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   cpu_core_t down = bess::ctrl::sw_q_state[q_id]->down_core_id;
   if (down == DEFAULT_NFVCTRL_CORE_ID) {
     // Queue has been assigned to nfv_ctrl for dumping.
-    std::vector<struct llring*>::iterator it = std::find(sw_q_to_drop_.begin(), sw_q_to_drop_.end(), bess::ctrl::sw_q[q_id]);
-    assert (it != sw_q_to_drop_.end());
-    sw_q_to_drop_.erase(it);
+    this->RemoveQueue(bess::ctrl::sw_q[q_id]);
   } else {
    bess::ctrl::nfv_rcores[down]->RemoveQueue(bess::ctrl::sw_q[q_id]);
    bess::ctrl::rcore_state[down] = true; // reset so that it can be assigned later
   }
+
   bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_INVALID_CORE_ID;
   return 0;
 }
@@ -204,6 +205,17 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
       flow_count_pps_threshold_[flow_count] = pps;
     }
     file.close();
+  }
+
+  size_t kQSize = 64;
+  int bytes = llring_bytes_with_slots(kQSize);
+  to_add_queue_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+  if (to_add_queue_) {
+    llring_init(to_add_queue_, kQSize, 0, 1);
+  }
+  to_remove_queue_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+  if (to_remove_queue_) {
+    llring_init(to_remove_queue_, kQSize, 0, 1);
   }
 
   return CommandSuccess();
@@ -400,6 +412,17 @@ void NFVCtrl::UpdateFlowAssignment() {
 }
 
 void NFVCtrl::DeInit() {
+  llring* q = nullptr;
+  if (to_add_queue_) {
+    while (llring_sc_dequeue(to_add_queue_, (void **)&q) == 0) { continue; }
+    std::free(to_add_queue_);
+  }
+
+  if (to_remove_queue_) {
+    while (llring_sc_dequeue(to_remove_queue_, (void **)&q) == 0) { continue; }
+    std::free(to_remove_queue_);
+  }
+
   bess::ctrl::nfv_ctrl = nullptr;
   bess::ctrl::NFVCtrlMsgDeInit();
 }
@@ -423,9 +446,26 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
     UpdateFlowAssignment();
     long_epoch_last_update_time_ = curr_ts_ns;
   }
-  if (unlikely(sw_q_to_drop_.size() > 0)) {
-    for(uint32_t i = 0; i < sw_q_to_drop_.size(); i++) {
-      DumpQueueBatch(sw_q_to_drop_[i], batch);
+
+  // 1) check |remove|
+  llring* q = nullptr;
+  while (llring_count(to_remove_queue_) > 0) {
+    llring_sc_dequeue(to_remove_queue_, (void**)&q);
+    auto it = std::find(to_dump_sw_q_.begin(), to_dump_sw_q_.end(), q);
+    if (it != to_dump_sw_q_.end()) {
+      to_dump_sw_q_.erase(it);
+    }
+  }
+
+  // 2) check |add|
+  while (llring_count(to_add_queue_) > 0) {
+    llring_sc_dequeue(to_remove_queue_, (void**)&q);
+    to_dump_sw_q_.push_back(q);
+  }
+
+  if (unlikely(to_dump_sw_q_.size() > 0)) {
+    for(uint32_t i = 0; i < to_dump_sw_q_.size(); i++) {
+      DumpSoftwareQueue(to_dump_sw_q_[i], batch);
     }
   }
 

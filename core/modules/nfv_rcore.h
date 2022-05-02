@@ -7,9 +7,7 @@
 #include "../pb/module_msg.pb.h"
 #include "../port.h"
 #include "../utils/cpu_core.h"
-#include "../utils/flow.h"
-#include "../utils/ip.h"
-#include "../utils/sys_measure.h"
+#include "../utils/lock_less_queue.h"
 
 using bess::utils::WorkerCore;
 
