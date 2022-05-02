@@ -141,7 +141,6 @@ int NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
 
 CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   bess::ctrl::nfv_ctrl = this;
-  bess::ctrl::NFVCtrlMsgInit(1024);
   bess::ctrl::NFVCtrlCheckAllComponents();
 
   task_id_t tid = RegisterTask(nullptr);
@@ -192,51 +191,31 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
     llring_init(to_remove_queue_, kQSize, 0, 1);
   }
 
+  // Run!
+  rte_atomic16_set(&mark_to_disable_, 0);
+  rte_atomic16_set(&disabled_, 0);
   return CommandSuccess();
 }
 
-void NFVCtrl::InitPMD(PMDPort* port) {
-  if (port == nullptr) {
-    return;
-  }
-
-  port_ = port;
-  // Init the core-bucket mapping
-  for (uint16_t i = 0; i < total_core_count_; i++) {
-    core_bucket_mapping_[i] = std::vector<uint16_t>();
-  }
-  for(uint16_t i = 0; i < port_->reta_size_; i++) {
-    uint16_t core_id = port_->reta_table_[i];
-    core_bucket_mapping_[core_id].push_back(i);
-  }
-
-  active_core_count_ = 0;
-  for (uint16_t i = 0; i < total_core_count_; i++) {
-    if (core_bucket_mapping_[i].size() > 0) {
-      bess::ctrl::core_state[i] = true;
-      active_core_count_ += 1;
-    }
-  }
-
-  LOG(INFO) << "NIC init: " << active_core_count_ << " active normal cores";
-  // port_->UpdateRssReta();
-  port_->UpdateRssFlow();
-}
-
 void NFVCtrl::DeInit() {
-  llring* q = nullptr;
+  // Mark to stop the pipeline and wait until the pipeline stops
+  rte_atomic16_set(&mark_to_disable_, 1);
+  while (rte_atomic16_read(&disabled_) == 0) { usleep(100000); }
+
+  llring* q;
   if (to_add_queue_) {
     while (llring_sc_dequeue(to_add_queue_, (void **)&q) == 0) { continue; }
     std::free(to_add_queue_);
+    to_add_queue_ = nullptr;
   }
 
   if (to_remove_queue_) {
     while (llring_sc_dequeue(to_remove_queue_, (void **)&q) == 0) { continue; }
     std::free(to_remove_queue_);
+    to_remove_queue_ = nullptr;
   }
 
   bess::ctrl::nfv_ctrl = nullptr;
-  bess::ctrl::NFVCtrlMsgDeInit();
 }
 
 CommandResponse NFVCtrl::CommandGetSummary(const bess::pb::EmptyArg &arg) {
@@ -249,6 +228,14 @@ CommandResponse NFVCtrl::CommandGetSummary(const bess::pb::EmptyArg &arg) {
 }
 
 struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *) {
+  if (rte_atomic16_read(&mark_to_disable_) == 1) {
+    rte_atomic16_set(&disabled_, 1);
+    return {.block = false, .packets = 0, .bits = 0};
+  }
+  if (rte_atomic16_read(&disabled_) == 1) {
+    return {.block = false, .packets = 0, .bits = 0};
+  }
+
   if (port_ == nullptr) {
     return {.block = false, .packets = 0, .bits = 0};
   }

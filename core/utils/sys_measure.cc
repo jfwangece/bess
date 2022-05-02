@@ -14,6 +14,8 @@ void SysMeasureInit() {
     all_local_core_stats[i] = new CoreStats();
     all_core_stats_chan[i] = new LockLessQueue<CoreStats*>();    
   }
+
+  LOG(INFO) << "SysMeasure messages are initialized";
 }
 
 void SysMeasureDeinit() {
@@ -27,6 +29,8 @@ void SysMeasureDeinit() {
     delete all_core_stats_chan[i];
     all_core_stats_chan[i] = nullptr;
   }
+
+  LOG(INFO) << "SysMeasure messages are de-initialized";
 }
 
 } // namespace utils

@@ -150,26 +150,29 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   per_flow_states_.clear();
 
   // Run!
+  rte_atomic16_set(&mark_to_disable_, 0);
   rte_atomic16_set(&disabled_, 0);
   return CommandSuccess();
 }
 
 void NFVCore::DeInit() {
-  rte_atomic16_set(&disabled_, 1);
+  // Mark to stop the pipeline and wait until the pipeline stops
+  rte_atomic16_set(&mark_to_disable_, 1);
+  while (rte_atomic16_read(&disabled_) == 0) { usleep(100000); }
 
   bess::Packet *pkt;
-  // Clean the local software queue
+  // Clean the local batch / queue
+  if (local_batch_) {
+    bess::Packet::Free(local_batch_);
+    std::free(local_batch_);
+    local_batch_ = nullptr;
+  }
   if (local_queue_) {
     while (llring_sc_dequeue(local_queue_, (void **)&pkt) == 0) {
       bess::Packet::Free(pkt);
     }
     std::free(local_queue_);
     local_queue_ = nullptr;
-  }
-  if (local_batch_) {
-    bess::Packet::Free(local_batch_);
-    std::free(local_batch_);
-    local_batch_ = nullptr;
   }
 
   // Clean (borrowed) software queues
@@ -217,7 +220,11 @@ std::string NFVCore::GetDesc() const {
 /* Get a batch from NIC and send it to downstream */
 struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
                                      void *arg) {
-  if(rte_atomic16_read(&disabled_) != 0) {
+  if (rte_atomic16_read(&mark_to_disable_) == 1) {
+    rte_atomic16_set(&disabled_, 1);
+    return {.block = false, .packets = 0, .bits = 0};
+  }
+  if (rte_atomic16_read(&disabled_) == 1) {
     return {.block = false, .packets = 0, .bits = 0};
   }
 

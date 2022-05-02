@@ -26,6 +26,34 @@ void WriteToGurobi(uint32_t num_cores, std::vector<float> flow_rates, float late
 #pragma GCC diagnostic pop
 } // namespace
 
+void NFVCtrl::InitPMD(PMDPort* port) {
+  if (port == nullptr) {
+    return;
+  }
+
+  port_ = port;
+  // Init the core-bucket mapping
+  for (uint16_t i = 0; i < total_core_count_; i++) {
+    core_bucket_mapping_[i] = std::vector<uint16_t>();
+  }
+  for(uint16_t i = 0; i < port_->reta_size_; i++) {
+    uint16_t core_id = port_->reta_table_[i];
+    core_bucket_mapping_[core_id].push_back(i);
+  }
+
+  active_core_count_ = 0;
+  for (uint16_t i = 0; i < total_core_count_; i++) {
+    if (core_bucket_mapping_[i].size() > 0) {
+      bess::ctrl::core_state[i] = true;
+      active_core_count_ += 1;
+    }
+  }
+
+  LOG(INFO) << "NIC init: " << active_core_count_ << " active normal cores";
+  // port_->UpdateRssReta();
+  port_->UpdateRssFlow();
+}
+
 std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt_rate,
                                                 std::vector<uint16_t>& to_move_buckets,
                                                 const std::vector<double>& per_bucket_pkt_rate) {

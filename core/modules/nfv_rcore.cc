@@ -35,31 +35,46 @@ CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
   }
   sw_q_ = nullptr;
 
+  // Run!
+  rte_atomic16_set(&mark_to_disable_, 0);
+  rte_atomic16_set(&disabled_, 0);
   return CommandSuccess();
 }
 
 void NFVRCore::DeInit() {
+  // Mark to stop the pipeline and wait until the pipeline stops
+  rte_atomic16_set(&mark_to_disable_, 1);
+  while (rte_atomic16_read(&disabled_) == 0) { usleep(100000); }
+
+  // Clean the software queue that is currently being processed
+  if (sw_q_) {
+    sw_q_ = nullptr;
+  }
+
+  // Clean any queues that are pending
   if (to_add_queue_) {
     while (llring_sc_dequeue(to_add_queue_, (void **)&sw_q_) == 0) { continue; }
     std::free(to_add_queue_);
+    to_add_queue_ = nullptr;
   }
 
   if (to_remove_queue_) {
     while (llring_sc_dequeue(to_remove_queue_, (void **)&sw_q_) == 0) { continue; }
     std::free(to_remove_queue_);
-  }
-
-  if (sw_q_) {
-    bess::Packet *pkt;
-    while (llring_sc_dequeue(sw_q_, (void **)&pkt) == 0) {
-      bess::Packet::Free(pkt);
-    }
-    sw_q_ = nullptr;
+    to_remove_queue_ = nullptr;
   }
 }
 
 struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch,
                                      void *) {
+  if (rte_atomic16_read(&mark_to_disable_) == 1) {
+    rte_atomic16_set(&disabled_, 1);
+    return {.block = false, .packets = 0, .bits = 0};
+  }
+  if (rte_atomic16_read(&disabled_) == 1) {
+    return {.block = false, .packets = 0, .bits = 0};
+  }
+
   // 1) check |remove|
   if (llring_count(to_remove_queue_) == 1) {
     llring *q = nullptr;

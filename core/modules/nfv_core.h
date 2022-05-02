@@ -162,6 +162,7 @@ class NFVCore final : public Module {
 
   // If true, |this| normal core stops pulling packets from its NIC queue
   rte_atomic16_t disabled_;
+  rte_atomic16_t mark_to_disable_;
 };
 
 #endif // BESS_MODULES_NFV_CORE_H_

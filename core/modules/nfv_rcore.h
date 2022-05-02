@@ -41,16 +41,16 @@ class NFVRCore final : public Module {
   cpu_core_t core_id_;
   WorkerCore core_;
 
-  rte_atomic16_t is_in_use_;
-  rte_atomic16_t mark_be_disabled_;
-  rte_atomic16_t disabled_;
-
   struct llring *to_add_queue_;
   struct llring *to_remove_queue_;
 
   // Set by NFVCtrl
   struct llring* sw_q_;
   int burst_;
+
+  // If true, |this| normal core stops pulling packets from its NIC queue
+  rte_atomic16_t disabled_;
+  rte_atomic16_t mark_to_disable_;
 };
 
 #endif // BESS_MODULES_NFV_RCORE_H_

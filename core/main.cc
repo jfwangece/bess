@@ -42,6 +42,8 @@
 #include "utils/sys_measure.h"
 #include "version.h"
 
+#include "modules/nfv_ctrl_msg.h"
+
 int main(int argc, char *argv[]) {
   FLAGS_logbuflevel = -1;
   FLAGS_colorlogtostderr = true;
@@ -86,6 +88,7 @@ int main(int argc, char *argv[]) {
 
   bess::PacketPool::CreateDefaultPools(FLAGS_buffers);
   bess::utils::SysMeasureInit();
+  bess::ctrl::NFVCtrlMsgInit(1024);
   PortBuilder::InitDrivers();
 
   {
@@ -110,6 +113,7 @@ int main(int argc, char *argv[]) {
   }
 
   rte_eal_mp_wait_lcore();
+  bess::ctrl::NFVCtrlMsgDeInit();
   bess::utils::SysMeasureDeinit();
 
   LOG(INFO) << "BESS daemon has been gracefully shut down";
