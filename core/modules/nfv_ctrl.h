@@ -34,10 +34,16 @@ class NFVCtrl final : public Module {
   // Releases a software queue back to NFVCtrl.
   void ReleaseSwQ(int q_id);
 
+  // For following functions:
+  // 0: successful
+  // 1: wrong core_id
+  // 2: wrong q_id
+  // 3: no idle RCore
+
   // Finds an idle NFVRCore to work on sw_q |q_id|.
-  bool NotifyRCoreToWork(cpu_core_t core_id, int q_id);
+  int NotifyRCoreToWork(cpu_core_t core_id, int q_id);
   // Notifies the NFVRCore to stop working on sw_q |q_id|.
-  void NotifyRCoreToRest(cpu_core_t core_id, int q_id);
+  int NotifyRCoreToRest(cpu_core_t core_id, int q_id);
 
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg) override;
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;

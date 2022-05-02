@@ -23,6 +23,9 @@ pcie0, offset0="5e:00.0", 1
 
 # NFVCtrl runs on its own core
 nfvctrl_core = 14
+pcie1, offset1="af:00.0", 7
+port_out::PMDPort(pci=pcie1, num_out_q=1, bench_rss=False)
+pgen = QueueOut(port=port_out, qid=0)
 
 core_addrs = [
     {'l2_port': 0, 'l2_mac': '82:a3:ae:74:72:30'},
@@ -144,8 +147,6 @@ fg0::FlowGen(
     arrival='uniform', duration='uniform', quick_rampup=True,
     port_src_range=255, port_dst_range=255,
 )
-
-pgen = QueueOut(port=port_out, qid=0)
 
 fg0 -> pgen
 

@@ -69,13 +69,14 @@ uint64_t NFVCtrlRequestNSwQ(cpu_core_t core_id, int n);
 void NFVCtrlReleaseNSwQ(cpu_core_t core_id, uint64_t q_mask);
 
 // Request a reserved core to work on the software queue |q_id|.
-// Return true if an idle reserved core is found.
-bool NFVCtrlNotifyRCoreToWork(cpu_core_t core_id, int q_id);
+// Return 0 if an idle reserved core is found and notified to work.
+int NFVCtrlNotifyRCoreToWork(cpu_core_t core_id, int q_id);
 
 // If sw_q |q_id| is currently handled by a reserved core.
 // This function will un-schedule the NFVRCore and make it idle.
 // Afterwards, the NFVRCore is ready to handle another sw_q.
-void NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id);
+// Return 0 if the reserved core is released.
+int NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id);
 
 } // namespace ctrl
 } // namespace bess

@@ -63,7 +63,7 @@ int NFVCore::Resize(int slots) {
     return -ENOMEM;
   }
 
-  int ret = llring_init(new_queue, slots, 0, 1);
+  int ret = llring_init(new_queue, slots, 1, 1);
   if (ret) {
     std::free(new_queue);
     return -EINVAL;
@@ -305,7 +305,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   // Update per-epoch packet counter
   epoch_packet_arrival_ += cnt;
 
-  // Note: need to consider possible drops due to |local_queue_| overflow
+  // Just drop excessive packets when a software queue is full
   if (local_batch_->cnt()) {
     int queued = llring_sp_enqueue_burst(local_queue_, (void **)local_batch_->pkts(), local_batch_->cnt());
     if (queued < 0) {

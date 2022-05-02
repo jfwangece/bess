@@ -60,18 +60,6 @@ uint64_t NFVCtrl::RequestNSwQ(cpu_core_t core_id, int n) {
       assigned += 1;
       bess::ctrl::sw_q_state[i]->up_core_id = core_id;
       bitmask |= 1ULL << i;
-
-      // Find a (idle) reserved core
-      for (int j = 0; j < DEFAULT_INVALID_CORE_ID; j++) {
-        if (!bess::ctrl::rcore_state[j]) {
-          continue;
-        }
-
-        bess::ctrl::rcore_state[j] = false;
-        bess::ctrl::nfv_rcores[j]->AddQueue(bess::ctrl::sw_q[i]);
-        bess::ctrl::sw_q_state[i]->down_core_id = j;
-        break;
-      }
     }
   }
   return bitmask;
@@ -119,16 +107,17 @@ void DumpQueueBatch(struct llring* q, bess::PacketBatch *batch) {
     total_freed += cnt;
   }
 }
-bool NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
+
+int NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
   // Do not assign if sw_q |q_id| does not belong to NFVCore |core_id|
   if (bess::ctrl::sw_q_state[q_id]->up_core_id != core_id) {
-    return false;
+    return 1;
   }
   // Do not assign if sw_q |q_id| has already been assigned
-  if (bess::ctrl::sw_q_state[q_id]->down_core_id == DEFAULT_INVALID_CORE_ID) {
-    return false;
+  if (bess::ctrl::sw_q_state[q_id]->down_core_id != DEFAULT_INVALID_CORE_ID) {
+    return 2;
   }
 
   // Find an idle reserved core
@@ -141,25 +130,25 @@ bool NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
     bess::ctrl::rcore_state[i] = false;
     bess::ctrl::nfv_rcores[i]->AddQueue(bess::ctrl::sw_q[q_id]);
     bess::ctrl::sw_q_state[q_id]->down_core_id = i;
-    return true;
+    return 0;
   }
   // No RCores found. System Overloaded! Drop packets
   sw_q_to_drop_.push_back(bess::ctrl::sw_q[q_id]);
   bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_NFVCTRL_CORE_ID;
   LOG(INFO) << "Queue " << q_id << " assigned to nfv_ctrl";
-  return false;
+  return 3;
 }
 
-void NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
+int NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
-  // RCore not assigned to sw_q
-  if (bess::ctrl::sw_q_state[q_id]->down_core_id == DEFAULT_INVALID_CORE_ID) {
-    return;
-  }
   // Do not change if sw_q |q_id| does not belong to NFVCore |core_id|
   if (bess::ctrl::sw_q_state[q_id]->up_core_id != core_id) {
-    return;
+    return 1;
+  }
+  // RCore not assigned to sw_q
+  if (bess::ctrl::sw_q_state[q_id]->down_core_id == DEFAULT_INVALID_CORE_ID) {
+    return 2;
   }
 
   cpu_core_t down = bess::ctrl::sw_q_state[q_id]->down_core_id;
@@ -174,6 +163,7 @@ void NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
    bess::ctrl::rcore_state[down] = true; // reset so that it can be assigned later
   }
   bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_INVALID_CORE_ID;
+  return 0;
 }
 
 CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
@@ -402,12 +392,12 @@ void NFVCtrl::UpdateFlowAssignment() {
   bess::utils::bucket_stats->bucket_table_lock.unlock();
 
   std::map<uint16_t, uint16_t> moves = LongTermOptimization(per_bucket_pkt_rate);
-  LOG(INFO) << "(UpdateFlowAssignment) moves: " << moves.size();
   if (moves.size()) {
     if (port_) {
       // port_->UpdateRssReta(moves);
       port_->UpdateRssFlow(moves);
     }
+    LOG(INFO) << "(UpdateFlowAssignment) moves: " << moves.size();
   }
 }
 

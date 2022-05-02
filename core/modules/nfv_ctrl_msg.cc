@@ -37,13 +37,20 @@ int core_liveness[DEFAULT_INVALID_CORE_ID] = {0}; // the number of long epochs i
 void NFVCtrlMsgInit(int slots) {
   int bytes = llring_bytes_with_slots(slots);
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
-    sw_q[i] =
-        reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+    sw_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+
+    int ret = llring_init(sw_q[i], slots, 1, 1);
+    if (ret) {
+      std::free(sw_q[i]);
+      LOG(ERROR) << "llring_init failed on software queue " << i;
+      break;
+    }
 
     // Note: each SoftwareQueue object has to be initialized as
     // 'rte_malloc' does not initialize it when allocating memory
     sw_q_state[i] =
-        reinterpret_cast<SoftwareQueue *>(std::aligned_alloc(alignof(SoftwareQueue), sizeof(SoftwareQueue)));
+        reinterpret_cast<SoftwareQueue *>(
+        std::aligned_alloc(alignof(SoftwareQueue), sizeof(SoftwareQueue)));
     sw_q_state[i]->up_core_id = DEFAULT_INVALID_CORE_ID;
     sw_q_state[i]->down_core_id = DEFAULT_INVALID_CORE_ID;
   }
@@ -112,18 +119,18 @@ void NFVCtrlReleaseNSwQ(cpu_core_t core_id, uint64_t q_mask) {
   nfv_ctrl->ReleaseNSwQ(core_id, q_mask);
 }
 
-bool NFVCtrlNotifyRCoreToWork(cpu_core_t core_id, int q_id) {
+int NFVCtrlNotifyRCoreToWork(cpu_core_t core_id, int q_id) {
   if (nfv_ctrl == nullptr) {
-    return false;
+    return -1;
   }
   return nfv_ctrl->NotifyRCoreToWork(core_id, q_id);
 }
 
-void NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id) {
+int NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   if (nfv_ctrl == nullptr) {
-    return;
+    return -1;
   }
-  nfv_ctrl->NotifyRCoreToRest(core_id, q_id);
+  return nfv_ctrl->NotifyRCoreToRest(core_id, q_id);
 }
 
 } // namespace ctrl
