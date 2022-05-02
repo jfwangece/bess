@@ -78,6 +78,7 @@ class NFVCtrl final : public Module {
 
   // The lock for maintaining a pool of software queues
   mutable std::mutex sw_q_mtx_;
+  std::vector<struct llring*> sw_q_to_drop_;
 
   uint64_t curr_ts_ns_;
 };

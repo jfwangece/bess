@@ -33,12 +33,17 @@ core_addrs = [
     {'l2_port': 2, 'l2_mac': '2e:c7:8b:7b:8d:a8'},
     {'l2_port': 3, 'l2_mac': '2a:9d:fd:13:15:01'},
     {'l2_port': 4, 'l2_mac': '32:a5:0f:e0:04:0b'},
-#    {'l2_port': 5, 'l2_mac': '06:8a:62:fb:51:51'},
-#    {'l2_port': 6, 'l2_mac': 'ce:2e:14:c4:a0:cb'},
-#    {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
+    {'l2_port': 5, 'l2_mac': '06:8a:62:fb:51:51'},
+    {'l2_port': 6, 'l2_mac': 'ce:2e:14:c4:a0:cb'},
+    {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
 #    {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
 ]
 core_cnt=len(core_addrs)
+pcie1, offset1="af:00.0", 7
+rcore_cnt=4
+
+total_core_cnt = core_cnt + rcore_cnt
+print("normal core:%d, reserved core:%d" %(core_cnt, rcore_cnt))
 
 acl_rules = []
 for i in range(acl_cnt / 50):
@@ -52,7 +57,12 @@ for i in range(lb_cnt / 20):
         nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
 
 # Module
-port0::PMDPort(pci=pcie0, num_inc_q=core_cnt, num_out_q=core_cnt, bench_rss=False)
+port0::PMDPort(pci=pcie0, num_inc_q=core_cnt, num_out_q=total_core_cnt, bench_rss=False)
+# Core
+nfvctrl::NFVCtrl(core_addrs=core_addrs, slo_ns=slo, port=port0)
+bess.add_worker(wid=nfvctrl_core, core=nfvctrl_core)
+nfvctrl.attach_task(wid=nfvctrl_core)
+
 pinc0 = {}
 pout0 = {}
 fw = {}
@@ -96,10 +106,17 @@ for i in range(len(core_addrs)):
 for i in range(core_cnt):
     pinc0[i].set_burst(burst=burst_size)
 
-# Core
-nfvctrl::NFVCtrl(core_addrs=core_addrs, slo_ns=slo, port=port0)
-bess.add_worker(wid=nfvctrl_core, core=nfvctrl_core)
-nfvctrl.attach_task(wid=nfvctrl_core)
+for i in range(rcore_cnt):
+    rcore_id = core_cnt + i
+    pinc0[rcore_id] = NFVRCore(core_id=rcore_id)
+    pout0[rcore_id] = QueueOut(port=port0, qid=rcore_id)
+    pinc0[rcore_id] -> pout0[rcore_id]
+
+for i in range(rcore_cnt):
+    bess.add_worker(wid=i+offset0+core_cnt, core=i+offset0+core_cnt)
+    rcore_id = core_cnt + i
+    pinc0[rcore_id].attach_task(wid=i+offset0+core_cnt)
+
 
 for i in range(core_cnt):
     bess.add_worker(wid=i+offset0, core=i+offset0)
@@ -132,7 +149,8 @@ fg0::FlowGen(
 
 fg0 -> pgen
 
-bess.add_worker(wid=7, core=7)
-fg0.attach_task(wid=7)
+gen_core = 13
+bess.add_worker(wid=gen_core, core=gen_core)
+fg0.attach_task(wid=gen_core)
 
 bess.resume_all()
