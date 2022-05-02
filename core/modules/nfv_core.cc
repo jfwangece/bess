@@ -148,37 +148,43 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   epoch_packet_queued_ = 0;
   epoch_flow_cache_.clear();
   per_flow_states_.clear();
+
+  // Run!
+  rte_atomic16_set(&disabled_, 0);
   return CommandSuccess();
 }
 
 void NFVCore::DeInit() {
+  rte_atomic16_set(&disabled_, 1);
+
   bess::Packet *pkt;
-
-  // Clean (borrowed) software queues
-  for (auto &it : sw_q_) {
-    if (it.sw_q) {
-      while (llring_sc_dequeue(it.sw_q, (void**)&pkt) == 0) {
-        bess::Packet::Free(pkt);
-      }
-    }
-    if (it.sw_batch) {
-      std::free(it.sw_batch);
-    }
-  }
-  bess::ctrl::NFVCtrlReleaseNSwQ(core_id_, sw_q_mask_);
-  sw_q_.clear();
-  LOG(INFO) << "Core " << core_id_ << " releases " << sw_q_.size() << " sw_q. q_mask: " << std::bitset<64> (sw_q_mask_);
-
   // Clean the local software queue
   if (local_queue_) {
     while (llring_sc_dequeue(local_queue_, (void **)&pkt) == 0) {
       bess::Packet::Free(pkt);
     }
     std::free(local_queue_);
+    local_queue_ = nullptr;
   }
   if (local_batch_) {
+    bess::Packet::Free(local_batch_);
     std::free(local_batch_);
+    local_batch_ = nullptr;
   }
+
+  // Clean (borrowed) software queues
+  bess::ctrl::NFVCtrlReleaseNSwQ(core_id_, sw_q_mask_);
+  LOG(INFO) << "Core " << core_id_ << " releases " << sw_q_.size() << " sw_q. q_mask: " << std::bitset<64> (sw_q_mask_);
+
+  for (auto &it : sw_q_) {
+    it.sw_q = nullptr;
+    if (it.sw_batch) {
+      bess::Packet::Free(it.sw_batch);
+      std::free(it.sw_batch);
+      it.sw_batch = nullptr;
+    }
+  }
+  sw_q_.clear();
 }
 
 CommandResponse NFVCore::CommandClear(const bess::pb::EmptyArg &) {
@@ -211,8 +217,11 @@ std::string NFVCore::GetDesc() const {
 /* Get a batch from NIC and send it to downstream */
 struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
                                      void *arg) {
-  Port *p = port_;
+  if(rte_atomic16_read(&disabled_) != 0) {
+    return {.block = false, .packets = 0, .bits = 0};
+  }
 
+  Port *p = port_;
   const queue_t qid = (queue_t)(uintptr_t)arg;
   const int burst = ACCESS_ONCE(burst_);
 
@@ -444,15 +453,26 @@ bool NFVCore::ShortEpochProcess() {
     }
 
     // Notify reserved cores to do the work.
+    int ret;
     for (auto &sw_q_it : sw_q_) {
       if (sw_q_it.idle_epoch_count > 0 &&
           sw_q_it.assigned_packet_count > 0) { // got things to do
-        bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, sw_q_it.sw_q_id);
+        ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, sw_q_it.sw_q_id);
+        if (ret == 0) {
+          LOG(INFO) << "S Core: " << core_id_ << ". RCore: " << sw_q_it.sw_q_id;
+        } else {
+          LOG(ERROR) << "S " << ret;
+        }
         sw_q_it.idle_epoch_count = 0;
       } else {
         // |idle_epoch_count| == 0 || |assigned_packet_count| == 0
         if (sw_q_it.idle_epoch_count >= 10) { // idle for a while
-          bess::ctrl::NFVCtrlNotifyRCoreToRest(core_id_, sw_q_it.sw_q_id);
+          ret = bess::ctrl::NFVCtrlNotifyRCoreToRest(core_id_, sw_q_it.sw_q_id);
+          if (ret == 0) {
+            LOG(INFO) << "E Core: " << core_id_ << " stops RCore: " << sw_q_it.sw_q_id;
+          } else {
+            LOG(ERROR) << "E " << ret;
+          }
         }
       }
       sw_q_it.processed_packet_count = 0;

@@ -8,7 +8,6 @@
 #include "../port.h"
 #include "../utils/cpu_core.h"
 #include "../utils/flow.h"
-#include "../utils/ip.h"
 #include "../utils/sys_measure.h"
 
 using bess::utils::Flow;
@@ -51,7 +50,7 @@ struct SoftwareQueueState {
     }
   }
 
-  struct llring* sw_q;
+  llring* sw_q;
   bess::PacketBatch* sw_batch;
   int sw_q_id;
   int idle_epoch_count;
@@ -160,6 +159,9 @@ class NFVCore final : public Module {
   std::unordered_map<Flow, FlowState*, FlowHash> epoch_flow_cache_;
   // For maintaining (per-core) FlowState structs
   std::unordered_map<Flow, FlowState*, FlowHash> per_flow_states_;
+
+  // If true, |this| normal core stops pulling packets from its NIC queue
+  rte_atomic16_t disabled_;
 };
 
 #endif // BESS_MODULES_NFV_CORE_H_

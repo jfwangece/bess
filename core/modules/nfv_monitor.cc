@@ -17,7 +17,6 @@
 #define DEFAULT_LATENCY_QUEUE_SIZE 10000
 
 namespace {
-
 // The helper function for reading hw timestamp from |pkt| (unit: ns).
 uint64_t get_hw_timestamp_nic(bess::Packet *pkt) {
   uint64_t nic_cycle = reinterpret_cast<rte_mbuf*>(pkt)->timestamp;
@@ -37,7 +36,6 @@ uint64_t get_hw_timestamp_cpu(bess::Packet *pkt) {
 }
 
 #pragma GCC diagnostic pop
-
 } /// namespace
 
 const Commands NFVMonitor::cmds = {
