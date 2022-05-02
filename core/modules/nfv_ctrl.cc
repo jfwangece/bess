@@ -134,7 +134,7 @@ int NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
     return 1;
   }
   // RCore not assigned to sw_q
-  if (bess::ctrl::sw_q_state[q_id]->down_core_id == DEFAULT_INVALID_CORE_ID) {
+  if (bess::ctrl::sw_q_state[q_id]->down_core_id != DEFAULT_INVALID_CORE_ID) {
     return 2;
   }
 
