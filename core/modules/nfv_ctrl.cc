@@ -101,10 +101,10 @@ void NFVCtrl::ReleaseSwQ(int q_id) {
 
 void DumpQueueBatch(struct llring* q, bess::PacketBatch *batch) {
   uint32_t cnt = 0;
-  uint32_t total_freed = 0;
+  batch->clear();
   while ((cnt = llring_sc_dequeue_burst(q, (void **)batch->pkts(), batch->kMaxBurst))!=0) {
-    bess::Packet::Free(batch->pkts() + total_freed, cnt);
-    total_freed += cnt;
+    bess::Packet::Free(batch->pkts(), cnt);
+    batch->clear();
   }
 }
 
