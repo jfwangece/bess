@@ -135,7 +135,6 @@ int NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
   // No RCores found. System Overloaded! Drop packets
   sw_q_to_drop_.push_back(bess::ctrl::sw_q[q_id]);
   bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_NFVCTRL_CORE_ID;
-  LOG(INFO) << "Queue " << q_id << " assigned to nfv_ctrl";
   return 3;
 }
 
@@ -154,8 +153,7 @@ int NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   cpu_core_t down = bess::ctrl::sw_q_state[q_id]->down_core_id;
   if (down == DEFAULT_NFVCTRL_CORE_ID) {
     // Queue has been assigned to nfv_ctrl for dumping.
-   LOG(INFO) << "Queue " << q_id << " assigned to nfv_ctrl released";
-   std::vector<struct llring*>::iterator it = std::find(sw_q_to_drop_.begin(), sw_q_to_drop_.end(), bess::ctrl::sw_q[q_id]);
+    std::vector<struct llring*>::iterator it = std::find(sw_q_to_drop_.begin(), sw_q_to_drop_.end(), bess::ctrl::sw_q[q_id]);
     assert (it != sw_q_to_drop_.end());
     sw_q_to_drop_.erase(it);
   } else {

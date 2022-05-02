@@ -40,7 +40,6 @@ core_addrs = [
 ]
 core_cnt=len(core_addrs)
 pcie1, offset1="af:00.0", 7
-port_out::PMDPort(pci=pcie1, num_out_q=1, bench_rss=False)
 rcore_cnt=4
 
 total_core_cnt = core_cnt + rcore_cnt
