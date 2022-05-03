@@ -84,7 +84,6 @@ for i in range(rcore_cnt):
     rcore_id = core_cnt + i
     pinc0[rcore_id] = NFVRCore(core_id=rcore_id)
     pout0[rcore_id] = QueueOut(port=port0, qid=rcore_id)
-    #pout0[rcore_id] = Sink()
     pinc0[rcore_id] -> MACSwap() -> pout0[rcore_id]
 
 # Burst
