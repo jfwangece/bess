@@ -1,9 +1,11 @@
 #include "nfv_rcore.h"
 
 const Commands NFVRCore::cmds = {
+  {"set_burst", "NFVRCoreCommandSetBurstArg", MODULE_CMD_FUNC(&NFVRCore::CommandSetBurst),
+     Command::THREAD_SAFE},
 };
 
-// NFVCore member functions
+// NFVRCore member functions
 CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
   task_id_t tid = RegisterTask((void *)(uintptr_t)0);
   if (tid == INVALID_TASK_ID) {
@@ -62,6 +64,17 @@ void NFVRCore::DeInit() {
     while (llring_sc_dequeue(to_remove_queue_, (void **)&sw_q_) == 0) { continue; }
     std::free(to_remove_queue_);
     to_remove_queue_ = nullptr;
+  }
+}
+
+CommandResponse NFVRCore::CommandSetBurst(
+    const bess::pb::NFVRCoreCommandSetBurstArg &arg) {
+  if (arg.burst() > bess::PacketBatch::kMaxBurst) {
+    return CommandFailure(EINVAL, "burst size must be [0,%zu]",
+                          bess::PacketBatch::kMaxBurst);
+  } else {
+    burst_ = arg.burst();
+    return CommandSuccess();
   }
 }
 

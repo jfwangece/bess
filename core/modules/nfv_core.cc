@@ -141,8 +141,8 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   }
   LOG(INFO) << "Core " << core_id_ << " has " << sw_q_.size() << " sw_q. q_mask: " << std::bitset<64> (sw_q_mask_);
 
-  epoch_flow_thresh_ = 35;
-  epoch_packet_thresh_ = 80;
+  epoch_flow_thresh_ = 20;
+  epoch_packet_thresh_ = 50;
   epoch_packet_arrival_ = 0;
   epoch_packet_processed_ = 0;
   epoch_packet_queued_ = 0;
@@ -236,7 +236,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   curr_ts_ns_ = tsc_to_ns(rdtsc());
 
   // Busy pulling from the NIC queue
-  while (1) {
+  uint32_t cnt = 0;
+  while (cnt++ < 10) {
     batch->set_cnt(p->RecvPackets(qid, batch->pkts(), 32));
     if (batch->cnt()) {
       // To append |per_flow_states_|
@@ -245,13 +246,13 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
       UpdateStatsOnFetchBatch(batch);
     }
 
-    if (batch->cnt() < 30) {
+    if (batch->cnt() < 32) {
       break;
     }
   }
 
   // Process one batch
-  uint32_t cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), burst);
+  cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), burst);
   if (cnt == 0) {
     // Call PostProcessBatch here.
     return {.block = false, .packets = 0, .bits = 0};
@@ -410,7 +411,10 @@ bool NFVCore::ShortEpochProcess() {
     // 6) release idle software queues if they have not been used for N epochs
 
     // Check qlen of exisitng software queues
-    for (auto &sw_q_it : sw_q_) {
+    for (auto& sw_q_it : sw_q_) {
+      if (sw_q_it.idle_epoch_count == -1) {
+        continue;
+      }
       if (sw_q_it.processed_packet_count == 0) {
         sw_q_it.idle_epoch_count += 1;
       }
@@ -449,8 +453,8 @@ bool NFVCore::ShortEpochProcess() {
               break;
             }
           }
-          if (!assigned) { // need more software queues (current ones cannot hold this flow)
-            // LOG(ERROR) << "Core " << core_id_ << " runs out of sw_q";
+          if (!assigned) {
+            // Existing software queues cannot hold this flow. Need more queues
             flow_it++;
           }
         }
@@ -462,24 +466,21 @@ bool NFVCore::ShortEpochProcess() {
     // Notify reserved cores to do the work.
     int ret;
     for (auto &sw_q_it : sw_q_) {
-      if (sw_q_it.idle_epoch_count > 0 &&
-          sw_q_it.assigned_packet_count > 0) { // got things to do
-        ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, sw_q_it.sw_q_id);
-        if (ret == 0) {
-          LOG(INFO) << "S Core: " << core_id_ << ". RCore: " << sw_q_it.sw_q_id;
-        } else {
-          LOG(ERROR) << "S " << ret;
+      if (sw_q_it.idle_epoch_count == -1) { // inactive
+        if (sw_q_it.assigned_packet_count > 0) { // got things to do
+          ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, sw_q_it.sw_q_id);
+          if (ret != 0) {
+            LOG(ERROR) << "S " << ret;
+          }
+          sw_q_it.idle_epoch_count = 0;
         }
-        sw_q_it.idle_epoch_count = 0;
-      } else {
-        // |idle_epoch_count| == 0 || |assigned_packet_count| == 0
-        if (sw_q_it.idle_epoch_count >= 10) { // idle for a while
+      } else { // |idle_epoch_count| >= 0; active
+        if (sw_q_it.idle_epoch_count == 100) { // idle for a while
           ret = bess::ctrl::NFVCtrlNotifyRCoreToRest(core_id_, sw_q_it.sw_q_id);
-          if (ret == 0) {
-            LOG(INFO) << "E Core: " << core_id_ << " stops RCore: " << sw_q_it.sw_q_id;
-          } else {
+          if (ret != 0) {
             LOG(ERROR) << "E " << ret;
           }
+          sw_q_it.idle_epoch_count = -1;
         }
       }
       sw_q_it.processed_packet_count = 0;
@@ -494,9 +495,6 @@ bool NFVCore::ShortEpochProcess() {
       all_core_stats_chan[core_id_]->Pop(stats_ptr);
       delete (stats_ptr);
       stats_ptr = nullptr;
-
-      epoch_flow_thresh_ = 35;
-      epoch_packet_thresh_ = 80;
     }
 
     epoch_flow_cache_.clear();

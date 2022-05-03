@@ -1004,6 +1004,10 @@ message NFVCoreCommandSetBurstArg {
   uint64 burst = 1; /// The maximum number of packets to release in a packetbatch from the module.
 }
 
+message NFVRCoreCommandSetBurstArg {
+  uint64 burst = 1; /// The maximum number of packets to release in a packetbatch from the module.
+}
+
 message NFVSwitchArg {
   repeated CoreAddr core_addrs = 1; /// list of routing addresses for available CPU cores in the cluster
   int32 update_stats_period_ns = 2; /// Time period of collecting system performance metrics

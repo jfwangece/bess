@@ -10,6 +10,8 @@
 #define LONG_TERM_UPDATE_PERIOD 500000000
 
 namespace {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
 void DumpSoftwareQueue(struct llring* q, bess::PacketBatch *batch) {
   uint32_t cnt = 0;
   batch->clear();
@@ -19,6 +21,15 @@ void DumpSoftwareQueue(struct llring* q, bess::PacketBatch *batch) {
     batch->clear();
   }
 }
+
+void DumpOnceSoftwareQueue(struct llring* q, bess::PacketBatch *batch) {
+  batch->clear();
+  int cnt = llring_sc_dequeue_burst(q, (void **)batch->pkts(), batch->kMaxBurst);
+  if (cnt) {
+    bess::Packet::Free(batch->pkts(), cnt);
+  }
+}
+#pragma GCC diagnostic pop
 } // namespace
 
 /// NFVCtrl's own functions:
@@ -102,6 +113,7 @@ int NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
       continue;
     }
 
+    // Success
     bess::ctrl::rcore_state[i] = false;
     bess::ctrl::nfv_rcores[i]->AddQueue(bess::ctrl::sw_q[q_id]);
     bess::ctrl::sw_q_state[q_id]->down_core_id = i;
@@ -130,12 +142,14 @@ int NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   if (down == DEFAULT_NFVCTRL_CORE_ID) {
     // Queue has been assigned to nfv_ctrl for dumping.
     this->RemoveQueue(bess::ctrl::sw_q[q_id]);
-  } else {
-   bess::ctrl::nfv_rcores[down]->RemoveQueue(bess::ctrl::sw_q[q_id]);
-   bess::ctrl::rcore_state[down] = true; // reset so that it can be assigned later
+    bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_INVALID_CORE_ID;
+    return 3;
   }
 
+  // Success
+  bess::ctrl::nfv_rcores[down]->RemoveQueue(bess::ctrl::sw_q[q_id]);
   bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_INVALID_CORE_ID;
+  bess::ctrl::rcore_state[down] = true;
   return 0;
 }
 
@@ -235,7 +249,6 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
   if (rte_atomic16_read(&disabled_) == 1) {
     return {.block = false, .packets = 0, .bits = 0};
   }
-
   if (port_ == nullptr) {
     return {.block = false, .packets = 0, .bits = 0};
   }
@@ -263,8 +276,8 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
   }
 
   if (unlikely(to_dump_sw_q_.size() > 0)) {
-    for(uint32_t i = 0; i < to_dump_sw_q_.size(); i++) {
-      DumpSoftwareQueue(to_dump_sw_q_[i], batch);
+    for (auto& it : to_dump_sw_q_) {
+      DumpOnceSoftwareQueue(it, batch);
     }
   }
 

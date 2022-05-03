@@ -37,6 +37,8 @@ class NFVRCore final : public Module {
     llring_mp_enqueue(to_remove_queue_, (void*)q);
   }
 
+  CommandResponse CommandSetBurst(const bess::pb::NFVRCoreCommandSetBurstArg &arg);
+
  private:
   cpu_core_t core_id_;
   WorkerCore core_;

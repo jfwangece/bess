@@ -29,7 +29,7 @@ using bess::utils::WorkerCore;
 struct SoftwareQueueState {
   SoftwareQueueState(int qid) : sw_q_id(qid) {
     sw_q = bess::ctrl::sw_q[qid];
-    idle_epoch_count = 0;
+    idle_epoch_count = -1;
     assigned_packet_count = 0; processed_packet_count = 0;
   }
 
