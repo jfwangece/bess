@@ -50,7 +50,9 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
     if (!ParseFlowFromPacket(&flow, pkt)) {
-      continue;
+      // For now, we handle L4 packets only.
+      // After this line, all packets must be associated with a flow.
+      bess::Packet::Free(pkt);
     }
 
     // Update per-core flow states
@@ -135,6 +137,55 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
 void NFVCore::UpdateStatsPostProcessBatch(bess::PacketBatch *) {
   // If a new epoch starts, absorb the current packet queue
   ShortEpochProcess();
+}
+
+void NFVCore::SplitAndEnqueue(bess::PacketBatch *batch) {
+  local_batch_->clear();
+  for (auto &sw_q_it : sw_q_) {
+    sw_q_it.sw_batch->clear();
+  }
+
+  int cnt = batch->cnt();
+  for (int i = 0; i < cnt; i++) {
+    bess::Packet *pkt = batch->pkts()[i];
+    FlowState* state = get_attr<FlowState*>(this, flow_stats_attr_id_, pkt);
+    if (state->sw_q_state) {
+      state->sw_q_state->sw_batch->add(pkt);
+    } else {
+      local_batch_->add(pkt);
+    }
+  }
+
+  // Just drop excessive packets when a software queue is full
+  if (local_batch_->cnt()) {
+    int queued = llring_sp_enqueue_burst(local_queue_, (void **)local_batch_->pkts(), local_batch_->cnt());
+    if (queued < 0) {
+      queued = queued & (~RING_QUOT_EXCEED);
+    }
+    if (queued < local_batch_->cnt()) {
+      int to_drop = local_batch_->cnt() - queued;
+      bess::Packet::Free(local_batch_->pkts() + queued, to_drop);
+    }
+  }
+  for (auto &sw_q_it : sw_q_) {
+    sw_q_it.EnqueueBatch();
+  }
+}
+
+void NFVCore::SplitLocalQToSwQ(bess::PacketBatch *batch) {
+  int total_cnt = llring_count(local_queue_);
+  int cnt = 0;
+  while (cnt < total_cnt) {
+    int batch_size = total_cnt - cnt;
+    if (batch_size > 32) {
+      batch_size = 32;
+    }
+
+    batch->clear();
+    cnt += llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), batch_size);
+    batch->set_cnt(batch_size);
+    SplitAndEnqueue(batch);
+  }
 }
 
 bool NFVCore::ShortEpochProcess() {
