@@ -64,6 +64,9 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       state = state_it->second;
     }
 
+    // Append flow's stats pointer to pkt's metadata
+    set_attr<FlowState*>(this, flow_stats_attr_id_, pkt, state);
+
     state->ingress_packet_count += 1;
     if (state->short_epoch_packet_count == 0) {
       // Update the per-epoch flow count
@@ -71,14 +74,17 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     }
     state->short_epoch_packet_count += 1;
 
-    if (state->sw_q_state) {
-      state->sw_q_state->sw_batch->add(pkt);
-    } else {
-      local_batch_->add(pkt);
+    // Determine the packet's destination queue
+    auto& q_state = state->sw_q_state;
+    if (q_state) {
+      // This flow is redirected only if |sw_q| is handled by a RCore; otherwise, reset
+      if (q_state->idle_epoch_count != -1) {
+        q_state->sw_batch->add(pkt);
+        continue;
+      }
+      q_state = nullptr;
     }
-
-    // Append the pointer of this flow's stats
-    set_attr<FlowState*>(this, flow_stats_attr_id_, pkt, state);
+    local_batch_->add(pkt);
   }
 
   // Update per-epoch packet counter
@@ -145,15 +151,21 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch *batch) {
     sw_q_it.sw_batch->clear();
   }
 
+  FlowState* state;
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
-    FlowState* state = get_attr<FlowState*>(this, flow_stats_attr_id_, pkt);
-    if (state->sw_q_state) {
-      state->sw_q_state->sw_batch->add(pkt);
-    } else {
-      local_batch_->add(pkt);
+    state = get_attr<FlowState*>(this, flow_stats_attr_id_, pkt);
+    auto& q_state = state->sw_q_state;
+    if (q_state) {
+      // This flow is redirected only if |sw_q| is handled by a RCore; otherwise, reset
+      if (q_state->idle_epoch_count != -1) {
+        q_state->sw_batch->add(pkt);
+        continue;
+      }
+      q_state = nullptr;
     }
+    local_batch_->add(pkt);
   }
 
   // Just drop excessive packets when a software queue is full
