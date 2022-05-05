@@ -78,13 +78,12 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
   startup_ts_ = tsc_to_us(rdtsc());
 
   // Initialize the multi-core pcap packet counters
-  mtx_.lock();
+  const std::lock_guard<std::mutex> lock(mtx_);
   if (pcap_index_ == -1) {
     pcap_index_ = total_pcaps_;
     total_pcaps_ += 1;
   }
   per_pcap_counters_[pcap_index_] = 0;
-  mtx_.unlock();
 
   return CommandSuccess();
 }
@@ -93,14 +92,36 @@ void PCAPReader::DeInit() {
   pcap_close(pcap_handle_);
 }
 
+bool PCAPReader::ShouldAllocPkts() {
+  bool should = true;
+
+  const std::lock_guard<std::mutex> lock(mtx_);
+  if (pcap_index_ == 0) {
+    per_pcap_max_cnt_ = per_pcap_counters_[0];
+    per_pcap_min_cnt_ = per_pcap_counters_[0];
+    for (int i = 1; i < total_pcaps_; i++) {
+      if (per_pcap_counters_[i] > per_pcap_max_cnt_) {
+        per_pcap_max_cnt_ = per_pcap_counters_[i];
+      }
+      if (per_pcap_counters_[i] < per_pcap_min_cnt_) {
+        per_pcap_min_cnt_ = per_pcap_counters_[i];
+      }
+    }
+  }
+
+  if (per_pcap_counters_[pcap_index_] == per_pcap_max_cnt_ &&
+      per_pcap_max_cnt_ > per_pcap_min_cnt_ + 10000) {
+    should = false;
+  }
+  return should;
+}
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-
 int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
   if (pcap_handle_ == nullptr) {
     return 0;
   }
-
   if (!ShouldAllocPkts()) {
     return 0;
   }
@@ -143,13 +164,13 @@ int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
     int copy_len = 0;
 
     // Note: for NIC ether scoping, always use a fake Ethernet header
-    Ethernet *eth = reinterpret_cast<Ethernet *>(p);
+    Ethernet* eth = reinterpret_cast<Ethernet *>(p);
     eth->dst_addr = eth_template_.dst_addr;
     eth->src_addr = eth_template_.src_addr;
     eth->ether_type = eth_template_.ether_type;
     total_copy_len += sizeof(Ethernet);
 
-    if (is_eth_missing_) {    
+    if (is_eth_missing_) {
       copy_len = caplen;
       bess::utils::Copy(p + total_copy_len, pkt_, copy_len, true);
     } else {
@@ -160,8 +181,15 @@ int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
     }
     total_copy_len += copy_len;
 
-    // Copy payload (not a necessary step)
-    if (is_reset_payload_ && totallen > total_copy_len) {
+    // Skip non-IP packets
+    Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
+    if (!(ip->protocol == Ipv4::Proto::kTcp || ip->protocol == Ipv4::Proto::kUdp)) {
+      bess::Packet::Free(pkt);
+      continue;
+    }
+
+    // Copy payload if the packet's payload is truncated
+    if (totallen > total_copy_len) {
       copy_len = totallen - total_copy_len;
       bess::utils::Copy(p + total_copy_len, tmpl_, copy_len, true);
       total_copy_len += copy_len;
@@ -191,6 +219,7 @@ int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
 
   return recv_cnt;
 }
+#pragma GCC diagnostic pop
 
 int PCAPReader::SendPackets(queue_t, bess::Packet** pkts, int cnt) {
   if (pcap_handle_ == nullptr) {
@@ -203,5 +232,3 @@ int PCAPReader::SendPackets(queue_t, bess::Packet** pkts, int cnt) {
 }
 
 ADD_DRIVER(PCAPReader, "pcap_reader", "libpcap packet reader from a pcap file")
-
-#pragma GCC diagnostic pop

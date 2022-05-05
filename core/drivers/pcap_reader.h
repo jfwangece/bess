@@ -23,36 +23,14 @@ class PCAPReader final : public Port {
   static std::mutex mtx_;
 
   CommandResponse Init(const bess::pb::PCAPReaderArg &arg);
-
   void DeInit() override;
+
+  // For multi-core pcap replayers, ensure that their packet rates are roughly the same
+  bool ShouldAllocPkts();
   // PCAP has no notion of queue so unlike parent (port.cc) quid is ignored.
   int SendPackets(queue_t qid, bess::Packet **pkts, int cnt) override;
   // Ditto above: quid is ignored.
   int RecvPackets(queue_t qid, bess::Packet **pkts, int cnt) override;
-
-  bool ShouldAllocPkts() {
-    bool should = true;
-    mtx_.lock();
-    if (pcap_index_ == 0) {
-      per_pcap_max_cnt_ = per_pcap_counters_[0];
-      per_pcap_min_cnt_ = per_pcap_counters_[0];
-      for (int i = 1; i < total_pcaps_; i++) {
-        if (per_pcap_counters_[i] > per_pcap_max_cnt_) {
-          per_pcap_max_cnt_ = per_pcap_counters_[i];
-        }
-        if (per_pcap_counters_[i] < per_pcap_min_cnt_) {
-          per_pcap_min_cnt_ = per_pcap_counters_[i];
-        }
-      }
-    }
-
-    if (per_pcap_counters_[pcap_index_] == per_pcap_max_cnt_ &&
-        per_pcap_max_cnt_ > per_pcap_min_cnt_ + 10000) {
-      should = false;
-    }
-    mtx_.unlock();
-    return should;
-  }
 
  private:
   unsigned char tmpl_[MAX_TEMPLATE_SIZE] = {};

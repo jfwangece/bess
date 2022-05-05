@@ -3,7 +3,9 @@
 #include "../utils/ether.h"
 #include "../utils/ip.h"
 #include "../utils/time.h"
-#include "../utils/udp.h"
+
+using bess::utils::Ethernet;
+using bess::utils::Ipv4;
 
 namespace {
 #define kDefaultTagOffset 64
@@ -76,19 +78,19 @@ void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     RunNextModule(ctx, batch);
   } else { // non batching
     for (int i = 0; i < cnt; i++) {
+      bess::Packet *pkt = batch->pkts()[i];
       // A busy loop that sends a packet until the current time passes the packet's time.
-      WaitToSendPkt(batch->pkts()[i]);
+      WaitToSendPkt(pkt);
+      EmitPacket(ctx, pkt, 0);
 
-      EmitPacket(ctx, batch->pkts()[i], 0);
       temp_pkt_cnt_ += 1;
-      temp_bit_cnt_ += batch->pkts()[i]->total_len() * 8;
-
+      temp_bit_cnt_ += pkt->total_len() * 8;
       if (playback_rate_mpps_ > 0) {
         // Replay at a certain packet rate (time unit: us)
         next_pkt_time_ = curr_time_ + 1000 / playback_rate_mpps_;
       } else if (playback_rate_mbps_ > 0) {
         // Replay at a certain bit rate (time unit: ns)
-        next_pkt_time_ = curr_time_ + batch->pkts()[i]->total_len() * 8000 / playback_rate_mbps_;
+        next_pkt_time_ = curr_time_ + pkt->total_len() * 8000 / playback_rate_mbps_;
       }
     }
   }
