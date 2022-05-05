@@ -13,7 +13,7 @@ SOCKET1_CPU = [1,3,5,7,9,11,13,15,17,19]
 PACKET_OVERHEAD=24
 
 # This script generates a number of flows at a specified packet rate.
-pcie0, socket0 = '82:00.0', SOCKET1_CPU
+pcie0, socket0 = '05:00.0', SOCKET1_CPU
 burst_size = int($BESS_BURST!'4')
 num_cores = int($BESS_CORE!'1')
 pkt_limit=int($BESS_PKT_LIMIT!'100000000')
