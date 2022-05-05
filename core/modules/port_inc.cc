@@ -82,10 +82,12 @@ CommandResponse PortInc::Init(const bess::pb::PortIncArg &arg) {
     }
   }
 
+  monitor_delay_ = 0;
   if (arg.monitor_delay()) {
     monitor_delay_ = 1;
   }
 
+  prefetch_ = 0;
   if (arg.prefetch()) {
     prefetch_ = 1;
   }
