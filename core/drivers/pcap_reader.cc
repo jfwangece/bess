@@ -3,6 +3,10 @@
 
 #include <string>
 
+#include "../utils/flow.h"
+
+using bess::utils::Flow;
+
 // static
 int PCAPReader::total_pcaps_ = 0;
 std::mutex PCAPReader::mtx_;
@@ -15,12 +19,13 @@ const int kDefaultTagOffset = 64;
 
 struct pcap_pkthdr pkthdr_;
 
-static inline void tag_packet(bess::Packet *pkt, size_t offset,
+struct Flow flow;
+
+inline void TagPacketTimestamp(bess::Packet *pkt, size_t offset,
                               uint64_t tusec) {
   uint64_t *ts;
   const size_t kTagSize = sizeof(*ts);
   size_t room = pkt->data_len() - offset;
-
   if (room < kTagSize) {
     void *ret = pkt->append(kTagSize - room);
     if (!ret) {
@@ -28,7 +33,6 @@ static inline void tag_packet(bess::Packet *pkt, size_t offset,
       return;
     }
   }
-
   ts = pkt->head_data<uint64_t *>(offset);
   *ts = tusec;
 }
@@ -60,7 +64,8 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
       return CommandFailure(EINVAL, "Error reading an empty pcap file.");
     }
 
-    // Decide whether the Ethernet header has been removed
+    // Note: some PCAP files have Ethernet headers removed
+    // Decide whether Ethernet headers were removed or not
     is_eth_missing_ = *(uint16_t*)pkt_ == 0x0045 || *(uint16_t*)pkt_ == 0x0845 || *(uint16_t*)pkt_ == 0x4845 || *(uint16_t*)pkt_ == 0x0a14;
 
     init_tsec_ = pkthdr_.ts.tv_sec;
@@ -181,18 +186,17 @@ int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
     }
     total_copy_len += copy_len;
 
-    // Skip non-IP packets
-    Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
-    if (!(ip->protocol == Ipv4::Proto::kTcp || ip->protocol == Ipv4::Proto::kUdp)) {
-      bess::Packet::Free(pkt);
-      continue;
-    }
-
     // Copy payload if the packet's payload is truncated
     if (totallen > total_copy_len) {
       copy_len = totallen - total_copy_len;
       bess::utils::Copy(p + total_copy_len, tmpl_, copy_len, true);
       total_copy_len += copy_len;
+    }
+
+    // Only generate L4 packets
+    if (!bess::utils::ParseFlowFromPacket(&flow, pkt)) {
+      bess::Packet::Free(pkt);
+      continue;
     }
 
     pkts[recv_cnt] = pkt;
@@ -209,7 +213,7 @@ int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
       } else {
         ts -= uint64_t(init_tnsec_ - tnsec);
       }
-      tag_packet(pkt, offset_, ts);
+      TagPacketTimestamp(pkt, offset_, ts);
     }
   }
 

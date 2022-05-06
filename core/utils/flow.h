@@ -5,7 +5,16 @@
 #include <rte_hash_crc.h>
 
 #include "endian.h"
+#include "ether.h"
+#include "ip.h"
+#include "tcp.h"
+#include "udp.h"
 #include "tcp_flow_reconstruct.h"
+
+using bess::utils::Ethernet;
+using bess::utils::Ipv4;
+using bess::utils::Tcp;
+using bess::utils::Udp;
 
 using bess::utils::be16_t;
 using bess::utils::be32_t;
@@ -43,8 +52,9 @@ class alignas(16) Flow {
     return memcmp(this, &other, sizeof(*this));
   }
 };
-
 static_assert(sizeof(Flow) == 16, "Flow must be 16 bytes.");
+
+bool ParseFlowFromPacket(Flow *flow, bess::Packet *pkt);
 
 // Hash function for std::unordered_map
 struct FlowHash {
