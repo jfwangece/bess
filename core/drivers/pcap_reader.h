@@ -16,7 +16,7 @@ using bess::utils::be32_t;
 
 class PCAPReader final : public Port {
  public:
-  static const int MAX_TEMPLATE_SIZE = 1514;
+  static const int MAX_TEMPLATE_SIZE = 1500;
   static uint64_t per_pcap_pkt_counts_[4];
   static uint64_t per_pcap_max_cnt_;
   static uint64_t per_pcap_min_cnt_;

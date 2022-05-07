@@ -1,0 +1,47 @@
+#
+# The traffic generator that replays a PCAP packet trace.
+#
+import scapy.all as scapy
+
+PCAPFILE = $PCAP!"./equinix-nyc.dirA.20190117-125910.UTC.short.pcap"
+assert PCAPFILE
+print("Target PCAP file: %s" %(PCAPFILE))
+
+playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
+playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
+playback_speed = float($BESS_SPEED!"1")
+burst_size=int($BESS_BURST!'32')
+tag_offset = 72
+pcie0, offset0="05:00.0", 0
+
+pcap_file = '{}'.format(PCAPFILE)
+
+pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
+src = PortInc(port=pcap_port)
+if playback_rate_mpps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
+elif playback_rate_mbps > 0:
+    replayer = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
+else:
+    replayer = Replayer(offset=tag_offset, speed=playback_speed)
+
+pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+pout0::PortOut(port=pmd_port0)
+pinc0::PortInc(port=pmd_port0)
+
+src -> replayer -> Timestamp(offset=tag_offset) -> pout0
+pinc0 -> Measure(offset=tag_offset) -> Sink()
+
+pinc0.set_burst(burst=burst_size)
+
+bess.add_worker(wid=1, core=1+offset0)
+bess.add_worker(wid=2, core=3+offset0)
+bess.add_tc('rl',
+            policy='rate_limit',
+            resource='packet',
+            limit={'packet': 100000000},
+            wid=2)
+src.attach_task(wid=1)
+pinc0.attach_task(wid=2)
+
+bess.resume_all()

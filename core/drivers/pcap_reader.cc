@@ -3,6 +3,7 @@
 
 #include <string>
 
+#include "../utils/checksum.h"
 #include "../utils/flow.h"
 
 using bess::utils::Flow;
@@ -204,14 +205,14 @@ int PCAPReader::RecvPackets(queue_t, bess::Packet** pkts, int cnt) {
     eth->ether_type = eth_template_.ether_type;
     total_copy_len += sizeof(Ethernet);
 
-    if (is_eth_missing_) {
+    copy_len = sizeof(Ipv4) + sizeof(Tcp);
+    if (copy_len > caplen) {
       copy_len = caplen;
+    }
+    if (is_eth_missing_) {
       bess::utils::Copy(p + total_copy_len, pkt_, copy_len, true);
     } else {
-      copy_len = caplen - sizeof(Ethernet);
-      if (copy_len > 0) {
-        bess::utils::Copy(p + total_copy_len, pkt_ + sizeof(Ethernet), copy_len, true);
-      }
+      bess::utils::Copy(p + total_copy_len, pkt_ + sizeof(Ethernet), copy_len, true);
     }
     total_copy_len += copy_len;
 
