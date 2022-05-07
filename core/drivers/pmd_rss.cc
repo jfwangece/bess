@@ -1,5 +1,7 @@
 #include "pmd.h"
 
+#include <set>
+
 namespace {
 struct rte_flow_item ETH_ITEM = {
 	RTE_FLOW_ITEM_TYPE_ETH,
@@ -146,19 +148,22 @@ void PMDPort::UpdateRssFlow() {
       rte_flow_id_ = (rte_flow_id_ + 1) % 2;
     }
   } else {
-    LOG(ERROR) << "Flow rule (rss) cannot be validated";
+    LOG(ERROR) << "Flow rule (rss) cannot be validated. Error msg: " << error.message;
   }
 }
 
 void PMDPort::UpdateRssFlow(std::map<uint16_t, uint16_t>& moves) {
   // first = bucket ID; second = core ID;
   int remapping = 0;
+  std::set<uint16_t> active_cores;
   for (auto &it : moves) {
     if (reta_table_[it.first] != it.second) {
       remapping += 1;
     }
     reta_table_[it.first] = it.second;
+    active_cores.emplace(it.second);
   }
+  // LOG(INFO) << "(UpdateRssFlow): " << active_cores.size() << " active cores";
 
   if (remapping) {
     UpdateRssFlow();

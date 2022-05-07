@@ -62,7 +62,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt
     double bucket_pkt_rate = per_bucket_pkt_rate[bucket];
     bool found = false;
     for (uint16_t i = 0; i < total_core_count_; i++) {
-      if (bess::ctrl::core_state[i] &&
+      if (bess::ctrl::nfv_cores[i] && bess::ctrl::core_state[i] &&
           per_cpu_pkt_rate[i] + bucket_pkt_rate < (flow_count_pps_threshold_[10000] * (1 - ASSIGN_HEAD_ROOM))) {
         per_cpu_pkt_rate[i] += bucket_pkt_rate;
         moves[bucket] = i;
@@ -75,7 +75,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt
     // No core found. Need to add a new core
     if (!found) {
       for (uint16_t i = 0; i < total_core_count_; i++) {
-        if (!bess::ctrl::core_state[i]) {
+        if (bess::ctrl::nfv_cores[i] && !bess::ctrl::core_state[i]) {
           per_cpu_pkt_rate[i] += bucket_pkt_rate;
           moves[bucket] = i;
           core_bucket_mapping_[i].push_back(bucket);
