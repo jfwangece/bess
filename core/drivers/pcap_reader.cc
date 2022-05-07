@@ -9,10 +9,11 @@ using bess::utils::Flow;
 
 // static
 int PCAPReader::total_pcaps_ = 0;
-std::mutex PCAPReader::mtx_;
-uint64_t PCAPReader::per_pcap_counters_[4] = {0,0,0,0};
+uint64_t PCAPReader::per_pcap_pkt_counts_[4] = {0,0,0,0};
 uint64_t PCAPReader::per_pcap_max_cnt_ = 0;
 uint64_t PCAPReader::per_pcap_min_cnt_ = 0;
+
+std::mutex PCAPReader::mtx_;
 
 namespace {
 const int kDefaultTagOffset = 64;
@@ -72,6 +73,30 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
     init_tnsec_ = pkthdr_.ts.tv_usec;
   }
 
+  // Initialize the local packet queue and batch
+  uint32_t slots = 131072;
+  int bytes = llring_bytes_with_slots(slots);
+  local_queue_ =
+      reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+  if (!local_queue_) {
+    return CommandFailure(ENOMEM,
+                         "must have enough memory to allocate a packet buffer");
+  }
+  int ret = llring_init(local_queue_, slots, 1, 1);
+  if (ret) {
+    std::free(local_queue_);
+    return CommandFailure(EINVAL,
+                         "must call llring_init for the packet buffer");
+  }
+
+  local_batch_ = reinterpret_cast<bess::PacketBatch *>
+          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+  if (!local_batch_) {
+    return CommandFailure(ENOMEM,
+                         "must have enough memory to allocate a packet batch");
+  }
+  local_batch_->clear();
+
   // Initialize payload template
   memset(tmpl_, 1, MAX_TEMPLATE_SIZE);
   // Initialize Ethernet header template
@@ -88,7 +113,7 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
     pcap_index_ = total_pcaps_;
     total_pcaps_ += 1;
   }
-  per_pcap_counters_[pcap_index_] = 0;
+  per_pcap_pkt_counts_[pcap_index_] = 0;
 
   return CommandSuccess();
 }
@@ -102,28 +127,26 @@ bool PCAPReader::ShouldAllocPkts() {
 
   const std::lock_guard<std::mutex> lock(mtx_);
   if (pcap_index_ == 0) {
-    per_pcap_max_cnt_ = per_pcap_counters_[0];
-    per_pcap_min_cnt_ = per_pcap_counters_[0];
+    per_pcap_max_cnt_ = per_pcap_pkt_counts_[0];
+    per_pcap_min_cnt_ = per_pcap_pkt_counts_[0];
     for (int i = 1; i < total_pcaps_; i++) {
-      if (per_pcap_counters_[i] > per_pcap_max_cnt_) {
-        per_pcap_max_cnt_ = per_pcap_counters_[i];
+      if (per_pcap_pkt_counts_[i] > per_pcap_max_cnt_) {
+        per_pcap_max_cnt_ = per_pcap_pkt_counts_[i];
       }
-      if (per_pcap_counters_[i] < per_pcap_min_cnt_) {
-        per_pcap_min_cnt_ = per_pcap_counters_[i];
+      if (per_pcap_pkt_counts_[i] < per_pcap_min_cnt_) {
+        per_pcap_min_cnt_ = per_pcap_pkt_counts_[i];
       }
     }
   }
 
-  if (per_pcap_counters_[pcap_index_] == per_pcap_max_cnt_ &&
+  if (per_pcap_pkt_counts_[pcap_index_] == per_pcap_max_cnt_ &&
       per_pcap_max_cnt_ > per_pcap_min_cnt_ + 10000) {
     should = false;
   }
   return should;
 }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
+int PCAPReader::RecvPackets(queue_t, bess::Packet** pkts, int cnt) {
   if (pcap_handle_ == nullptr) {
     return 0;
   }
@@ -131,15 +154,21 @@ int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
     return 0;
   }
 
-  int recv_cnt = 0;
-  while(recv_cnt < cnt) {
+  local_batch_->clear();
+  int rounds = 0;
+  while(rounds < 10 &&
+       llring_free_count(local_queue_) > 32) {
     // Try to allocate a packet buffer
     bess::Packet* pkt = current_worker.packet_pool()->Alloc();
     if (!pkt) {
+      if (local_batch_->cnt()) {
+        llring_sp_enqueue_burst(local_queue_,
+            reinterpret_cast<void **>(local_batch_->pkts()), local_batch_->cnt());
+      }
       break;
     }
 
-    // read one packet from the pcap file
+    // Read one packet from the pcap file
     pkt_ = pcap_next(pcap_handle_, &pkthdr_);
     if (!pkt_) {
       bess::Packet::Free(pkt);
@@ -199,10 +228,6 @@ int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
       continue;
     }
 
-    pkts[recv_cnt] = pkt;
-    recv_cnt++;
-    pkt_counter_++;
-
     if (is_timestamp_) {
       // Tag packet: to calculate the global timestamp (in nsec)
       long tsec = pkthdr_.ts.tv_sec;
@@ -215,15 +240,24 @@ int PCAPReader::RecvPackets(queue_t qid, bess::Packet** pkts, int cnt) {
       }
       TagPacketTimestamp(pkt, offset_, ts);
     }
+
+    local_batch_->add(pkt);
+    if (local_batch_->cnt() == 32) {
+      llring_sp_enqueue_burst(local_queue_,
+          reinterpret_cast<void **>(local_batch_->pkts()), local_batch_->cnt());
+      local_batch_->clear();
+      rounds += 1;
+    }
   }
 
-  mtx_.lock();
-  per_pcap_counters_[pcap_index_] += recv_cnt;
-  mtx_.unlock();
+  int recv_cnt = llring_sc_dequeue_burst(local_queue_,
+                 reinterpret_cast<void **>(pkts), cnt);
+  pkt_counter_ += recv_cnt;
+  const std::lock_guard<std::mutex> lock(mtx_);
+  per_pcap_pkt_counts_[pcap_index_] += recv_cnt;
 
   return recv_cnt;
 }
-#pragma GCC diagnostic pop
 
 int PCAPReader::SendPackets(queue_t, bess::Packet** pkts, int cnt) {
   if (pcap_handle_ == nullptr) {
@@ -235,4 +269,5 @@ int PCAPReader::SendPackets(queue_t, bess::Packet** pkts, int cnt) {
   return 0;
 }
 
-ADD_DRIVER(PCAPReader, "pcap_reader", "libpcap packet reader from a pcap file")
+ADD_DRIVER(PCAPReader, "pcap_reader",
+                       "libpcap packet reader from a pcap file")
