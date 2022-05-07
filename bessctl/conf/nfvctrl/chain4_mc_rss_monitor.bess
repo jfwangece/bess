@@ -31,8 +31,8 @@ core_addrs = [
     {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
     {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
 ]
-core_cnt=5
-rcore_cnt=8
+core_cnt=6
+rcore_cnt=7
 total_core_cnt = core_cnt + rcore_cnt
 print("normal core:%d, reserved core:%d" %(core_cnt, rcore_cnt))
 

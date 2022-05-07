@@ -111,8 +111,8 @@ class NFVCore final : public Module {
   // PostProcess:
   // - Update epoch latency statistics
   void UpdateStatsPostProcessBatch(bess::PacketBatch *batch);
-  // - Split |local_queue_| to other software queues
-  void SplitLocalQToSwQ(bess::PacketBatch *batch);
+  // - Scan all packets in |q| and split them to all software queues
+  void SplitQToSwQ(llring* q, bess::PacketBatch *batch);
   // - Split |batch| into |local_queue_| and other software queues
   void SplitAndEnqueue(bess::PacketBatch *batch);
 
