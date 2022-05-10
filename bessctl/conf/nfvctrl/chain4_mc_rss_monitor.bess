@@ -7,7 +7,7 @@ nic=int($BESS_NIC!'1')
 burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
-slo = int($BESS_SLO!"500000")
+slo = int($BESS_SLO!"400000")
 long_update_stats_period = int($BESS_LSTATS_PERIOD!"500000000")
 short_update_stats_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
@@ -31,8 +31,8 @@ core_addrs = [
     {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
     {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
 ]
-core_cnt=4
-rcore_cnt=9
+core_cnt=6
+rcore_cnt=7
 total_core_cnt = core_cnt + rcore_cnt
 print("normal core:%d, reserved core:%d" %(core_cnt, rcore_cnt))
 
@@ -69,15 +69,15 @@ for i in range(core_cnt):
     if exp_idx == 0:
         pinc0[i] = NFVCore(core_id=i, port=port0, qid=i)
         nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
-        pinc0[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
+        pinc0[i] -> nfvmo[i] -> pout0[i]
     elif exp_idx == 1:
         pinc0[i] = NFVCore(core_id=i, port=port0, qid=i)
         nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
-        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
+        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> pout0[i]
     else:
         pinc0[i] = QueueInc(port=port0, qid=i)
         nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
-        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> MACSwap() -> nfvmo[i] -> pout0[i]
+        pinc0[i] -> nfvmo[i] -> pout0[i]
 
 for i in range(rcore_cnt):
     rcore_id = core_cnt + i

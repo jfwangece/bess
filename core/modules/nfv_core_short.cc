@@ -116,12 +116,36 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
   all_local_core_stats[core_id_]->packet_queued = epoch_packet_queued_;
 }
 
-void NFVCore::UpdateStatsPostProcessBatch(bess::PacketBatch *) {
+void NFVCore::UpdateStatsPostProcessBatch(bess::PacketBatch* batch) {
   // If a new epoch starts, absorb the current packet queue
-  ShortEpochProcess();
+  if (ShortEpochProcess()) {
+    SplitQToSwQ(local_queue_, batch);
+  }
 }
 
-void NFVCore::SplitAndEnqueue(bess::PacketBatch *batch) {
+void NFVCore::SplitQToSwQ(llring* q, bess::PacketBatch* batch) {
+  uint32_t total_cnt = llring_count(q);
+  if (total_cnt <= epoch_packet_thresh_) {
+    return;
+  }
+
+  int burst, cnt;
+  uint32_t curr_cnt = 0;
+  while (curr_cnt < total_cnt) {
+    burst = total_cnt - curr_cnt;
+    if (burst > 32) {
+      burst = 32;
+    }
+
+    batch->clear();
+    cnt = llring_sc_dequeue_burst(q, (void **)batch->pkts(), burst);
+    batch->set_cnt(cnt);
+    SplitAndEnqueue(batch);
+    curr_cnt += cnt;
+  }
+}
+
+void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
   local_batch_->clear();
   for (auto &sw_q_it : sw_q_) {
     sw_q_it.sw_batch->clear();
@@ -132,6 +156,11 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch *batch) {
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
     state = get_attr<FlowState*>(this, flow_stats_attr_id_, pkt);
+    if (state == nullptr) {
+      local_batch_->add(pkt);
+      continue;
+    }
+
     auto& q_state = state->sw_q_state;
     if (q_state) {
       // This flow is redirected only if |sw_q| is handled by a RCore; otherwise, reset
@@ -157,22 +186,6 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch *batch) {
   }
   for (auto &sw_q_it : sw_q_) {
     sw_q_it.EnqueueBatch();
-  }
-}
-
-void NFVCore::SplitLocalQToSwQ(bess::PacketBatch *batch) {
-  int total_cnt = llring_count(local_queue_);
-  int cnt = 0;
-  while (cnt < total_cnt) {
-    int batch_size = total_cnt - cnt;
-    if (batch_size > 32) {
-      batch_size = 32;
-    }
-
-    batch->clear();
-    cnt += llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), batch_size);
-    batch->set_cnt(batch_size);
-    SplitAndEnqueue(batch);
   }
 }
 
