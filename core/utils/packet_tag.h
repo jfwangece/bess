@@ -13,10 +13,41 @@ struct PerPacketTag {
 
 void LogPacketTags(std::vector<PerPacketTag> tags);
 
-inline void TagUint64(bess::Packet* pkt, size_t offset, uint64_t val);
-inline void TagUint32(bess::Packet* pkt, size_t offset, uint32_t val);
-inline void GetUint64(bess::Packet* pkt, size_t offset, uint64_t *val);
-inline void GetUint32(bess::Packet* pkt, size_t offset, uint32_t *val);
+inline void TagUint64(bess::Packet* pkt, size_t offset, uint64_t val) {
+  uint64_t* ptr;
+  const size_t kTagSize = sizeof(*ptr);
+  size_t room = pkt->data_len() - offset;
+  if (room < kTagSize) {
+    void *ret = pkt->append(kTagSize - room);
+    if (!ret) {
+      // not enough tailroom for timestamp. give up
+      return;
+    }
+  }
+  ptr = pkt->head_data<uint64_t*>(offset);
+  *ptr = val;
+}
+inline void GetUint64(bess::Packet* pkt, size_t offset, uint64_t *val) {
+  *val = *(pkt->head_data<uint64_t*>(offset));
+}
+
+inline void TagUint32(bess::Packet* pkt, size_t offset, uint32_t val) {
+  uint32_t* ptr;
+  const size_t kTagSize = sizeof(*ptr);
+  size_t room = pkt->data_len() - offset;
+  if (room < kTagSize) {
+    void *ret = pkt->append(kTagSize - room);
+    if (!ret) {
+      // not enough tailroom for timestamp. give up
+      return;
+    }
+  }
+  ptr = pkt->head_data<uint32_t*>(offset);
+  *ptr = val;
+}
+inline void GetUint32(bess::Packet* pkt, size_t offset, uint32_t *val) {
+  *val = *(pkt->head_data<uint32_t*>(offset));
+}
 
 // Tag a timestamp to |pkt| at |offset| (in bytes)
 void TagPacketTimestamp(bess::Packet* pkt, size_t offset, uint64_t ts);
