@@ -3,17 +3,15 @@
 #include "../utils/ether.h"
 #include "../utils/ip.h"
 #include "../utils/time.h"
+#include "../utils/packet_tag.h"
 
 using bess::utils::Ethernet;
 using bess::utils::Ipv4;
+using bess::utils::GetPacketTimestamp;
 
 namespace {
 #define kDefaultTagOffset 64
 #define kDefaultRateCalcPeriodUs 100000
-
-void GetTimestamp(bess::Packet *pkt, size_t offset, uint64_t *time) {
-  *time = *(pkt->head_data<uint64_t *>(offset));
-}
 }
 
 CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
@@ -102,8 +100,7 @@ void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 void Replayer::WaitToSendPkt(bess::Packet *pkt) {
   uint64_t time_diff = 0;
   if (use_trace_time_) {
-    // Read the timestamp in the TCP header.
-    GetTimestamp(pkt, offset_, &time_diff);
+    GetPacketTimestamp(pkt, offset_, &time_diff);
 
     if (time_diff) {
       if (time_diff > 60000000000) { // 60 sec

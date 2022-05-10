@@ -5,8 +5,10 @@
 
 #include "../utils/checksum.h"
 #include "../utils/flow.h"
+#include "../utils/packet_tag.h"
 
 using bess::utils::Flow;
+using bess::utils::TagPacketTimestamp;
 
 // static
 int PCAPReader::total_pcaps_ = 0;
@@ -19,25 +21,8 @@ std::mutex PCAPReader::mtx_;
 namespace {
 const int kDefaultTagOffset = 64;
 
-struct pcap_pkthdr pkthdr_;
-
-struct Flow flow;
-
-inline void TagPacketTimestamp(bess::Packet *pkt, size_t offset,
-                              uint64_t tusec) {
-  uint64_t *ts;
-  const size_t kTagSize = sizeof(*ts);
-  size_t room = pkt->data_len() - offset;
-  if (room < kTagSize) {
-    void *ret = pkt->append(kTagSize - room);
-    if (!ret) {
-      // not enough tailroom for timestamp. give up
-      return;
-    }
-  }
-  ts = pkt->head_data<uint64_t *>(offset);
-  *ts = tusec;
-}
+struct pcap_pkthdr _pkthdr;
+struct Flow _flow;
 } // namespace
 
 CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
@@ -61,7 +46,7 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
   if (pcap_handle_ == nullptr) {
     return CommandFailure(EINVAL, "Error initializing the pcap handle.");
   } else {
-    pkt_ = pcap_next(pcap_handle_, &pkthdr_);
+    pkt_ = pcap_next(pcap_handle_, &_pkthdr);
     if (!pkt_) {
       return CommandFailure(EINVAL, "Error reading an empty pcap file.");
     }
@@ -70,8 +55,8 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
     // Decide whether Ethernet headers were removed or not
     is_eth_missing_ = *(uint16_t*)pkt_ == 0x0045 || *(uint16_t*)pkt_ == 0x0845 || *(uint16_t*)pkt_ == 0x4845 || *(uint16_t*)pkt_ == 0x0a14;
 
-    init_tsec_ = pkthdr_.ts.tv_sec;
-    init_tnsec_ = pkthdr_.ts.tv_usec;
+    init_tsec_ = _pkthdr.ts.tv_sec;
+    init_tnsec_ = _pkthdr.ts.tv_usec;
   }
 
   // Initialize the local packet queue and batch
@@ -170,13 +155,13 @@ int PCAPReader::RecvPackets(queue_t, bess::Packet** pkts, int cnt) {
     }
 
     // Read one packet from the pcap file
-    pkt_ = pcap_next(pcap_handle_, &pkthdr_);
+    pkt_ = pcap_next(pcap_handle_, &_pkthdr);
     if (!pkt_) {
       bess::Packet::Free(pkt);
       break;
     }
-    int caplen = pkthdr_.caplen;
-    int totallen = pkthdr_.len;
+    int caplen = _pkthdr.caplen;
+    int totallen = _pkthdr.len;
 
     if (is_eth_missing_) {
       totallen += sizeof(Ethernet);
@@ -224,15 +209,15 @@ int PCAPReader::RecvPackets(queue_t, bess::Packet** pkts, int cnt) {
     }
 
     // Only generate L4 packets
-    if (!bess::utils::ParseFlowFromPacket(&flow, pkt)) {
+    if (!bess::utils::ParseFlowFromPacket(&_flow, pkt)) {
       bess::Packet::Free(pkt);
       continue;
     }
 
     if (is_timestamp_) {
       // Tag packet: to calculate the global timestamp (in nsec)
-      long tsec = pkthdr_.ts.tv_sec;
-      long tnsec = pkthdr_.ts.tv_usec;
+      long tsec = _pkthdr.ts.tv_sec;
+      long tnsec = _pkthdr.ts.tv_usec;
       uint64_t ts = uint64_t(tsec - init_tsec_) * 1000000000;
       if (tnsec > init_tnsec_) {
         ts += uint64_t(tnsec - init_tnsec_);
