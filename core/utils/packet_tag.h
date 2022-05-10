@@ -7,7 +7,7 @@ namespace bess{
 namespace utils{
 struct PerPacketTag {
   PerPacketTag() = default;
-  int rcore_idle_epoch_count;
+  uint32_t rcore_idle_epoch_count;
   uint32_t sw_q_len;
 };
 
