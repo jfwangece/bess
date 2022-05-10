@@ -1,8 +1,9 @@
 #
-# This is a traffic generator that produces one type of packet
+# This is a traffic generator that produces N TCP flows
+# To configure the number of flows, pass BESS with |BESS_FLOW| parameter
 #
 # Example:
-# $ run nfvctrl/pktgen BESS_BURST=32,BESS_PKT_LIMIT=100000000,BESS_PKT_RATE=2000000
+# $ run nfvctrl/flowgen BESS_PKT_LIMIT=100000000,BESS_FLOW=1,BESS_FLOW_TIME=50,BESS_PKT_RATE=2000000
 #
 
 import copy
@@ -14,11 +15,14 @@ PACKET_OVERHEAD=24
 
 # This script generates a number of flows at a specified packet rate.
 pcie0, socket0 = '05:00.0', SOCKET1_CPU
-burst_size = int($BESS_BURST!'4')
+burst_size = int($BESS_BURST!'32')
 num_cores = int($BESS_CORE!'1')
-pkt_limit=int($BESS_PKT_LIMIT!'100000000')
+pkt_limit=int($BESS_PKT_LIMIT!'10000000')
 pkt_size=int($BESS_PKT_SIZE!'100')
+num_flows=int($BESS_FLOW!'10000')
+flow_time=int($BESS_FLOW_TIME!'10') # in Seconds
 base_pkt_rate=int($BESS_PKT_RATE!'2000000')
+base_bit_rate=int($BESS_BIT_RATE!'100000000000')
 ts_offset = 72
 
 assert(pcie0)
@@ -26,7 +30,7 @@ assert(1 <= num_cores <= 16)
 assert(60 <= pkt_size <= 1522)
 assert(64 <= ts_offset <= 100)
 
-pkt_size = min(pkt_size, 1500)
+pkt_size = min(pkt_size, base_bit_rate / base_pkt_rate / 8)
 
 src_ether = 'ec:0d:9a:67:ff:68'
 dst_ether = '0a:14:69:37:5f:f2'
@@ -55,9 +59,16 @@ lc_egress::LossCounter(port_index=0, port_type=0)
 lc_ingress::LossCounter(port_index=0, port_type=1)
 
 for i in range(num_cores):
-    flowgens[i] = Source()
+    flowgens[i] = FlowGen(template = pkt_data, \
+        pps = base_pkt_rate / num_cores, \
+        flow_rate = num_flows / flow_time, \
+        flow_duration = flow_time, \
+        arrival = 'uniform', duration='uniform', \
+        quick_rampup=True, \
+        ip_src_range = 255, ip_dst_range = 255, \
+        ignore_synfin=False)
     queues[i] = Queue()
-    flowgens[i] -> Rewrite(templates=[pkt_data]) -> lc_egress -> Timestamp(offset=ts_offset) -> queues[i] -> QueueOut(port=port0, qid=i)
+    flowgens[i] -> lc_egress -> Timestamp(offset=ts_offset) -> queues[i] -> QueueOut(port=port0, qid=i)
     queues[i].set_burst(burst=burst_size)
 
 port_inc -> Measure(offset=ts_offset) -> lc_ingress -> Sink()
@@ -70,12 +81,7 @@ port_inc.attach_task(wid=1)
 for wid in range(num_cores):
     bess.add_worker(wid=2*wid+2, core=socket0[2*wid+2])
     bess.add_worker(wid=2*wid+3, core=socket0[2*wid+3])
-    bess.add_tc('rl%d' %(wid),
-                policy='rate_limit',
-                resource='packet',
-                limit={'packet': int(base_pkt_rate/num_cores)},
-                wid=2*wid+2)
-    flowgens[wid].attach_task(parent='rl%d' %(wid))
+    flowgens[wid].attach_task(wid=wid+2)
     queues[wid].attach_task(wid=2*wid+3)
 
 bess.resume_all()
