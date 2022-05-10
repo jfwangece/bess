@@ -36,6 +36,11 @@
 #include "../utils/histogram.h"
 #include "../utils/mcslock.h"
 #include "../utils/random.h"
+#include "../utils/packet_tag.h"
+
+#include <vector>
+
+using bess::utils::PerPacketTag;
 
 class Measure final : public Module {
  public:
@@ -88,6 +93,9 @@ class Measure final : public Module {
   uint64_t bytes_cnt_;
 
   bool bg_dst_filter_ = false;
+
+  // For latency debug
+  std::vector<PerPacketTag> stats_;
 
   mcslock lock_;
 };

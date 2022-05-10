@@ -21,7 +21,8 @@ void LogPacketTags(std::vector<PerPacketTag> tags) {
   if (out_fp.is_open()) {
     for (size_t i = 0; i < tags.size(); i++) {
       out_fp << "packet:" << i;
-      out_fp << "idle:" << tags[i].rcore_idle_epoch_count;
+      out_fp << ", idle:" << tags[i].rcore_idle_epoch_count;
+      out_fp << ", qid:" << tags[i].sw_q_id;
       out_fp << ", qlen:" << tags[i].sw_q_len;
       out_fp << std::endl;
     }

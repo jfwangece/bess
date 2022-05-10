@@ -8,6 +8,7 @@ namespace utils{
 struct PerPacketTag {
   PerPacketTag() = default;
   uint32_t rcore_idle_epoch_count;
+  uint32_t sw_q_id;
   uint32_t sw_q_len;
 };
 
