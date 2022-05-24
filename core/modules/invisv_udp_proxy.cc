@@ -70,6 +70,9 @@ const Commands INVISVUDPProxy::cmds = {
     {"get_next_hop_proxy", "EmptyArg",
      MODULE_CMD_FUNC(&INVISVUDPProxy::GetNextHopUDPProxy),
      Command::THREAD_SAFE},
+    {"set_client", "INVISVUDPProxySetClientEndpointArg",
+     MODULE_CMD_FUNC(&INVISVUDPProxy::SetUDPProxyClient),
+     Command::THREAD_SAFE},
 };
 
 namespace {
@@ -90,7 +93,44 @@ static inline std::tuple<bool, Endpoint, Endpoint> ExtractEndpoint(
       Endpoint{.addr = ip->src, .port = be16_t(0), .protocol = 0},
       Endpoint{.addr = ip->dst, .port = be16_t(0), .protocol = 0});
 }
+
+inline void Stamp(Ipv4 *ip, void *l4,
+                  const Endpoint &old_src, const Endpoint &old_dst,
+                  const Endpoint &new_src, const Endpoint &new_dst) {
+  IpProto proto = static_cast<IpProto>(ip->protocol);
+  DCHECK_EQ(old_src.protocol, new_src.protocol);
+  DCHECK_EQ(old_src.protocol, proto);
+
+  ip->src = new_src.addr;
+  ip->dst = new_dst.addr;
+
+  uint32_t l3_increment =
+    ChecksumIncrement32(old_src.addr.raw_value(), new_src.addr.raw_value()) +
+    ChecksumIncrement32(old_dst.addr.raw_value(), new_dst.addr.raw_value());
+  ip->checksum = UpdateChecksumWithIncrement(ip->checksum, l3_increment);
+
+  uint32_t l4_increment = l3_increment +
+    ChecksumIncrement16(old_src.port.raw_value(), new_src.port.raw_value()) +
+    ChecksumIncrement16(old_dst.port.raw_value(), new_dst.port.raw_value());
+
+  Udp *udp = static_cast<Udp *>(l4);
+  udp->src_port = new_src.port;
+  udp->dst_port = new_dst.port;
+
+  if (proto == IpProto::kTcp) {
+    Tcp *tcp = static_cast<Tcp *>(l4);
+    tcp->checksum = UpdateChecksumWithIncrement(tcp->checksum, l4_increment);
+  } else {
+    // NOTE: UDP checksum is tricky in two ways:
+    // 1. if the old checksum field was 0 (not set), no need to update
+    // 2. if the updated value is 0, use 0xffff (rfc768)
+    if (udp->checksum != 0) {
+      udp->checksum =
+          UpdateChecksumWithIncrement(udp->checksum, l4_increment) ?: 0xffff;
+    }
+  }
 }
+} // namespace
 
 // TODO(torek): move this to set/get runtime config
 CommandResponse INVISVUDPProxy::Init(const bess::pb::INVISVUDPProxyArg &arg) {
@@ -222,6 +262,34 @@ CommandResponse INVISVUDPProxy::GetNextHopUDPProxy(const bess::pb::EmptyArg &) {
   return CommandSuccess(r);
 }
 
+CommandResponse INVISVUDPProxy::SetUDPProxyClient(
+              const bess::pb::INVISVUDPProxySetClientEndpointArg &arg) {
+  if (arg.client_addr().size() > 0) {
+    be32_t addr;
+    bool ret = bess::utils::ParseIpv4Address(arg.client_addr(), &addr);
+    if (!ret) {
+      return CommandFailure(EINVAL,
+          "invalid client IP address %s", arg.client_addr().c_str());
+    }
+
+    Endpoint client;
+    client.addr = addr;
+    client.port = be16_t(arg.client_port());
+    client.protocol = IpProto::kUdp;
+
+    std::lock_guard<std::mutex> guard(client_lock_);
+    auto client_it = udp_proxy_clients_.find(client);
+    if (client_it != udp_proxy_clients_.end()) {
+      client_it->second = arg.allow();
+    } else {
+      udp_proxy_clients_.emplace(std::piecewise_construct,
+          std::make_tuple(client), std::make_tuple(arg.allow()));
+    }
+    return CommandSuccess();
+  }
+  return CommandFailure(EINVAL, "Incorrect client endpoint");
+}
+
 // Not necessary to inline this function, since it is less frequently called
 INVISVUDPProxy::HashTable::Entry *INVISVUDPProxy::CreateNewEntry(
                                            const Endpoint &src_internal,
@@ -313,43 +381,6 @@ INVISVUDPProxy::HashTable::Entry *INVISVUDPProxy::CreateNewEntry(
   return nullptr;
 }
 
-inline void Stamp(Ipv4 *ip, void *l4,
-                  const Endpoint &old_src, const Endpoint &old_dst,
-                  const Endpoint &new_src, const Endpoint &new_dst) {
-  IpProto proto = static_cast<IpProto>(ip->protocol);
-  DCHECK_EQ(old_src.protocol, new_src.protocol);
-  DCHECK_EQ(old_src.protocol, proto);
-
-  ip->src = new_src.addr;
-  ip->dst = new_dst.addr;
-
-  uint32_t l3_increment =
-    ChecksumIncrement32(old_src.addr.raw_value(), new_src.addr.raw_value()) +
-    ChecksumIncrement32(old_dst.addr.raw_value(), new_dst.addr.raw_value());
-  ip->checksum = UpdateChecksumWithIncrement(ip->checksum, l3_increment);
-
-  uint32_t l4_increment = l3_increment +
-    ChecksumIncrement16(old_src.port.raw_value(), new_src.port.raw_value()) +
-    ChecksumIncrement16(old_dst.port.raw_value(), new_dst.port.raw_value());
-
-  Udp *udp = static_cast<Udp *>(l4);
-  udp->src_port = new_src.port;
-  udp->dst_port = new_dst.port;
-
-  if (proto == IpProto::kTcp) {
-    Tcp *tcp = static_cast<Tcp *>(l4);
-    tcp->checksum = UpdateChecksumWithIncrement(tcp->checksum, l4_increment);
-  } else {
-    // NOTE: UDP checksum is tricky in two ways:
-    // 1. if the old checksum field was 0 (not set), no need to update
-    // 2. if the updated value is 0, use 0xffff (rfc768)
-    if (udp->checksum != 0) {
-      udp->checksum =
-          UpdateChecksumWithIncrement(udp->checksum, l4_increment) ?: 0xffff;
-    }
-  }
-}
-
 void INVISVUDPProxy::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   gate_idx_t igate_idx = ctx->current_igate;
   gate_idx_t ogate_idx = GetOGate(igate_idx);
@@ -376,7 +407,7 @@ void INVISVUDPProxy::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     Direction dir = kReverse;
     if (!IsReverseTraffic(src, dst)) {
-      if (!IsForwardTraffic()) {
+      if (!IsForwardTraffic(src, dst)) {
         DropPacket(ctx, pkt);
         continue;
       }
@@ -407,16 +438,32 @@ void INVISVUDPProxy::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   }
 }
 
-bool INVISVUDPProxy::IsForwardTraffic() {
+bool INVISVUDPProxy::IsForwardTraffic(Endpoint &src, Endpoint &dst) {
+  Endpoint::EqualTo eq;
+  if (!eq(dst, curr_udp_proxy_)) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> guard(client_lock_);
+  const auto it = udp_proxy_clients_.find(src);
+  if (it == udp_proxy_clients_.end()) { // Unknown client
+    return false;
+  }
+  if (!it->second) { // Deny
+    return false;
+  }
   return true;
 }
 
 bool INVISVUDPProxy::IsReverseTraffic(Endpoint &src, Endpoint &dst) {
   Endpoint::EqualTo eq;
-  if (eq(src, next_hop_udp_proxy_) && dst.addr == curr_udp_proxy_.addr) {
-    return true;
+  if (!eq(src, next_hop_udp_proxy_)) { // Not from the next-hop proxy
+    return false;
   }
-  return false;
+  if (dst.addr != curr_udp_proxy_.addr) { // Not for the current proxy
+    return false;
+  }
+  return true;
 }
 
 std::string INVISVUDPProxy::GetDesc() const {

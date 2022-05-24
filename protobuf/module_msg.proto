@@ -659,6 +659,17 @@ message INVISVUDPProxySetProxyEndpointArg {
   uint32 proxy_port = 2;
 }
 
+/*
+ * INVISV UDP proxy module drops all traffic by default.
+ * It takes a RPC command that allows and denies a client whose
+ * [IP:Port] = [client_addr, client_port].
+ */
+message INVISVUDPProxySetClientEndpointArg {
+  string client_addr = 1;
+  uint32 client_port = 2;
+  bool allow = 3;
+}
+
 /**
  * An L2Forward module forwards packets to an output gate according to exact-match rules over
  * an Ethernet destination.

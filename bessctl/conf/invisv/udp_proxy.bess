@@ -38,16 +38,16 @@ num_cores = int($BESS_CORES!"3")
 def gen_packet(proto, src_ip, dst_ip):
     eth = scapy.Ether(src='02:1e:67:9f:4d:ae', dst='06:16:3e:1b:72:32')
     ip = scapy.IP(src=src_ip, dst=dst_ip)
-    udp = proto(sport=10001, dport=10002)
+    udp = proto(sport=10001, dport=12345)
     payload = 'helloworld'
     pkt = eth/ip/udp/payload
     return bytes(pkt)
 
-packets = [gen_packet(scapy.UDP, '172.16.100.1', '10.0.0.1'), # 172.16.100.1:10001
-           gen_packet(scapy.UDP, '172.12.55.99', '12.34.56.78'), # 172.12.55.99:10001
-           gen_packet(scapy.UDP, '172.12.55.99', '12.34.56.78'),
-           gen_packet(scapy.UDP, '172.16.100.1', '12.34.56.78'),
-           gen_packet(scapy.UDP, '192.168.1.123', '12.34.56.78'), # 192.168.1.123:10001
+packets = [gen_packet(scapy.UDP, '172.16.100.1', '127.0.0.1'), # 172.16.100.1:10001 (allow)
+           gen_packet(scapy.UDP, '172.12.55.99', '127.0.0.1'), # 172.12.55.99:10001 (deny)
+           gen_packet(scapy.UDP, '172.12.55.99', '127.0.0.1'),
+           gen_packet(scapy.UDP, '172.16.100.1', '127.0.0.1'),
+           gen_packet(scapy.UDP, '192.168.1.123', '127.0.0.1'), # 192.168.1.123:10001 (allow)
            ]
 
 # INVISV UDP proxy configuration
@@ -55,6 +55,8 @@ udp_proxy::INVISVUDPProxy(
     ext_addrs=[{'ext_addr': '192.168.0.1'}, {'ext_addr': '192.168.0.2'}])
 udp_proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=12345)
 udp_proxy.set_next_hop_proxy(proxy_addr='172.217.12.238', proxy_port=443)
+udp_proxy.set_client(client_addr='172.16.100.1', client_port=10001, allow=True)
+udp_proxy.set_client(client_addr='192.168.1.123', client_port=10001, allow=True)
 source = {}
 
 for i in range(num_cores):

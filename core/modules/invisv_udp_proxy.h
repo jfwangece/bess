@@ -86,6 +86,16 @@ struct alignas(8) Endpoint {
   // without a hole, without needing to initialize it explicitly.
   uint16_t protocol;
 
+  bool operator<(const Endpoint &other) const {
+    const Endpoint &me = *this;
+    const union {
+        Endpoint endpoint;
+        uint64_t u64;
+    } &left = {.endpoint = me}, &right = {.endpoint = other};
+
+    return left.u64 < right.u64;
+  }
+
   struct Hash {
     std::size_t operator()(const Endpoint &e) const {
 #if __x86_64
@@ -166,6 +176,8 @@ class INVISVUDPProxy final : public Module {
               const bess::pb::INVISVUDPProxySetProxyEndpointArg &arg);
   CommandResponse GetUDPProxy(const bess::pb::EmptyArg &);
   CommandResponse GetNextHopUDPProxy(const bess::pb::EmptyArg &);
+  CommandResponse SetUDPProxyClient(
+              const bess::pb::INVISVUDPProxySetClientEndpointArg &arg);
 
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
@@ -184,10 +196,12 @@ class INVISVUDPProxy final : public Module {
 
   HashTable::Entry *CreateNewEntry(const Endpoint &internal, uint64_t now);
 
-  bool IsForwardTraffic();
+  // If |dst| equals to |curr_udp_proxy_| and |src| is allowed: |src|'s value
+  // is true in |udp_proxy_clients_|, return true. Otherwise, return false.
+  bool IsForwardTraffic(Endpoint &src, Endpoint &dst);
 
-  // If |src| equals to |next_hop_udp_proxy_| and
-  // |dst|'s IP matches |curr_udp_proxy_| IP, return true. Otherwise, false.
+  // If |src| equals to |next_hop_udp_proxy_| and |dst|'s IP matches
+  // |curr_udp_proxy_| IP, return true. Otherwise, return false.
   bool IsReverseTraffic(Endpoint &src, Endpoint &dst);
 
   // |igate| is coupled with the ogate at the same index
@@ -202,8 +216,15 @@ class INVISVUDPProxy final : public Module {
   // ext_addrs_ range.
   std::vector<std::vector<PortRange>> port_ranges_;
 
-  std::mutex map_lock_;
+  // |map_| contains all [client <-> this proxy <-> next-hop] proxy connections.
   HashTable map_;
+  std::mutex map_lock_;
+
+  // |udp_proxy_clients_| contains this UDP proxy's client. For each client, the
+  // value indicates whether this proxy forwards its traffic or not.
+  std::map<Endpoint, bool> udp_proxy_clients_;
+  std::mutex client_lock_;
+
   Random rng_;
 };
 
