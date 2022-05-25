@@ -180,14 +180,6 @@ CommandResponse INVISVUDPProxy::Init(const bess::pb::INVISVUDPProxyArg &arg) {
   // Sort so that GetInitialArg is predictable and consistent.
   std::sort(ext_addrs_.begin(), ext_addrs_.end());
 
-  // Init |curr_udp_proxy_| and |next_hop_udp_proxy_|.
-  curr_udp_proxy_.addr = be32_t(0);
-  curr_udp_proxy_.port = be16_t(0);
-  curr_udp_proxy_.protocol = IpProto::kUdp;
-  next_hop_udp_proxy_.addr = be32_t(0);
-  next_hop_udp_proxy_.port = be16_t(0);
-  next_hop_udp_proxy_.protocol = IpProto::kUdp;
-
   return CommandSuccess();
 }
 

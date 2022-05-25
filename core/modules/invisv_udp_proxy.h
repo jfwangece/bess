@@ -161,8 +161,17 @@ class INVISVUDPProxy final : public Module {
 
   INVISVUDPProxy()
       : Module() {
+    // Init |curr_udp_proxy_| and |next_hop_udp_proxy_|.
     Endpoint curr_udp_proxy_;
+    curr_udp_proxy_.addr = be32_t(0);
+    curr_udp_proxy_.port = be16_t(0);
+    curr_udp_proxy_.protocol = IpProto::kUdp;
     Endpoint next_hop_udp_proxy_;
+    next_hop_udp_proxy_.addr = be32_t(0);
+    next_hop_udp_proxy_.port = be16_t(0);
+    next_hop_udp_proxy_.protocol = IpProto::kUdp;
+
+    // Enable multi-core.
     max_allowed_workers_ = Worker::kMaxWorkers;
   }
 
