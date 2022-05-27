@@ -81,19 +81,16 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
 
         # UDPProxy should drop all non-UDP packets.
         if type(l4_orig) != scapy.UDP:
-            print("Client sends non-UDP packets")
             self.assertEquals(len(pkt_outs[0]), 0)
             return
 
         # UDPProxy should drop packets whose destination is not this proxy.
         if ip_orig.dst != curr_proxy_addr or l4_orig.dport != curr_proxy_port:
-            print("Client sends packets that are not for the proxy")
             self.assertEquals(len(pkt_outs[0]), 0)
             return
 
         # UDPProxy should drop packets from clients that are not allowed.
         if not allow_client:
-            print("Client is not allowed")
             self.assertEquals(len(pkt_outs[0]), 0)
             return
 
@@ -124,22 +121,23 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
         # Send initial conf unsorted, see that it comes back sorted
         # (note that this is a bit different from other modules
         # where argument order often matters).
-        iconf = {'ext_addrs': [{'ext_addr': '192.168.1.1',
-                                'port_ranges': [{'begin': 1, 'end': 1024},
-                                                {'begin': 1025, 'end': 65535}]}]}
+        iconf = {'udp_port_ranges':
+                [{'begin': 1, 'end': 1024}, {'begin': 1025, 'end': 65535}],
+                'proxy_addr': '192.168.0.1', 'proxy_port': 123}
         proxy = INVISVUDPProxy(**iconf)
-        arg = pb_conv.protobuf_to_dict(proxy.get_initial_arg())
-        expect_config = {}
-        cur_config = pb_conv.protobuf_to_dict(proxy.get_runtime_config())
-        print("arg ", arg)
-        print("iconf", iconf)
-        print("cur_config", cur_config)
-        print("expected_config", expect_config)
-        assert arg == iconf and cur_config == expect_config
+        econf = pb_conv.protobuf_to_dict(proxy.get_initial_arg())
+        expect_econf = {'udp_port_ranges':
+                [{'begin': 1, 'end': 1024}, {'begin': 1025, 'end': 65535}],
+                'proxy_addr': '192.168.0.1', 'proxy_port': 123,
+                'next_hop_proxy_addr': '0.0.0.0'}
+        assert len(econf) == len(expect_econf)
+        for k,v in expect_econf.items():
+            assert econf[k] == v
 
         curr_proxy = pb_conv.protobuf_to_dict(proxy.get_proxy())
         next_hop_proxy = pb_conv.protobuf_to_dict(proxy.get_next_hop_proxy())
-        assert curr_proxy['proxy_addr'] == '0.0.0.0'
+        assert curr_proxy['proxy_addr'] == '192.168.0.1'
+        assert curr_proxy['proxy_port'] == 123
         assert next_hop_proxy['proxy_addr'] == '0.0.0.0'
 
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
@@ -152,8 +150,8 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
         assert next_hop_proxy['proxy_port'] == 2
 
     def test_invisv_udp_proxy_tcp_drop(self):
-        proxy_config = [{'ext_addr': '127.0.0.1'}]
-        proxy = INVISVUDPProxy(ext_addrs=proxy_config)
+        proxy_config = []
+        proxy = INVISVUDPProxy()
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
         proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
         proxy.set_client(client_addr='172.16.0.2', client_port=56797, allow=True)
@@ -165,8 +163,8 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
             '127.0.0.1', 1, '192.168.0.1', 2)
 
     def test_invisv_udp_proxy_udp(self):
-        proxy_config = [{'ext_addr': '127.0.0.1'}]
-        proxy = INVISVUDPProxy(ext_addrs=proxy_config)
+        proxy_config = []
+        proxy = INVISVUDPProxy()
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
         proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
         proxy.set_client(client_addr='172.16.0.2', client_port=56797, allow=True)
@@ -178,8 +176,8 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
             '127.0.0.1', 1, '192.168.0.1', 2)
 
     def test_invisv_udp_proxy_udp_with_zero_cksum(self):
-        proxy_config = [{'ext_addr': '127.0.0.1'}]
-        proxy = INVISVUDPProxy(ext_addrs=proxy_config)
+        proxy_config = []
+        proxy = INVISVUDPProxy()
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
         proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
         proxy.set_client(client_addr='172.16.0.2', client_port=56797, allow=True)
@@ -191,8 +189,8 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
             '127.0.0.1', 1, '192.168.0.1', 2)
 
     def test_invisv_udp_proxy_udp_incorrect_dst_proxy(self):
-        proxy_config = [{'ext_addr': '127.0.0.1'}]
-        proxy = INVISVUDPProxy(ext_addrs=proxy_config)
+        proxy_config = []
+        proxy = INVISVUDPProxy()
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
         proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
         proxy.set_client(client_addr='172.16.0.2', client_port=56797, allow=True)
@@ -210,8 +208,8 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
             '127.0.0.1', 1, '192.168.0.1', 2)
 
     def test_invisv_udp_proxy_udp_client_not_allowed(self):
-        proxy_config = [{'ext_addr': '127.0.0.1'}]
-        proxy = INVISVUDPProxy(ext_addrs=proxy_config)
+        proxy_config = []
+        proxy = INVISVUDPProxy()
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
         proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
 

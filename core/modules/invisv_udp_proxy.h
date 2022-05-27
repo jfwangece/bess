@@ -45,7 +45,10 @@
 
 #include "../utils/cuckoo_map.h"
 #include "../utils/endian.h"
+#include "../utils/ip.h"
 #include "../utils/random.h"
+
+using IpProto = bess::utils::Ipv4::Proto;
 
 // Theory of operation:
 //
@@ -159,18 +162,7 @@ class INVISVUDPProxy final : public Module {
 
   static const Commands cmds;
 
-  INVISVUDPProxy()
-      : Module() {
-    // Init |curr_udp_proxy_| and |next_hop_udp_proxy_|.
-    Endpoint curr_udp_proxy_;
-    curr_udp_proxy_.addr = be32_t(0);
-    curr_udp_proxy_.port = be16_t(0);
-    curr_udp_proxy_.protocol = IpProto::kUdp;
-    Endpoint next_hop_udp_proxy_;
-    next_hop_udp_proxy_.addr = be32_t(0);
-    next_hop_udp_proxy_.port = be16_t(0);
-    next_hop_udp_proxy_.protocol = IpProto::kUdp;
-
+  INVISVUDPProxy() : Module() {
     // Enable multi-core.
     max_allowed_workers_ = Worker::kMaxWorkers;
   }
@@ -221,9 +213,9 @@ class INVISVUDPProxy final : public Module {
   Endpoint curr_udp_proxy_;
   Endpoint next_hop_udp_proxy_;
 
-  // Port ranges available for each address. The first index is the same as the
-  // ext_addrs_ range.
-  std::vector<std::vector<PortRange>> port_ranges_;
+  // Available UDP port ranges that can be used by this proxy instance.
+  // |udp_port_ranges_| must at least have 1 PortRange to process traffic.
+  std::vector<PortRange> udp_port_ranges_;
 
   // |map_| contains all [client <-> this proxy <-> next-hop] proxy connections.
   HashTable map_;

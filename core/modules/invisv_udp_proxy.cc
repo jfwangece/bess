@@ -44,7 +44,6 @@
 
 using bess::utils::Ethernet;
 using bess::utils::Ipv4;
-using IpProto = bess::utils::Ipv4::Proto;
 using bess::utils::Udp;
 using bess::utils::Tcp;
 using bess::utils::Icmp;
@@ -135,66 +134,76 @@ inline void Stamp(Ipv4 *ip, void *l4,
 // TODO(torek): move this to set/get runtime config
 CommandResponse INVISVUDPProxy::Init(const bess::pb::INVISVUDPProxyArg &arg) {
   // Check before committing any changes.
-  for (const auto &address_range : arg.ext_addrs()) {
-    for (const auto &range : address_range.port_ranges()) {
-      if (range.begin() >= range.end() || range.begin() > UINT16_MAX ||
-          range.end() > UINT16_MAX) {
-        return CommandFailure(EINVAL, "Port range for address %s is malformed",
-                              address_range.ext_addr().c_str());
-      }
+  uint32_t num_port_ranges = arg.udp_port_ranges().size();
+  for (uint32_t i = 0; i < num_port_ranges; i++) {
+    auto &range = arg.udp_port_ranges().Get(i);
+    if (range.begin() >= range.end() || range.begin() > UINT16_MAX ||
+        range.end() > UINT16_MAX) {
+      return CommandFailure(EINVAL, "Port range %d is malformed", i);
     }
   }
 
-  for (const auto &address_range : arg.ext_addrs()) {
-    auto ext_addr = address_range.ext_addr();
+  // Add a port range list
+  for (const auto &range : arg.udp_port_ranges()) {
+    udp_port_ranges_.emplace_back(PortRange{
+        .begin = (uint16_t)range.begin(),
+        .end = (uint16_t)range.end(),
+        // Control plane gets to decide if the port range can be used.
+        .suspended = range.suspended()});
+  }
+  if (udp_port_ranges_.size() == 0) {
+    udp_port_ranges_.emplace_back(PortRange{
+        .begin = 0u, .end = 65535u, .suspended = false,
+    });
+  }
+
+  if (arg.proxy_addr().size() > 0) {
     be32_t addr;
-
-    bool ret = bess::utils::ParseIpv4Address(ext_addr, &addr);
+    bool ret = bess::utils::ParseIpv4Address(arg.proxy_addr(), &addr);
     if (!ret) {
-      return CommandFailure(EINVAL, "invalid IP address %s", ext_addr.c_str());
+      return CommandFailure(EINVAL,
+          "invalid proxy IP address %s", arg.proxy_addr().c_str());
     }
-
-    ext_addrs_.push_back(addr);
-    // Add a port range list
-    std::vector<PortRange> port_list;
-    if (address_range.port_ranges().size() == 0) {
-      port_list.emplace_back(PortRange{
-          .begin = 0u, .end = 65535u, .suspended = false,
-      });
-    }
-    for (const auto &range : address_range.port_ranges()) {
-      port_list.emplace_back(PortRange{
-          .begin = (uint16_t)range.begin(),
-          .end = (uint16_t)range.end(),
-          // Control plane gets to decide if the port range can be used.
-          .suspended = range.suspended()});
-    }
-    port_ranges_.push_back(port_list);
+    curr_udp_proxy_.addr = addr;
+    curr_udp_proxy_.port = be16_t(arg.proxy_port());
+    curr_udp_proxy_.protocol = IpProto::kUdp;
+  } else {
+    curr_udp_proxy_.addr = be32_t(0);
+    curr_udp_proxy_.port = be16_t(0);
+    curr_udp_proxy_.protocol = IpProto::kUdp;
   }
 
-  if (ext_addrs_.empty()) {
-    return CommandFailure(EINVAL,
-                          "at least one external IP address must be specified");
+  if (arg.next_hop_proxy_addr().size() > 0) {
+    be32_t addr;
+    bool ret = bess::utils::ParseIpv4Address(arg.next_hop_proxy_addr(), &addr);
+    if (!ret) {
+      return CommandFailure(EINVAL,
+          "invalid proxy IP address %s", arg.next_hop_proxy_addr().c_str());
+    }
+    next_hop_udp_proxy_.addr = addr;
+    next_hop_udp_proxy_.port = be16_t(arg.proxy_port());
+    next_hop_udp_proxy_.protocol = IpProto::kUdp;
+  } else {
+    next_hop_udp_proxy_.addr = be32_t(0);
+    next_hop_udp_proxy_.port = be16_t(0);
+    next_hop_udp_proxy_.protocol = IpProto::kUdp;
   }
-
-  // Sort so that GetInitialArg is predictable and consistent.
-  std::sort(ext_addrs_.begin(), ext_addrs_.end());
 
   return CommandSuccess();
 }
 
 CommandResponse INVISVUDPProxy::GetInitialArg(const bess::pb::EmptyArg &) {
   bess::pb::INVISVUDPProxyArg resp;
-  for (size_t i = 0; i < ext_addrs_.size(); i++) {
-    auto ext = resp.add_ext_addrs();
-    ext->set_ext_addr(ToIpv4Address(ext_addrs_[i]));
-    for (auto irange : port_ranges_[i]) {
-      auto erange = ext->add_port_ranges();
-      erange->set_begin((uint32_t)irange.begin);
-      erange->set_end((uint32_t)irange.end);
-      erange->set_suspended(irange.suspended);
-    }
+  for (const auto &range : udp_port_ranges_) {
+    auto erange = resp.add_udp_port_ranges();
+    erange->set_begin((uint32_t)range.begin);
+    erange->set_end((uint32_t)range.end);
+    erange->set_suspended(range.suspended);
   }
+  resp.set_proxy_addr(ToIpv4Address(curr_udp_proxy_.addr));
+  resp.set_proxy_port(curr_udp_proxy_.port.value());
+  resp.set_next_hop_proxy_addr(ToIpv4Address(next_hop_udp_proxy_.addr));
+  resp.set_next_hop_proxy_port(next_hop_udp_proxy_.port.value());
   return CommandSuccess(resp);
 }
 
@@ -295,7 +304,7 @@ INVISVUDPProxy::HashTable::Entry *INVISVUDPProxy::CreateNewEntry(
   src_external.protocol = src_internal.protocol;
 
   // |port_ranges_| must have at least one element.
-  for (const auto &port_range : port_ranges_[0]) {
+  for (const auto &port_range : udp_port_ranges_) {
     uint16_t min;
     uint16_t range;  // consider [min, min + range) port range
     // Avoid allocation from an unusable range. We do this even when a range is
