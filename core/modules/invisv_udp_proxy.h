@@ -221,9 +221,10 @@ class INVISVUDPProxy final : public Module {
   HashTable map_;
   std::mutex map_lock_;
 
-  // |udp_proxy_clients_| contains this UDP proxy's client. For each client, the
-  // value indicates whether this proxy forwards its traffic or not.
-  std::map<Endpoint, bool> udp_proxy_clients_;
+  // |udp_proxy_clients_| maintains the service status for clients. For each
+  // client, map key is IP; value indicates whether the module should process
+  // traffic for this client or not.
+  std::map<be32_t, bool> udp_proxy_clients_;
   std::mutex client_lock_;
 
   Random rng_;

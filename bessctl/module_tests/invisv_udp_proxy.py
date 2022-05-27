@@ -154,7 +154,7 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
         proxy = INVISVUDPProxy()
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
         proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
-        proxy.set_client(client_addr='172.16.0.2', client_port=56797, allow=True)
+        proxy.set_client(client_addr='172.16.0.2', allow=True)
         self._test_l4(
             proxy,
             scapy.IP(src='172.16.0.2', dst='127.0.0.1'),
@@ -167,7 +167,7 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
         proxy = INVISVUDPProxy()
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
         proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
-        proxy.set_client(client_addr='172.16.0.2', client_port=56797, allow=True)
+        proxy.set_client(client_addr='172.16.0.2', allow=True)
         self._test_l4(
             proxy,
             scapy.IP(src='172.16.0.2', dst='127.0.0.1'),
@@ -180,7 +180,7 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
         proxy = INVISVUDPProxy()
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
         proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
-        proxy.set_client(client_addr='172.16.0.2', client_port=56797, allow=True)
+        proxy.set_client(client_addr='172.16.0.2', allow=True)
         self._test_l4(
             proxy,
             scapy.IP(src='172.16.0.2', dst='127.0.0.1'),
@@ -193,7 +193,7 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
         proxy = INVISVUDPProxy()
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
         proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
-        proxy.set_client(client_addr='172.16.0.2', client_port=56797, allow=True)
+        proxy.set_client(client_addr='172.16.0.2', allow=True)
         self._test_l4(
             proxy,
             scapy.IP(src='172.16.0.2', dst='127.0.0.2'),
@@ -220,7 +220,7 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
             False,
             '127.0.0.1', 1, '192.168.0.1', 2)
 
-        proxy.set_client(client_addr='172.16.0.2', client_port=56797, allow=True)
+        proxy.set_client(client_addr='172.16.0.2', allow=True)
         self._test_l4(
             proxy,
             scapy.IP(src='172.16.0.2', dst='127.0.0.1'),
@@ -228,24 +228,25 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
             True,
             '127.0.0.1', 1, '192.168.0.1', 2)
 
-        proxy.set_client(client_addr='172.16.0.2', client_port=56797, allow=False)
+        proxy.set_client(client_addr='172.16.0.2', allow=False)
         self._test_l4(
             proxy,
             scapy.IP(src='172.16.0.2', dst='127.0.0.1'),
             scapy.UDP(sport=56797, dport=1),
             False,
             '127.0.0.1', 1, '192.168.0.1', 2)
-        
-        proxy.set_client(client_addr='172.16.0.2', client_port=56797, allow=True)
+
+        proxy.set_client(client_addr='172.16.0.2', allow=False)
+        proxy.set_client(client_addr='172.16.0.2', allow=True)
         self._test_l4(
             proxy,
             scapy.IP(src='172.16.0.2', dst='127.0.0.1'),
             scapy.UDP(sport=56797, dport=1),
             True,
             '127.0.0.1', 1, '192.168.0.1', 2)
-        
+
         # Allow a different client
-        proxy.set_client(client_addr='172.16.0.3', client_port=50000, allow=True)
+        proxy.set_client(client_addr='172.16.0.3', allow=True)
         self._test_l4(
             proxy,
             scapy.IP(src='172.16.0.3', dst='127.0.0.1'),

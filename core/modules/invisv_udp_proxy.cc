@@ -279,13 +279,14 @@ CommandResponse INVISVUDPProxy::SetUDPProxyClient(
     client.protocol = IpProto::kUdp;
 
     std::lock_guard<std::mutex> guard(client_lock_);
-    auto client_it = udp_proxy_clients_.find(client);
+    auto client_it = udp_proxy_clients_.find(client.addr);
     if (client_it != udp_proxy_clients_.end()) {
       client_it->second = arg.allow();
-    } else {
+    } else { // new
       udp_proxy_clients_.emplace(std::piecewise_construct,
-          std::make_tuple(client), std::make_tuple(arg.allow()));
+          std::make_tuple(client.addr), std::make_tuple(arg.allow()));
     }
+
     return CommandSuccess();
   }
   return CommandFailure(EINVAL, "Incorrect client endpoint");
@@ -446,7 +447,7 @@ bool INVISVUDPProxy::IsForwardTraffic(Endpoint &src, Endpoint &dst) {
   }
 
   std::lock_guard<std::mutex> guard(client_lock_);
-  const auto it = udp_proxy_clients_.find(src);
+  const auto it = udp_proxy_clients_.find(src.addr);
   if (it == udp_proxy_clients_.end()) { // Unknown client
     return false;
   }

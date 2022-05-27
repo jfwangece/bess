@@ -47,7 +47,7 @@ port0::PMDPort(pci=pcie0, num_inc_q=num_cores, num_out_q=num_cores+1)
 udp_proxy::INVISVUDPProxy()
 udp_proxy.set_proxy(proxy_addr=proxy_ip, proxy_port=proxy_port)
 udp_proxy.set_next_hop_proxy(proxy_addr=next_proxy_ip, proxy_port=next_proxy_port)
-udp_proxy.set_client(client_addr='192.168.0.1', client_port=10001, allow=True)
+udp_proxy.set_client(client_addr='192.168.0.1', allow=True)
 
 arp_q::Queue()
 arp::ArpResponder()

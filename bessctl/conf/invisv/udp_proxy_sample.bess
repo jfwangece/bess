@@ -55,8 +55,9 @@ udp_proxy::INVISVUDPProxy(
     udp_port_ranges=[{'begin': 1, 'end': 5000, 'suspended': False}])
 udp_proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=12345)
 udp_proxy.set_next_hop_proxy(proxy_addr='172.217.12.238', proxy_port=443)
-udp_proxy.set_client(client_addr='172.16.100.1', client_port=10001, allow=True)
-udp_proxy.set_client(client_addr='192.168.1.123', client_port=10001, allow=True)
+udp_proxy.set_client(client_addr='172.16.100.1', allow=True)
+udp_proxy.set_client(client_addr='172.12.55.99', allow=False)
+udp_proxy.set_client(client_addr='192.168.1.123', allow=True)
 source = {}
 
 for i in range(num_cores):
