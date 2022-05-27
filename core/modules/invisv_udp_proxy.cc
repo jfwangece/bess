@@ -384,9 +384,6 @@ INVISVUDPProxy::HashTable::Entry *INVISVUDPProxy::CreateNewEntry(
 }
 
 void INVISVUDPProxy::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
-  gate_idx_t igate_idx = ctx->current_igate;
-  gate_idx_t ogate_idx = GetOGate(igate_idx);
-
   uint64_t now = ctx->current_ns;
 
   int cnt = batch->cnt();
@@ -436,7 +433,7 @@ void INVISVUDPProxy::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       Stamp(ip, l4, src, dst, curr_udp_proxy_, hash_item->second.endpoint);
     }
 
-    EmitPacket(ctx, pkt, ogate_idx);
+    EmitPacket(ctx, pkt, ctx->current_igate);
   }
 }
 

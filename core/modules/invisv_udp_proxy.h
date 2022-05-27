@@ -147,18 +147,16 @@ struct PortRange {
   bool suspended;
 };
 
-// NAT module. 2 igates and 2 ogates
-// igate/ogate 0: forward dir
-// igate/ogate 1: reverse dir
+// INVISVUDPProxy works for traffic of both directions
 class INVISVUDPProxy final : public Module {
  public:
   enum Direction {
-    kForward = 0,  // internal -> external
-    kReverse = 1,  // external -> internal
+    kForward = 0,  // client -> next-hop proxy
+    kReverse = 1,  // next-hop proxy -> client
   };
 
-  static const gate_idx_t kNumOGates = Worker::kMaxWorkers;
-  static const gate_idx_t kNumIGates = Worker::kMaxWorkers;
+  static const gate_idx_t kNumOGates = 1;
+  static const gate_idx_t kNumIGates = 1;
 
   static const Commands cmds;
 
@@ -204,9 +202,6 @@ class INVISVUDPProxy final : public Module {
   // If |src| equals to |next_hop_udp_proxy_| and |dst|'s IP matches
   // |curr_udp_proxy_| IP, return true. Otherwise, return false.
   bool IsReverseTraffic(Endpoint &src, Endpoint &dst);
-
-  // |igate| is coupled with the ogate at the same index
-  inline gate_idx_t GetOGate(gate_idx_t igate) { return igate; }
 
   std::vector<be32_t> ext_addrs_;
 

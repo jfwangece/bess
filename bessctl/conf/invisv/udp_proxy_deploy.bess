@@ -34,6 +34,8 @@ import socket
 
 pcie0 = $BESS_DEV!"19:00.0"
 num_cores = int($BESS_CORES!"2")
+assert(num_cores >= 2)
+num_proxy_cores = num_cores - 1
 proxy_ip = $BESS_IP!"127.0.0.1"
 proxy_port = int($BESS_PORT!"12345")
 next_proxy_ip = $BESS_NEXT_IP!"127.0.0.1"
@@ -41,7 +43,7 @@ next_proxy_port = int($BESS_NEXT_PORT!"12345")
 
 # PMD RSS configuration
 # Note: 1 more tx queue for sending out ARP packets
-port0::PMDPort(pci=pcie0, num_inc_q=num_cores, num_out_q=num_cores+1)
+port0::PMDPort(pci=pcie0, num_inc_q=num_proxy_cores, num_out_q=num_cores)
 
 # INVISV UDP proxy configuration
 udp_proxy::INVISVUDPProxy()
@@ -53,31 +55,38 @@ arp_q::Queue()
 arp::ArpResponder()
 arp.add(ip=proxy_ip, mac_addr='e4:43:4b:90:2b:53')
 
+# Cores have to be added before WorkerSplit is created
+for i in range(1, num_cores+1):
+    bess.add_worker(i, i)
+
+ws::WorkerSplit()
+
 source = {}
 sink = {}
 wm = {}
-for i in range(num_cores):
-    source[i] = QueueInc(port=port0, qid=i)
-    sink[i] = QueueOut(port=port0, qid=i)
+for i in range(1, num_cores):
+    source[i] = QueueInc(port=port0, qid=i-1)
+    sink[i] = QueueOut(port=port0, qid=i-1)
     wm[i] = WildcardMatch(fields=[{'offset':12, 'num_bytes':2}])
     wm[i].add(values=[{'value_int':0x0800}],
         masks=[{'value_int':0xffff}], gate=0)
     wm[i].add(values=[{'value_int':0x0806}],
         masks=[{'value_int':0xffff}], gate=1)
 
+    # Connect modules
     source[i] -> wm[i]
-    wm[i]:0 -> i:udp_proxy:i -> MACSwap() -> sink[i]
+    wm[i]:0 -> udp_proxy
     wm[i]:1 -> arp_q
 
-sink[num_cores] = QueueOut(port=port0, qid=num_cores)
-arp_q -> arp -> sink[num_cores]
+# Split workers for downstream modules
+udp_proxy -> ws
+for i in range(1, num_cores):
+    ws:i -> MACSwap() -> sink[i]
+
+# ARP response on the last tx queue
+arp_q -> arp -> QueueOut(port=port0, qid=num_cores-1)
 
 # CPU core assignment
-for i in range(num_cores):
-    cid = 1 + i
-    bess.add_worker(cid, cid)
-    source[i].attach_task(wid=cid)
-
-arp_cid = num_cores + 1
-bess.add_worker(arp_cid, arp_cid)
-arp_q.attach_task(wid=arp_cid)
+for i in range(1, num_cores):
+    source[i].attach_task(wid=i)
+arp_q.attach_task(wid=num_cores)

@@ -58,13 +58,18 @@ udp_proxy.set_next_hop_proxy(proxy_addr='172.217.12.238', proxy_port=443)
 udp_proxy.set_client(client_addr='172.16.100.1', allow=True)
 udp_proxy.set_client(client_addr='172.12.55.99', allow=False)
 udp_proxy.set_client(client_addr='192.168.1.123', allow=True)
-source = {}
 
+# Cores have to be added before WorkerSplit is created
+for i in range(num_cores):
+    bess.add_worker(i, i)
+
+source = {}
 for i in range(num_cores):
     source[i] = Source()
-    source[i] -> Rewrite(templates=packets) -> i:udp_proxy:i -> MACSwap() -> Sink()
+    source[i] -> Rewrite(templates=packets) -> udp_proxy
 
+# Split workers for downstream modules
+udp_proxy -> ws::WorkerSplit()
 for i in range(num_cores):
-    cid = 1 + i
-    bess.add_worker(cid, cid)
-    source[i].attach_task(wid=cid)
+    ws:i -> MACSwap() -> Sink()
+    source[i].attach_task(wid=i)

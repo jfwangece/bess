@@ -72,15 +72,16 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
 
         pkt_orig = eth / ip_orig / l4_orig / l7
 
-        pkt_outs = self.run_module(module, 0, [pkt_orig], [0, 1, 2])
-
-        # UDPProxy's igate and ogate are paired if they have the same index.
-        # Thus, ogate 1 and 2 should not receive any packets.
-        self.assertEquals(len(pkt_outs[1]), 0)
-        self.assertEquals(len(pkt_outs[2]), 0)
+        pkt_outs = self.run_module(module, 0, [pkt_orig], [0])
 
         # UDPProxy should drop all non-UDP packets.
         if type(l4_orig) != scapy.UDP:
+            self.assertEquals(len(pkt_outs[0]), 0)
+            return
+
+        # If the packet is from the next-hop UDP proxy
+        if ip_orig.src == next_proxy_addr and l4_orig.sport == next_proxy_port:
+            # packet should be dropped as there is no matching connection
             self.assertEquals(len(pkt_outs[0]), 0)
             return
 
@@ -102,16 +103,15 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
         l4_up = l4_orig.copy()
         l4_up.sport = pkt_up[scapy.UDP].sport
         l4_up.dport = next_proxy_port
+        self.assertNotEqual(l4_up.sport, curr_proxy_port)
         self.assertSamePackets(eth / ip_up / l4_up / l7, pkt_up)
 
         l4_reply = _swap_l4(l4_up)
         pkt_reply = eth / ip_reply / l4_reply / l7
 
-        pkt_outs = self.run_module(module, 1, [pkt_reply], [0, 1, 2])
-        self.assertEquals(len(pkt_outs[0]), 0)
-        self.assertEquals(len(pkt_outs[1]), 1)
-        self.assertEquals(len(pkt_outs[2]), 0)
-        pkt_down = pkt_outs[1][0]
+        pkt_outs = self.run_module(module, 0, [pkt_reply], [0])
+        self.assertEquals(len(pkt_outs[0]), 1)
+        pkt_down = pkt_outs[0][0]
 
         l4_down = _swap_l4(l4_orig).copy()
         l4_down.sport = curr_proxy_port
@@ -161,18 +161,38 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
             scapy.TCP(sport=56797, dport=1),
             True,
             '127.0.0.1', 1, '192.168.0.1', 2)
+        self._test_l4(
+            proxy,
+            scapy.IP(src='172.16.0.2', dst='127.0.0.1'),
+            scapy.TCP(sport=56797, dport=1),
+            True,
+            '127.0.0.1', 1, '192.168.0.1', 2)
 
     def test_invisv_udp_proxy_udp(self):
         proxy_config = []
         proxy = INVISVUDPProxy()
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
         proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
+        proxy.set_client(client_addr='172.16.0.1', allow=True)
         proxy.set_client(client_addr='172.16.0.2', allow=True)
+        proxy.set_client(client_addr='172.16.0.3', allow=False)
+        self._test_l4(
+            proxy,
+            scapy.IP(src='172.16.0.1', dst='127.0.0.1'),
+            scapy.UDP(sport=56797, dport=1),
+            True,
+            '127.0.0.1', 1, '192.168.0.1', 2)
         self._test_l4(
             proxy,
             scapy.IP(src='172.16.0.2', dst='127.0.0.1'),
             scapy.UDP(sport=56797, dport=1),
             True,
+            '127.0.0.1', 1, '192.168.0.1', 2)
+        self._test_l4(
+            proxy,
+            scapy.IP(src='172.16.0.3', dst='127.0.0.1'),
+            scapy.UDP(sport=56797, dport=1),
+            False,
             '127.0.0.1', 1, '192.168.0.1', 2)
 
     def test_invisv_udp_proxy_udp_with_zero_cksum(self):
@@ -188,22 +208,45 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
             True,
             '127.0.0.1', 1, '192.168.0.1', 2)
 
+    def test_invisv_udp_proxy_udp_next_hop_pkt(self):
+        proxy_config = []
+        proxy = INVISVUDPProxy()
+        proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
+        proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
+        proxy.set_client(client_addr='192.168.0.1', allow=True)
+        # Incorrrect next-hop proxy port (treated as a normal client)
+        self._test_l4(
+            proxy,
+            scapy.IP(src='192.168.0.1', dst='127.0.0.1'),
+            scapy.UDP(sport=3, dport=1),
+            True,
+            '127.0.0.1', 1, '192.168.0.1', 2)
+        # Correct next-hop proxy
+        self._test_l4(
+            proxy,
+            scapy.IP(src='192.168.0.1', dst='127.0.0.1'),
+            scapy.UDP(sport=2, dport=1),
+            True,
+            '127.0.0.1', 1, '192.168.0.1', 2)
+
     def test_invisv_udp_proxy_udp_incorrect_dst_proxy(self):
         proxy_config = []
         proxy = INVISVUDPProxy()
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
         proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
         proxy.set_client(client_addr='172.16.0.2', allow=True)
+        # Incorrect destination IP
         self._test_l4(
             proxy,
             scapy.IP(src='172.16.0.2', dst='127.0.0.2'),
             scapy.UDP(sport=56797, dport=1),
             True,
             '127.0.0.1', 1, '192.168.0.1', 2)
+        # Incorrect destination port number
         self._test_l4(
             proxy,
             scapy.IP(src='172.16.0.2', dst='127.0.0.1'),
-            scapy.UDP(sport=56797, dport=2, chksum=0),
+            scapy.UDP(sport=56797, dport=2),
             True,
             '127.0.0.1', 1, '192.168.0.1', 2)
 
@@ -212,7 +255,7 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
         proxy = INVISVUDPProxy()
         proxy.set_proxy(proxy_addr='127.0.0.1', proxy_port=1)
         proxy.set_next_hop_proxy(proxy_addr='192.168.0.1', proxy_port=2)
-
+        # No set_client function call
         self._test_l4(
             proxy,
             scapy.IP(src='172.16.0.2', dst='127.0.0.1'),
@@ -228,6 +271,7 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
             True,
             '127.0.0.1', 1, '192.168.0.1', 2)
 
+        # Set the client to be denied
         proxy.set_client(client_addr='172.16.0.2', allow=False)
         self._test_l4(
             proxy,
@@ -236,6 +280,8 @@ class BessINVISVUDPProxyTest(BessModuleTestCase):
             False,
             '127.0.0.1', 1, '192.168.0.1', 2)
 
+        proxy.set_client(client_addr='172.16.0.2', allow=False)
+        proxy.set_client(client_addr='172.16.0.2', allow=True)
         proxy.set_client(client_addr='172.16.0.2', allow=False)
         proxy.set_client(client_addr='172.16.0.2', allow=True)
         self._test_l4(
