@@ -60,7 +60,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   if (!arg.port().empty()) {
     port_name = arg.port().c_str();
     qid_ = arg.qid();
-    const auto &it = PortBuilder::all_ports().find(port_name);
+    const auto& it = PortBuilder::all_ports().find(port_name);
     if (it == PortBuilder::all_ports().end()) {
       return CommandFailure(ENODEV, "Port %s not found", port_name);
     }
@@ -141,7 +141,7 @@ void NFVCore::DeInit() {
   bess::ctrl::NFVCtrlReleaseNSwQ(core_id_, sw_q_mask_);
   LOG(INFO) << "Core " << core_id_ << " releases " << sw_q_.size() << " sw_q. q_mask: " << std::bitset<64> (sw_q_mask_);
 
-  for (auto &it : sw_q_) {
+  for (auto& it : sw_q_) {
     it.sw_q = nullptr;
     if (it.sw_batch) {
       bess::Packet::Free(it.sw_batch);
@@ -153,7 +153,7 @@ void NFVCore::DeInit() {
 }
 
 CommandResponse NFVCore::CommandClear(const bess::pb::EmptyArg &) {
-  for (auto &it : per_flow_states_) {
+  for (auto& it : per_flow_states_) {
     if (it.second != nullptr) {
       free(it.second);
       it.second = nullptr;
@@ -216,7 +216,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // Process one batch
   cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), burst);
   if (cnt == 0) {
-    // Call PostProcessBatch here.
+    UpdateStatsPostProcessBatch(batch);
     return {.block = false, .packets = 0, .bits = 0};
   }
   batch->set_cnt(cnt);

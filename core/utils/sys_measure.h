@@ -87,6 +87,10 @@ extern LockLessQueue<CoreStats*> *volatile all_core_stats_chan[20];
 // Target latency SLO
 extern uint32_t slo_ns;
 
+// Add debug tag;
+extern bool add_debug_tag_nfvcore;
+extern bool add_debug_tag_nfvrcore;
+
 void SysMeasureInit();
 void SysMeasureDeinit();
 

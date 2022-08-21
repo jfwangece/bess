@@ -4,11 +4,15 @@
 #include "../utils/ip.h"
 #include "../utils/tcp.h"
 #include "../utils/udp.h"
+#include "../utils/packet_tag.h"
+#include "../utils/sys_measure.h"
 
 using bess::utils::Ethernet;
 using bess::utils::Ipv4;
 using bess::utils::Tcp;
 using bess::utils::Udp;
+using bess::utils::TagUint32;
+using bess::utils::add_debug_tag_nfvcore;
 
 namespace {
 } // namespace
@@ -18,7 +22,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   FlowState *state = nullptr;
 
   local_batch_->clear();
-  for (auto &sw_q_it : sw_q_) {
+  for (auto& sw_q_it : sw_q_) {
     sw_q_it.sw_batch->clear();
   }
 
@@ -53,12 +57,23 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     // Determine the packet's destination queue
     auto& q_state = state->sw_q_state;
     if (q_state) {
-      // This flow is redirected only if |sw_q| is handled by a RCore; otherwise, reset
+      // This flow is redirected only if |sw_q| is handled by an active RCore;
+      // otherwise, reset the flow's redirection decision.
       if (q_state->idle_epoch_count != -1) {
         q_state->sw_batch->add(pkt);
+        // Add debugging packet tags
+        if (add_debug_tag_nfvcore) {
+          uint32_t val;
+          val = q_state->idle_epoch_count >= 0 ? q_state->idle_epoch_count : 1000000;
+          TagUint32(pkt, 90, val);
+          val = core_id_ * 1000 + q_state->sw_q_id;
+          TagUint32(pkt, 94, val);
+          val = llring_count(q_state->sw_q);
+          TagUint32(pkt, 98, val);
+        }
         continue;
       }
-      q_state = nullptr;
+      state->sw_q_state = nullptr;
     }
     local_batch_->add(pkt);
   }
@@ -77,7 +92,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       bess::Packet::Free(local_batch_->pkts() + queued, to_drop);
     }
   }
-  for (auto &sw_q_it : sw_q_) {
+  for (auto& sw_q_it : sw_q_) {
     sw_q_it.EnqueueBatch();
   }
 }
@@ -118,7 +133,8 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
 
 void NFVCore::UpdateStatsPostProcessBatch(bess::PacketBatch* batch) {
   // If a new epoch starts, absorb the current packet queue
-  if (ShortEpochProcess()) {
+  ShortEpochProcess();
+  if (true) {
     SplitQToSwQ(local_queue_, batch);
   }
 }
@@ -131,7 +147,7 @@ void NFVCore::SplitQToSwQ(llring* q, bess::PacketBatch* batch) {
 
   int burst, cnt;
   uint32_t curr_cnt = 0;
-  while (curr_cnt < total_cnt) {
+  while (curr_cnt < total_cnt) { // scan all packets only once
     burst = total_cnt - curr_cnt;
     if (burst > 32) {
       burst = 32;
@@ -145,9 +161,10 @@ void NFVCore::SplitQToSwQ(llring* q, bess::PacketBatch* batch) {
   }
 }
 
+// Split a batch of packets and respect pre-determined flow-affinity
 void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
   local_batch_->clear();
-  for (auto &sw_q_it : sw_q_) {
+  for (auto& sw_q_it : sw_q_) {
     sw_q_it.sw_batch->clear();
   }
 
@@ -163,12 +180,13 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
 
     auto& q_state = state->sw_q_state;
     if (q_state) {
-      // This flow is redirected only if |sw_q| is handled by a RCore; otherwise, reset
+      // This flow is redirected only if |sw_q| is handled by an active RCore;
+      // otherwise, reset the flow's redirection decision.
       if (q_state->idle_epoch_count != -1) {
         q_state->sw_batch->add(pkt);
         continue;
       }
-      q_state = nullptr;
+      state->sw_q_state = nullptr;
     }
     local_batch_->add(pkt);
   }
@@ -184,7 +202,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
       bess::Packet::Free(local_batch_->pkts() + queued, to_drop);
     }
   }
-  for (auto &sw_q_it : sw_q_) {
+  for (auto& sw_q_it : sw_q_) {
     sw_q_it.EnqueueBatch();
   }
 }
@@ -224,12 +242,14 @@ bool NFVCore::ShortEpochProcess() {
       }
       if (sw_q_it.processed_packet_count == 0) {
         sw_q_it.idle_epoch_count += 1;
+      } else {
+        sw_q_it.idle_epoch_count = 0;
       }
       sw_q_it.assigned_packet_count = llring_count(sw_q_it.sw_q);
     }
 
     // Update |unoffload_flows_|
-    for (auto &it : epoch_flow_cache_) {
+    for (auto& it : epoch_flow_cache_) {
       if (it.second != nullptr) {
         it.second->queued_packet_count = it.second->ingress_packet_count - it.second->egress_packet_count;
         if (it.second->sw_q_state != nullptr) {
@@ -251,7 +271,7 @@ bool NFVCore::ShortEpochProcess() {
           flow_it = unoffload_flows_.erase(flow_it);
         } else {
           bool assigned = false;
-          for (auto &sw_q_it : sw_q_) {
+          for (auto& sw_q_it : sw_q_) {
             if (sw_q_it.QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
               flow_it->second->sw_q_state = &sw_q_it;
               sw_q_it.assigned_packet_count += task_size;
@@ -272,7 +292,7 @@ bool NFVCore::ShortEpochProcess() {
 
     // Notify reserved cores to do the work.
     int ret;
-    for (auto &sw_q_it : sw_q_) {
+    for (auto& sw_q_it : sw_q_) {
       if (sw_q_it.idle_epoch_count == -1) { // inactive
         if (sw_q_it.assigned_packet_count > 0) { // got things to do
           ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, sw_q_it.sw_q_id);

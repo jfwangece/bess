@@ -5,6 +5,12 @@
 
 namespace bess{
 namespace utils{
+
+// The debug information attached to each packet.
+// |rcore_idle_epoch_count|: the number of idle epochs of the RCore,
+// if the packet is redirected to a RCore;
+// |sw_q_id|: software queue ID if pkt is redirected to a RCore;
+// |sw_q_id|: software queue length if pkt is redirected to a RCore;
 struct PerPacketTag {
   PerPacketTag() = default;
   uint32_t rcore_idle_epoch_count;
@@ -55,6 +61,7 @@ void TagPacketTimestamp(bess::Packet* pkt, size_t offset, uint64_t ts);
 
 // Read the timestamp from |pkt| at |offset| (in bytes)
 void GetPacketTimestamp(bess::Packet* pkt, size_t offset, uint64_t *ts);
+
 } // namespace utils
 } // namespace bess
 

@@ -4,9 +4,14 @@ namespace bess{
 namespace utils {
 
 BucketStats *volatile bucket_stats;
+// Default 20 cores per server
 CoreStats *volatile all_local_core_stats[20];
 LockLessQueue<CoreStats*> *volatile all_core_stats_chan[20];
-uint32_t slo_ns = 1000000; // Default 1 ms
+// Default SLO = 1 ms
+uint32_t slo_ns = 1000000;
+// Default no packet tags for debugging
+bool add_debug_tag_nfvcore = false;
+bool add_debug_tag_nfvrcore = false;
 
 void SysMeasureInit() {
   bucket_stats = new BucketStats();

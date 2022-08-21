@@ -29,6 +29,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include "measure.h"
+#include "timestamp.h"
 
 #include <iterator>
 
@@ -37,11 +38,13 @@
 #include "../utils/ip.h"
 #include "../utils/time.h"
 #include "../utils/udp.h"
-#include "timestamp.h"
+#include "../utils/sys_measure.h"
 
 using bess::utils::Ethernet;
 using bess::utils::Ipv4;
 using bess::utils::Udp;
+using bess::utils::GetUint32;
+using bess::utils::add_debug_tag_nfvcore;
 
 Ethernet::Address BG_DST("00:00:00:00:00:01");
 
@@ -154,6 +157,15 @@ void Measure::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
       if (now_ns >= pkt_time) {
         diff = now_ns - pkt_time;
+        if (add_debug_tag_nfvcore) {
+          if (diff > 400000) {
+            PerPacketTag val;
+            GetUint32(batch->pkts()[i], 90, &val.rcore_idle_epoch_count);
+            GetUint32(batch->pkts()[i], 94, &val.sw_q_id);
+            GetUint32(batch->pkts()[i], 98, &val.sw_q_len);
+            stats_.push_back(val);
+          }
+        }
       } else {
         // The magic number matched, but timestamp doesn't seem correct
         continue;
@@ -296,6 +308,9 @@ CommandResponse Measure::CommandGetQueueSummary(
 }
 
 CommandResponse Measure::CommandClear(const bess::pb::EmptyArg &) {
+  if (stats_.size()) {
+    bess::utils::LogPacketTags(stats_);
+  }
   Clear();
   return CommandResponse();
 }
