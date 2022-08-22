@@ -62,6 +62,7 @@ nfvmo = {}
 # Pipeline
 for i in range(core_cnt):
     pout0[i] = QueueOut(port=port0, qid=i)
+    #pout0[i] = Sink()
     fw[i] = FlowACL(rules=acl_rules)
     lb[i] = FlowLB(endpoints=nat_hosts)
     monitor[i] = FlowCounter()

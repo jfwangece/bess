@@ -131,11 +131,12 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
   all_local_core_stats[core_id_]->packet_queued = epoch_packet_queued_;
 }
 
-void NFVCore::UpdateStatsPostProcessBatch(bess::PacketBatch* batch) {
-  // If a new epoch starts, absorb the current packet queue
-  ShortEpochProcess();
-  if (true) {
-    SplitQToSwQ(local_queue_, batch);
+void NFVCore::MaybeEpochEndProcessBatch(bess::PacketBatch* batch) {
+  // If a new epoch starts, absorb the current queue before doing anything
+  if (ShortEpochProcess()) {
+    if (false) {
+      SplitQToSwQ(local_queue_, batch);
+    }
   }
 }
 

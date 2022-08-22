@@ -197,18 +197,20 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // Read the CPU cycle counter for better accuracy
   curr_ts_ns_ = tsc_to_ns(rdtsc());
 
+  MaybeEpochEndProcessBatch(batch);
+
   // Busy pulling from the NIC queue
-  uint32_t cnt = 0;
-  while (cnt++ < 10) {
-    batch->set_cnt(p->RecvPackets(qid, batch->pkts(), 32));
-    if (batch->cnt()) {
+  uint32_t cnt = 0, pull_rounds = 0;
+  while (pull_rounds++ < 10) {
+    cnt = p->RecvPackets(qid, batch->pkts(), 32);
+    batch->set_cnt(cnt);
+    if (cnt) {
       // To append |per_flow_states_|
       // Update the number of packets / flows that have arrived:
       // Update |epoch_packet_arrival_| and |epoch_flow_cache_|
       UpdateStatsOnFetchBatch(batch);
     }
-
-    if (batch->cnt() < 32) {
+    if (cnt < 32) {
       break;
     }
   }
@@ -216,7 +218,6 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // Process one batch
   cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), burst);
   if (cnt == 0) {
-    UpdateStatsPostProcessBatch(batch);
     return {.block = false, .packets = 0, .bits = 0};
   }
   batch->set_cnt(cnt);
@@ -231,8 +232,6 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   UpdateStatsPreProcessBatch(batch);
 
   ProcessBatch(ctx, batch);
-
-  UpdateStatsPostProcessBatch(batch);
 
   return {.block = false,
           .packets = cnt,
