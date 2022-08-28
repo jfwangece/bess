@@ -104,7 +104,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   LOG(INFO) << "Core " << core_id_ << " has " << sw_q_.size() << " sw_q. q_mask: " << std::bitset<64> (sw_q_mask_);
 
   epoch_flow_thresh_ = 20;
-  epoch_packet_thresh_ = 40;
+  epoch_packet_thresh_ = 35;
   epoch_packet_arrival_ = 0;
   epoch_packet_processed_ = 0;
   epoch_packet_queued_ = 0;
@@ -197,8 +197,6 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // Read the CPU cycle counter for better accuracy
   curr_ts_ns_ = tsc_to_ns(rdtsc());
 
-  MaybeEpochEndProcessBatch(batch);
-
   // Busy pulling from the NIC queue
   uint32_t cnt = 0, pull_rounds = 0;
   while (pull_rounds++ < 10) {
@@ -218,6 +216,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // Process one batch
   cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), burst);
   if (cnt == 0) {
+    MaybeEpochEndProcessBatch(batch);
     return {.block = false, .packets = 0, .bits = 0};
   }
   batch->set_cnt(cnt);
@@ -232,6 +231,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   UpdateStatsPreProcessBatch(batch);
 
   ProcessBatch(ctx, batch);
+
+  MaybeEpochEndProcessBatch(batch);
 
   return {.block = false,
           .packets = cnt,

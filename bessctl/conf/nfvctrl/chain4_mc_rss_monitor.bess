@@ -13,9 +13,9 @@ short_update_stats_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
 
 # By default, pick MLX NICs
-pcie0, offset0="af:00.0", 7
+pcie0, offset0="af:00.0", 7 # XL710
 if nic != 0:
-    pcie0, offset0="5e:00.0", 1
+    pcie0, offset0="5e:00.0", 1 # MLX
 
 # NFVCtrl runs on its own core
 nfvctrl_core = 15
@@ -32,9 +32,12 @@ core_addrs = [
     {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
 ]
 core_cnt=6
-rcore_cnt=7
+rcore_cnt=6
 total_core_cnt = core_cnt + rcore_cnt
-print("normal core:%d, reserved core:%d" %(core_cnt, rcore_cnt))
+cores = [i for i in range(core_cnt)]
+rcores = [core_cnt + i for i in range(rcore_cnt)]
+print("total cores: %d" %(total_core_cnt))
+print("%d normal cores: %s; %d reserved core: %s (w/o core offset)" %(len(cores), cores, len(rcores), rcores))
 
 acl_rules = []
 for i in range(acl_cnt / 50):
@@ -60,7 +63,7 @@ nfvig = {}
 nfvmo = {}
 
 # Pipeline
-for i in range(core_cnt):
+for i in cores:
     pout0[i] = QueueOut(port=port0, qid=i)
     #pout0[i] = Sink()
     fw[i] = FlowACL(rules=acl_rules)
@@ -80,30 +83,25 @@ for i in range(core_cnt):
         nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
         pinc0[i] -> nfvmo[i] -> pout0[i]
 
-for i in range(rcore_cnt):
-    rcore_id = core_cnt + i
-    pinc0[rcore_id] = NFVRCore(core_id=rcore_id)
-    pout0[rcore_id] = QueueOut(port=port0, qid=rcore_id)
-    pinc0[rcore_id] -> MACSwap() -> pout0[rcore_id]
+for i in rcores:
+    pinc0[i] = NFVRCore(core_id=i)
+    pout0[i] = QueueOut(port=port0, qid=i)
+    pinc0[i] -> MACSwap() -> pout0[i]
 
 # Burst
-for i in range(core_cnt):
+for i in cores:
     pinc0[i].set_burst(burst=burst_size)
-for i in range(rcore_cnt):
-    rcore_id = core_cnt + i
-    pinc0[rcore_id].set_burst(burst=burst_size)
+for i in rcores:
+    pinc0[i].set_burst(burst=burst_size)
 
 # Core
 bess.add_worker(wid=nfvctrl_core, core=nfvctrl_core)
 nfvctrl.attach_task(wid=nfvctrl_core)
-
-for i in range(core_cnt):
-    bess.add_worker(wid=i+offset0, core=i+offset0)
-    pinc0[i].attach_task(wid=i+offset0)
-
-for i in range(rcore_cnt):
-    rcore_id = core_cnt + i
-    bess.add_worker(wid=rcore_id+offset0, core=rcore_id+offset0)
-    pinc0[rcore_id].attach_task(wid=rcore_id+offset0)
+for i in cores:
+    bess.add_worker(wid=i, core=i + offset0)
+    pinc0[i].attach_task(wid=i)
+for i in rcores:
+    bess.add_worker(wid=i, core=i + offset0)
+    pinc0[i].attach_task(wid=i)
 
 bess.resume_all()

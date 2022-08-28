@@ -134,7 +134,7 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
 void NFVCore::MaybeEpochEndProcessBatch(bess::PacketBatch* batch) {
   // If a new epoch starts, absorb the current queue before doing anything
   if (ShortEpochProcess()) {
-    if (false) {
+    if (true) {
       SplitQToSwQ(local_queue_, batch);
     }
   }
