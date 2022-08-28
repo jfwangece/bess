@@ -1,0 +1,123 @@
+# This script is to profile an NF chain under synthetic traffic
+# To find the max packet rate under a certain latency SLO, it
+# uses binary-search to find *the* maximum packet rate that can
+# limit the target latency percentile is under SLO.
+
+import scapy.all as scapy
+import random
+from time import sleep
+
+# Time period (in seconds) skipped at the beginning of each experiment
+init_time_in_sec = 5
+# Time period (in seconds) of serving traffic for SLO
+run_time_in_sec = 5
+
+burst_size=int($BESS_BURST!'32')
+acl_cnt=int($BESS_ACL!'2000')
+lb_cnt=int($BESS_LB!'100')
+long_update_stats_period = int($BESS_LSTATS_PERIOD!"200000000")
+short_update_stats_period = int($BESS_SSTATS_PERIOD!"200000")
+exp_idx = int($BESS_EXP!"2")
+
+update_stats_period = int($BESS_STATS_PERIOD!"200000000")
+pkt_rate=int($BESS_PKT_RATE!'1000000')
+pkt_size=int($BESS_PKT_SIZE!'100')
+cycles_pp=int($BESS_PKT_CYCLE!'8500')
+ts_offset = 72
+PACKET_OVERHEAD=24
+
+# fg generator
+src_ether = 'ec:0d:9a:67:ff:68'
+dst_ether = '0a:14:69:37:5f:f2'
+src_ip = '204.57.0.1'
+dst_ip = '68.128.0.1'
+src_port = 10001
+dst_port = 8080
+eth = scapy.Ether(src=src_ether, dst=dst_ether)
+ip = scapy.IP(src=src_ip, dst=dst_ip)
+tcp = scapy.TCP(sport=src_port, dport=dst_port)
+payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+pkt = eth/ip/tcp/payload
+pkt_data = bytes(pkt)
+
+# This function finds the long-term performance profile.
+def do_rate_latency_test(nf_ingress, nf_egress, wid=7):
+    bess.add_worker(wid=wid, core=wid)
+    for pps in range(400001, 400100, 10):
+        print("loop: %d" %(pps))
+
+        fg0::FlowGen(
+            template=pkt_data,
+            pps=pps, flow_rate=10000, flow_duration=10,
+            arrival='uniform', duration='uniform', quick_rampup=True,
+            port_src_range=255, port_dst_range=255,
+        )
+        t::Timestamp(offset=72)
+        m::Measure(offset=72)
+        fg0 -> t -> nf_ingress
+        nf_egress -> m -> Sink()
+        fg0.attach_task(wid=wid)
+        bess.resume_all()
+
+        print("Starting ..")
+        sleep(init_time_in_sec)
+        print("Resetting ..")
+        m.clear()
+        print("Measuring ..")
+        sleep(run_time_in_sec)
+
+        # Query the latency result
+        result = m.get_summary(latency_percentiles=[50, 75, 95, 99])
+        print(result)
+        bess.pause_all()
+        bess.destroy_module("fg0")
+        #bess.destroy_module(m)
+        #bess.destroy_module(t)
+        #(out,err) = subprocess.Popen(["cat", "output"], stdout=subprocess.PIPE).communicate()
+        #latency = get_pipline_latency(out)
+        #with open("data",'a') as f:
+        #    f.write("%d,%d\n"%(pps, latency[0]))
+
+pcie0, offset0="5e:00.0", 1
+core_addrs = [
+    {'l2_port': 0, 'l2_mac': '82:a3:ae:74:72:30'},
+]
+core_cnt=len(core_addrs)
+
+acl_rules = []
+for i in range(acl_cnt / 50):
+    for j in range(50):
+        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
+acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
+
+nat_hosts = []
+for i in range(lb_cnt / 20):
+    for j in range(20):
+        nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
+
+# Module
+port0::PMDPort(pci=pcie0, num_inc_q=core_cnt+1, num_out_q=core_cnt, bench_rss=False)
+nfvctrl::NFVCtrl(core_addrs=core_addrs, port=port0)
+nfvig = {}
+
+fw= FlowACL(rules=acl_rules)
+lb= FlowLB(endpoints=nat_hosts)
+monitor= FlowCounter()
+pinc0 = NFVCore(core_id=0, port=port0, qid=0)
+nfvmo = NFVMonitor(core_id=0, update_stats_period_ns=short_update_stats_period)
+pinc0  ->fw -> lb -> monitor -> MACSwap() -> nfvmo
+pcie_gen, offset_gen="af:00.0", 8
+port_gen::PMDPort(pci=pcie_gen, num_out_q=1, bench_rss=False)
+
+p_gen = QueueOut(port=port_gen, qid=0)
+
+# Burst
+pinc0.set_burst(burst=burst_size)
+
+# Core
+bess.add_worker(wid=14, core=14)
+nfvctrl.attach_task(wid=14)
+
+bess.add_worker(wid=offset0, core=offset0)
+pinc0.attach_task(wid=offset0)
+do_rate_latency_test(p_gen, nfvmo)
