@@ -100,12 +100,12 @@ port0::PMDPort(pci=pcie0, num_inc_q=core_cnt+1, num_out_q=core_cnt, bench_rss=Fa
 nfvctrl::NFVCtrl(core_addrs=core_addrs, port=port0)
 nfvig = {}
 
-fw= FlowACL(rules=acl_rules)
-lb= FlowLB(endpoints=nat_hosts)
-monitor= FlowCounter()
+fw = FlowACL(rules=acl_rules)
+lb = FlowLB(endpoints=nat_hosts)
+monitor = FlowCounter()
 pinc0 = NFVCore(core_id=0, port=port0, qid=0)
 nfvmo = NFVMonitor(core_id=0, update_stats_period_ns=short_update_stats_period)
-pinc0  ->fw -> lb -> monitor -> MACSwap() -> nfvmo
+pinc0  -> fw -> lb -> monitor -> MACSwap() -> nfvmo
 pcie_gen, offset_gen="af:00.0", 8
 port_gen::PMDPort(pci=pcie_gen, num_out_q=1, bench_rss=False)
 
