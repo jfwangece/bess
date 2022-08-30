@@ -7,8 +7,8 @@ from profile_plot import plot_nf_profile
 # pkt_rate_samples = [2500000]
 # flow_count_samples = [1500]
 
-pkt_size_samples = range(150, 1500, 150)
-pkt_rate_samples = range(1000000, 2500000, 200000)
+pkt_size_samples = range(150, 1500, 300)
+pkt_rate_samples = range(1500000, 2500000, 50000)
 flow_count_samples = range(600, 3000, 200)
 
 def main():

@@ -1,3 +1,5 @@
+import os
+import sys
 
 # Plot NF profile graph (pkt-size / pkt-rate / flow-count ~ latency)
 
@@ -14,8 +16,10 @@ def read_nf_profile(file_name):
                     nums.append(float(x))
             if len(nums) != 8:
                 continue
+            # pkt_size, pkt_rate, and flow_count
             inputs = nums[:3]
-            outputs = nums[3:]
+            # latency numbers are converted from nsec to usec
+            outputs = [x / 1000.0 for x in nums[3:]]
             latency_results.append((inputs, outputs))
         f.close()
     return latency_results
@@ -51,3 +55,14 @@ def plot_nf_profile(file_name):
                     nums.append(outputs[0])
             print("pkt size: %d; pkt rate: %d; %s" %(ps, pr, nums))
     return
+
+def main():
+    if len(sys.argv) == 1:
+        print("usage: python profile_plot.py <profile-filename>")
+        return
+
+    file_name = sys.argv[1]
+    plot_nf_profile(file_name)
+
+if __name__ == "__main__":
+    main()
