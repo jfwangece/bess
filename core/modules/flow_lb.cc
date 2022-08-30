@@ -76,7 +76,7 @@ void FlowLB::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     if (it == flow_cache_.end()) {
       std::tie(it, std::ignore) = flow_cache_.emplace(
           std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
-      
+
       size_t hashed = rte_hash_crc(&ip->src, sizeof(be32_t), 0);
       size_t endpoint_index = hashed % endpoints_.size();
       it->second.SetDstIP(endpoints_[endpoint_index]);

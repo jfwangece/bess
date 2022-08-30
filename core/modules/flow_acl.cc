@@ -81,7 +81,6 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       } else { // an existing flow
         if (it->second.IsACLPass()) {
           emitted = true;
-          EmitPacket(ctx, pkt, incoming_gate);
         }
       }
     }
@@ -93,9 +92,8 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       for (const auto &rule : rules_) {
         if (rule.Match(ip->src, ip->dst, tcp->src_port, tcp->dst_port)) {
           if (!rule.drop) {
-            emitted = true;
-            EmitPacket(ctx, pkt, incoming_gate);
             it->second.SetACLPass();
+            emitted = true;
           }
           break;  // Stop matching other rules
         }
@@ -105,13 +103,16 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     it->second.SetExpiryTime(now + TIME_OUT_NS);
 
-    if (!emitted) {
-      DropPacket(ctx, pkt);
-    }
-
     if (tcp->flags & Tcp::Flag::kFin) {
       flow_cache_.erase(it);
       active_flows_ -= 1;
+    }
+
+    // Determine whether to drop or forward |pkt|.
+    if (!emitted) {
+      DropPacket(ctx, pkt);
+    } else {
+      EmitPacket(ctx, pkt, incoming_gate);
     }
   }
 }

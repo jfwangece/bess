@@ -71,7 +71,7 @@ def run_test(bess_script, pkt_sizes, pkt_rates, flow_counts):
 
     input_tags = ["pkt_size", "pkt_rate", "flow_cnt"]
     latency_percentile_tags = ["P%d" %(x) for x in LATENCY_PERCENTILES]
-    with open(output_fname,'a') as f:
+    with open(output_fname, 'a+') as f:
         f.write("Results for %s\n\n" %(bess_script))
         for tag in input_tags + latency_percentile_tags:
             f.write("{0: <12}".format(tag))
