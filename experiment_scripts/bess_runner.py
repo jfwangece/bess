@@ -24,11 +24,12 @@ BESS_DIR = subprocess.check_output(["git", "rev-parse", "--show-toplevel"])[:-1]
 BESS_DIR = os.path.abspath(BESS_DIR) + "/"
 BESSCTL_DIR = BESS_DIR + "bin/bessctl"
 
-EXP_INIT_TIME_SEC = 3
-EXP_RUN_TIME_SEC = 7
+EXP_INIT_TIME_SEC = 5
+EXP_RUN_TIME_SEC = 25
 num_runs = 1
 
-LATENCY_PERCENTILES = [50, 75, 90, 95, 99]
+# LATENCY_PERCENTILES = [50, 75, 90, 95, 99]
+LATENCY_PERCENTILES = range(100)
 output_fname = datetime.now().strftime('%Y-%m-%d-%H%M%S') + ".dat"
 OUTPUT_FILES = ["*.dat"]
 
@@ -58,7 +59,7 @@ def run_experiment_once(bess_script, pkt_size, pkt_rate, flow_count):
     # Run for a while
     sleep(EXP_RUN_TIME_SEC)
     # os.system(BESSCTL_DIR + " 'command module nfv_monitor get_summary EmptyArg'")
-    os.system(BESSCTL_DIR + " 'command module measure0 get_summary MeasureCommandGetSummaryArg {\"latency_percentiles\":[50,75,90,95,99]}' > output")
+    os.system(BESSCTL_DIR + " 'command module measure0 get_summary MeasureCommandGetSummaryArg {\"latency_percentiles\":%s}' > output" %(str(LATENCY_PERCENTILES)))
     # Get results
     # (out, err) = subprocess.Popen(["cat", "stats.txt"], stdout=subprocess.PIPE).communicate()
     # hw_latency = get_hw_latency(out)
@@ -97,6 +98,7 @@ def run_test(bess_script, pkt_sizes, pkt_rates, flow_counts):
                         f.write("\n")
         print("Exp loop ends ..")
         f.close()
+        os.system("chmod 666 %s" %(output_fname))
 
     t2 = datetime.now()
     print("NF profiler finished! Total runtime: {}.".format(t2 - t1))

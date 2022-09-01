@@ -45,7 +45,6 @@ void FlowLB::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
 
     if (ip->protocol != Ipv4::Proto::kTcp) {
-      EmitPacket(ctx, pkt, 0);
       continue;
     }
 

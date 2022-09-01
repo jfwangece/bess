@@ -3,6 +3,7 @@
 *.dump
 cscope.*
 *.vim
+*.dat
 core/.deps
 core/extra.mk
 core/extra.dpdk.mk

@@ -4,7 +4,7 @@
 # (concurrent flows, total packet rate).
 #
 # Example:
-# # run nfvctrl/profile_chain4 BESS_PKT_RATE=1000000,BESS_FLOW=1000
+# # run nfvctrl/profile_dummy BESS_PKT_RATE=1000000,BESS_FLOW=1000
 #
 
 import copy
@@ -24,8 +24,7 @@ base_bit_rate=int($BESS_BIT_RATE!'100000000000')
 
 # NF-specifc parameters
 burst_size = int($BESS_BURST!'32')
-acl_cnt=int($BESS_ACL!'2000')
-lb_cnt=int($BESS_LB!'100')
+cycles_pp=int($BESS_PKT_CYCLE!'660')
 
 assert(1 <= num_cores <= 16)
 assert(60 <= pkt_size <= 1522)
@@ -78,22 +77,9 @@ for i in range(num_cores):
         ignore_synfin=False)
     flowgens[i] -> Timestamp(offset=TS_OFFSET) -> queue
 
-acl_rules = []
-for i in range(acl_cnt / 50):
-    for j in range(50):
-        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
-acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
+bypass::Bypass(cycles_per_packet=cycles_pp)
 
-nat_hosts = []
-for i in range(lb_cnt / 20):
-    for j in range(20):
-        nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
-
-fw::FlowACL(rules=acl_rules)
-lb::FlowLB(endpoints=nat_hosts)
-monitor::FlowCounter()
-
-queue -> fw -> lb -> monitor -> MACSwap() -> Measure(offset=TS_OFFSET) -> Sink()
+queue -> bypass -> MACSwap() -> Measure(offset=TS_OFFSET) -> Sink()
 
 # configure burst size
 queue.set_burst(burst=burst_size)
