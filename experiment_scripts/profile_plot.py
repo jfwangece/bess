@@ -8,7 +8,9 @@ from collections import OrderedDict
 
 # Plot NF profile graph (pkt-size / pkt-rate / flow-count ~ latency)
 SHOW_DATA_VARY_FLOW_COUNT = False
-PLOT_CDF = True
+SHOW_DATA_VARY_PKT_SIZE = False
+PLOT_CDF_VARY_FLOW_COUNT = False
+PLOT_CDF_VARY_PKT_SIZE = True
 LATENCY_PERCENTILES = range(100)
 
 def read_nf_profile(file_name):
@@ -33,6 +35,13 @@ def read_nf_profile(file_name):
     return latency_results
 
 def aggregate_latency_results(latency_results):
+    """This function assumes that each experiment is repeated N times;
+       |latency_results| is a list of experimental latency results.
+       Suppose there are M different experimental groups; each group
+       is repeated N times; then, len(latency_results) is N * M.
+       This function aggregates results from runs of the same experimental
+       group. It does so by calculating the avg values for CDF percentiles.
+    """
     aggregates = OrderedDict()
     for i, latency_result in enumerate(latency_results):
         inputs, outputs = latency_result
@@ -86,12 +95,14 @@ def plot_nf_profile(file_name):
                         nums.append(outputs[0])
                 print("pkt size: %d; pkt rate: %d; %s" %(ps, pr, nums))
 
-    if PLOT_CDF:
+    if PLOT_CDF_VARY_FLOW_COUNT:
         pkt_size = 500
         pkt_rate = 1000000
         y = [float(p) for p in range(100)]
         plot_legend = []
         # aggregate all experimental repetitions as the avg
+        # Note: deprecated; we must not aggregate CDF plots given that
+        # all per-packet latency numbers follow an I.I.D distribution.
         # latency_results = aggregate_latency_results(latency_results)
         for i, exp in enumerate(latency_results):
             inputs, outputs = exp
@@ -109,6 +120,35 @@ def plot_nf_profile(file_name):
         plt.xlabel("Latency (usec)")
         plt.ylabel("Percentiles (%)")
         plt.title("pkt size = {}; pkt rate = {}".format(pkt_size, pkt_rate))
+        plt.savefig("latency_cdf.png", bbox_inches='tight', dpi=300)
+
+    if PLOT_CDF_VARY_PKT_SIZE:
+        pkt_rate = 1000000
+        flow_count = 1000
+        y = [float(p) for p in range(100)]
+        plot_legend = []
+        # aggregate all experimental repetitions as the avg
+        # Note: deprecated; we must not aggregate CDF plots given that
+        # all per-packet latency numbers follow an I.I.D distribution.
+        # latency_results = aggregate_latency_results(latency_results)
+        for i, exp in enumerate(latency_results):
+            inputs, outputs = exp
+            pkt_rate = inputs[1]
+            flow_count = inputs[2]
+            pkt_size_label = "Pkt size: {}".format(inputs[0])
+            if inputs[0] not in [150, 300, 450, 600, 750, 900, 1050, 1200, 1350]:
+                continue
+            if inputs[2] not in [1000]:
+                continue
+            x = outputs
+            plot_legend.append(pkt_size_label)
+            plt.plot(x, y, '--', linewidth=1.5)
+        plt.grid(True)
+        # plt.xscale('log')
+        plt.legend(plot_legend, loc="best", fancybox=True, shadow=True)
+        plt.xlabel("Latency (usec)")
+        plt.ylabel("Percentiles (%)")
+        plt.title("pkt rate = {}; flow count = {}".format(pkt_rate, flow_count))
         plt.savefig("latency_cdf.png", bbox_inches='tight', dpi=300)
     return
 
