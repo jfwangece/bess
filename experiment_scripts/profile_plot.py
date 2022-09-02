@@ -133,13 +133,13 @@ def plot_nf_profile(file_name):
         # latency_results = aggregate_latency_results(latency_results)
         for i, exp in enumerate(latency_results):
             inputs, outputs = exp
-            pkt_rate = inputs[1]
-            flow_count = inputs[2]
-            pkt_size_label = "Pkt size: {}".format(inputs[0])
             if inputs[0] not in [150, 300, 450, 600, 750, 900, 1050, 1200, 1350]:
                 continue
             if inputs[2] not in [1000]:
                 continue
+            pkt_rate = inputs[1]
+            flow_count = inputs[2]
+            pkt_size_label = "Pkt size: {}".format(inputs[0])
             x = outputs
             plot_legend.append(pkt_size_label)
             plt.plot(x, y, '--', linewidth=1.5)

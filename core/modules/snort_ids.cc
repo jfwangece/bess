@@ -75,6 +75,7 @@ CommandResponse SnortIDS::CommandClear(const bess::pb::EmptyArg &) {
   return CommandSuccess();
 }
 
+// Note: IDS does not drop packets. It generates records.
 void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
@@ -84,7 +85,6 @@ void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
 
     if (ip->protocol != Ipv4::Proto::kTcp) {
-      EmitPacket(ctx, pkt, 0);
       continue;
     }
 
@@ -114,11 +114,7 @@ void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         flow_cache_.erase(it);
         it = flow_cache_.end();
       } else if (it->second.IsAnalyzed()) {
-        // Once we're finished analyzing, we only record *blocked* flows.
-        // Continue blocking this flow for TIME_OUT_NS more ns.
-        it->second.SetExpiryTime(now + TIME_OUT_NS);
-        EmitPacket(ctx, pkt, 0);
-        // DropPacket(ctx, pkt);
+        // This module has finished analyzing this flow. Skip it.
         continue;
       }
     }
@@ -132,7 +128,7 @@ void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         std::tie(it, std::ignore) = flow_cache_.emplace(
             std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
       } else {
-        EmitPacket(ctx, pkt, 0);
+        // Ignore non-SYN packet.
         continue;
       }
     }
@@ -146,8 +142,7 @@ void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     // in the data (in which case the contiguous_len() below is short).
     bool success = buffer.InsertPacket(pkt);
     if (!success) {
-      record.SetAnalyzed();
-      EmitPacket(ctx, pkt, 0);
+      flow_cache_.erase(it);
       continue;
     }
 
@@ -156,32 +151,36 @@ void SnortIDS::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     record.SetExpiryTime(now + TIME_OUT_NS);
 
     bool matched = false;
-    // if (record.pkt_cnt_ % 10 == 1 &&
-    //     buffer.contiguous_len() >= 5 * min_keyword_len_) {
-    //   const char *buffer_data = buffer.buf();
-    //   std::string search_string(buffer_data);
-    //   std::vector<int> match_results = SearchWords(keyword_count_, search_string);
-    //   for (int i : match_results) {
-    //     if (i > 0) { matched = true; break; }
-    //   }
-    // }
+    if (record.pkt_cnt_ > 25 &&
+        record.pkt_cnt_ % 25 == 0 &&
+        buffer.contiguous_len() >= 5 * min_keyword_len_) {
+      const char *buffer_data = buffer.buf();
+      std::string payload_str(buffer_data);
 
-    if (matched) {
-      it->second.SetAnalyzed();
-      EmitPacket(ctx, pkt, 0);
-      // DropPacket(ctx, pkt);
-    } else {
-      EmitPacket(ctx, pkt, 0);
-
-      // Once FIN is observed, or we've seen all the headers and decided
-      // to pass the flow, there is no more need to reconstruct the flow.
-      // NOTE: if FIN is lost on its way to destination, this will simply pass
-      // the retransmitted packet.
-      if (tcp->flags & Tcp::Flag::kFin) {
-        flow_cache_.erase(it);
+      std::vector<int> match_results = SearchWords(keyword_count_, payload_str);
+      for (int any_match : match_results) {
+        if (any_match > 0) {
+          matched = true;
+          break;
+        }
       }
     }
+
+    if (matched) {
+      // Mark the flow and record it.
+      it->second.SetAnalyzed();
+    }
+
+    // Once FIN is observed, or we've seen all the headers and decided
+    // to pass the flow, there is no more need to reconstruct the flow.
+    // NOTE: if FIN is lost on its way to destination, this will simply pass
+    // the retransmitted packet.
+    if (tcp->flags & Tcp::Flag::kFin) {
+      flow_cache_.erase(it);
+    }
   }
+
+  RunNextModule(ctx, batch);
 }
 
 ADD_MODULE(SnortIDS, "snort_ids",

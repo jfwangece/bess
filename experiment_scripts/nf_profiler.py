@@ -4,7 +4,7 @@ from bess_runner import run_test
 from profile_plot import plot_nf_profile
 
 pkt_size_samples = range(150, 1500, 150)
-pkt_rate_samples = [1600000]
+pkt_rate_samples = [140000]
 flow_count_samples = [1000, 2000]
 
 # pkt_size_samples = range(150, 1500, 300)
