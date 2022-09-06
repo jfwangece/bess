@@ -182,7 +182,13 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
     bess::utils::slo_ns = arg.slo_ns();
   }
 
-  std::ifstream file("long_term_threshold", std::ifstream::in);
+  // By default, open the example NF profile
+  std::string long_profile_fname = "long_term_threshold";
+  if (arg.nf_long_term_profile().size() > 0) {
+    long_profile_fname = arg.nf_long_term_profile();
+  }
+
+  std::ifstream file(long_profile_fname, std::ifstream::in);
   if (file.is_open()) {
     while (!file.eof()) {
       uint64_t pps;
@@ -192,6 +198,10 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
       flow_count_pps_threshold_[flow_count] = pps;
     }
     file.close();
+    LOG(INFO) << "Long-term NF profile " + long_profile_fname;
+    LOG(INFO) << "Points: " << flow_count_pps_threshold_.size();
+  } else {
+    LOG(INFO) << "Failed to read " + long_profile_fname;
   }
 
   size_t kQSize = 64;

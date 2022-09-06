@@ -428,6 +428,7 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   //   is_use_group_table_ = true;
   // }
 
+  // By default, all flows go to core #0.
   reta_size_ = dev_info.reta_size;
   memset(reta_conf_, 0, sizeof(reta_conf_));
   for (size_t j = 0; j < reta_size_; j++) {
@@ -435,6 +436,8 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
     reta_conf_[j / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
     reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = 0;
   }
+  // |reta_flows_| and |rte_flow_id_| are required to apply RSS rules
+  // with the NIC's forwarding table
   for (size_t j = 0; j < 3; j++) {
     rte_flow* f = nullptr;
     reta_flows_.push_back(f);

@@ -98,7 +98,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt
 }
 
 std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(const std::vector<double>& per_bucket_pkt_rate) {
-  // Compute the aggregated flow rate per core
+  // Compute the aggregated packet rate for each core.
   active_core_count_ = 0;
   std::vector<double> per_cpu_pkt_rate(total_core_count_);
   for (uint16_t i = 0; i < total_core_count_; i++) {
@@ -196,13 +196,17 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(const std::vector<dou
 }
 
 void NFVCtrl::UpdateFlowAssignment() {
+  // Per-bucket packet rate and flow count are to be used by the long-term op.
   std::vector<double> per_bucket_pkt_rate;
-  uint64_t c = 1000000000ULL / long_epoch_update_period_;
+  std::vector<double> per_bucket_flow_count;
+  uint64_t to_rate_per_sec = 1000000000ULL / long_epoch_update_period_;
 
   bess::utils::bucket_stats->bucket_table_lock.lock();
   for (int i = 0; i < RETA_SIZE; i++) {
-    per_bucket_pkt_rate.push_back(bess::utils::bucket_stats->per_bucket_packet_counter[i] * c);
+    per_bucket_pkt_rate.push_back(bess::utils::bucket_stats->per_bucket_packet_counter[i] * to_rate_per_sec);
+    per_bucket_flow_count.push_back(bess::utils::bucket_stats->per_bucket_flow_cache[i].size() * to_rate_per_sec);
     bess::utils::bucket_stats->per_bucket_packet_counter[i] = 0;
+    bess::utils::bucket_stats->per_bucket_flow_cache[i].clear();
   }
   bess::utils::bucket_stats->bucket_table_lock.unlock();
 

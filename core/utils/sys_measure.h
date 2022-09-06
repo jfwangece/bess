@@ -71,7 +71,7 @@ class BucketStats {
   }
 
   uint64_t per_bucket_packet_counter[RETA_SIZE] = {0};
-  uint64_t per_bucket_flow_counter[RETA_SIZE] = {0};
+  std::unordered_map<Flow, bool, FlowHash> per_bucket_flow_cache[RETA_SIZE];
   std::shared_mutex bucket_table_lock;
 };
 

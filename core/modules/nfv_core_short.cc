@@ -33,6 +33,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       // For now, we handle L4 packets only.
       // After this line, all packets must be associated with a flow.
       bess::Packet::Free(pkt);
+      continue;
     }
 
     // Update per-core flow states
@@ -105,11 +106,17 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
+    if (!bess::utils::ParseFlowFromPacket(&flow, pkt)) {
+      LOG(INFO) << "Error: non-TCP packets found in PreProcessBatch";
+      continue;
+    }
 
     // Update per-bucket packet counter.
     uint32_t id = bess::utils::bucket_stats->RSSHashToID(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
+    // update per-bucket packet counter and per-bucket flow cache.
     bess::utils::bucket_stats->bucket_table_lock.lock_shared();
     bess::utils::bucket_stats->per_bucket_packet_counter[id] += 1;
+    bess::utils::bucket_stats->per_bucket_flow_cache[id].emplace(flow, true);
     bess::utils::bucket_stats->bucket_table_lock.unlock_shared();
 
     // Update per-flow packet counter.
