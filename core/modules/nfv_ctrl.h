@@ -60,13 +60,22 @@ class NFVCtrl final : public Module {
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &arg);
 
  private:
+  // Return the max packet rate under flow count |fc| given the input NF profile.
+  double GetMaxPktRateFromLongTermProfile(double fc);
   // LongTermOptimzation adjusts the system for long term changes. It makes sure
   // that no cores are violating p50 SLO. It also reduces resource consumption by
   // packing flows tightly and freeing up CPU cores.
-  std::map<uint16_t, uint16_t> LongTermOptimization(const std::vector<double>& per_bucket_pkt_rate);
+  std::map<uint16_t, uint16_t> LongTermOptimization(
+      const std::vector<double>& per_bucket_pkt_rate,
+      const std::vector<double>& per_bucket_flow_count);
 
   // Apply first-fit to find the best core for the set of RSS buckets to be migrated
-  std::map<uint16_t, uint16_t> FindMoves(std::vector<double>& per_core_pkt_rate, std::vector<uint16_t>& to_move_cores, const std::vector<double>& per_bucket_pkt_rate);
+  std::map<uint16_t, uint16_t> FindMoves(
+      std::vector<double>& per_core_pkt_rate,
+      std::vector<double>& per_core_flow_count,
+      const std::vector<double>& per_bucket_pkt_rate,
+      const std::vector<double>& per_bucket_flow_count,
+      std::vector<uint16_t>& to_move_cores);
 
   uint64_t long_epoch_update_period_;
   uint64_t long_epoch_last_update_time_;
@@ -75,7 +84,7 @@ class NFVCtrl final : public Module {
   // For each normal CPU core, the set of assigned RSS buckets
   std::map<uint16_t, std::vector<uint16_t>> core_bucket_mapping_;
   // packet rate threshold given the flow count. Values are found using offline profiling
-  std::map<uint64_t, uint64_t> flow_count_pps_threshold_;
+  std::map<double, double> flow_count_pps_threshold_;
 
   // For updating RSS bucket assignment
   PMDPort *port_;
