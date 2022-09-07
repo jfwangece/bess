@@ -80,6 +80,11 @@ for i in cores:
         pinc0[i] = NFVCore(core_id=i, port=port0, qid=i)
         nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> pout0[i]
+    elif exp_idx == 2:
+        # Comparison: Chain 4 w/ QueueInc
+        pinc0[i] = QueueInc(port=port0, qid=i)
+        nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
+        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> pout0[i]
     else:
         pinc0[i] = QueueInc(port=port0, qid=i)
         nfvmo[i] = NFVMonitor(core_id=i, update_stats_period_ns=short_update_stats_period)
