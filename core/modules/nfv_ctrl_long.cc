@@ -114,7 +114,7 @@ double NFVCtrl::GetMaxPktRateFromLongTermProfile(double fc) {
       return it.second;
     }
   }
-  return flow_count_pps_threshold_.end()->second;
+  return (--flow_count_pps_threshold_.end())->second;
 }
 
 std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
