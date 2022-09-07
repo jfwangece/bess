@@ -502,7 +502,7 @@ inline void Module::RunChooseModule(Context *ctx, gate_idx_t ogate_idx,
                                     bess::PacketBatch *batch) {
   bess::OGate *ogate;
 
-  if (unlikely(batch->cnt() <= 0)) {
+  if (false && unlikely(batch->cnt() <= 0)) {
     return;
   }
 

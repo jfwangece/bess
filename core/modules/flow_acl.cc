@@ -52,7 +52,9 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
 
     if (ip->protocol != Ipv4::Proto::kTcp) {
-      EmitPacket(ctx, pkt, 0);
+      if (false) {
+        EmitPacket(ctx, pkt, 0);
+      }
       continue;
     }
 
@@ -109,12 +111,16 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     }
 
     // Determine whether to drop or forward |pkt|.
-    if (!emitted) {
-      DropPacket(ctx, pkt);
-    } else {
-      EmitPacket(ctx, pkt, incoming_gate);
+    if (false) {
+      if (!emitted) {
+        DropPacket(ctx, pkt);
+      } else {
+        EmitPacket(ctx, pkt, incoming_gate);
+      }
     }
   }
+
+  RunNextModule(ctx, batch);
 }
 
 ADD_MODULE(FlowACL, "flow_acl", "ACL module with a per-flow hash table")
