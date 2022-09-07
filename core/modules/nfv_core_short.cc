@@ -305,7 +305,7 @@ bool NFVCore::ShortEpochProcess() {
         if (sw_q_it.assigned_packet_count > 0) { // got things to do
           ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, sw_q_it.sw_q_id);
           if (ret != 0) {
-            LOG(ERROR) << "S " << ret;
+            LOG(ERROR) << "S error: " << ret << "; core: " << core_id_ << "; q: " << sw_q_it.sw_q_id;
           }
           sw_q_it.idle_epoch_count = 0;
         }
@@ -313,7 +313,7 @@ bool NFVCore::ShortEpochProcess() {
         if (sw_q_it.idle_epoch_count == 100) { // idle for a while
           ret = bess::ctrl::NFVCtrlNotifyRCoreToRest(core_id_, sw_q_it.sw_q_id);
           if (ret != 0) {
-            LOG(ERROR) << "E " << ret;
+            LOG(ERROR) << "E error: " << ret << "; core: " << core_id_ << "; q: " << sw_q_it.sw_q_id;
           }
           sw_q_it.idle_epoch_count = -1;
         }

@@ -28,6 +28,7 @@ void DumpOnceSoftwareQueue(struct llring* q, bess::PacketBatch *batch) {
   if (cnt) {
     bess::Packet::Free(batch->pkts(), cnt);
   }
+  // LOG(INFO) << q << ", " << cnt << ", " << llring_count(q);
 }
 #pragma GCC diagnostic pop
 } // namespace
@@ -252,46 +253,68 @@ CommandResponse NFVCtrl::CommandGetSummary(const bess::pb::EmptyArg &arg) {
 }
 
 struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *) {
+  // For graceful termination
   if (rte_atomic16_read(&mark_to_disable_) == 1) {
     rte_atomic16_set(&disabled_, 1);
-    return {.block = false, .packets = 0, .bits = 0};
+    return {.block = false, .packets = 1, .bits = 1};
   }
   if (rte_atomic16_read(&disabled_) == 1) {
-    return {.block = false, .packets = 0, .bits = 0};
+    return {.block = false, .packets = 1, .bits = 1};
   }
   if (port_ == nullptr) {
-    return {.block = false, .packets = 0, .bits = 0};
+    return {.block = false, .packets = 1, .bits = 1};
   }
 
   uint64_t curr_ts_ns = tsc_to_ns(rdtsc());
   if (curr_ts_ns - long_epoch_last_update_time_ > long_epoch_update_period_) {
-    UpdateFlowAssignment();
+    // UpdateFlowAssignment();
     long_epoch_last_update_time_ = curr_ts_ns;
+    LOG(INFO) << "long op";
   }
 
-  // 1) check |remove|
+  // The following is a factory that dumps packets (in batch) that won't
+  // be processed by any Cores or RCores.
+  // WHy do we need this?
+  // A: if we don't free packets, these packets will accumulate. They
+  // will use all free packet memory slots and prevent new incoming
+  // packets from entering the server.
+
+  // 1) check |remove|. These |sw_q| must be removed from |to_dump_sw_q_|.
   llring* q = nullptr;
   while (llring_count(to_remove_queue_) > 0) {
     llring_sc_dequeue(to_remove_queue_, (void**)&q);
-    auto it = std::find(to_dump_sw_q_.begin(), to_dump_sw_q_.end(), q);
-    if (it != to_dump_sw_q_.end()) {
-      to_dump_sw_q_.erase(it);
+    if (q != NULL) {
+      auto it = std::find(to_dump_sw_q_.begin(), to_dump_sw_q_.end(), q);
+      if (it != to_dump_sw_q_.end()) {
+        to_dump_sw_q_.erase(it);
+      }
     }
+    LOG(INFO) << "nfvctrl: to remove " << q << "; total = " << to_dump_sw_q_.size();
   }
 
-  // 2) check |add|
+  // 2) check |add|. These |sw_q| must be added to |to_dump_sw_q_|.
   while (llring_count(to_add_queue_) > 0) {
-    llring_sc_dequeue(to_remove_queue_, (void**)&q);
-    to_dump_sw_q_.push_back(q);
+    llring_sc_dequeue(to_add_queue_, (void**)&q);
+    if (q != NULL) {
+      auto it = std::find(to_dump_sw_q_.begin(), to_dump_sw_q_.end(), q);
+      if (it == to_dump_sw_q_.end()) {
+        to_dump_sw_q_.push_back(q);
+      }
+    }
+    LOG(INFO) << "nfvctrl: to add " << q << "; total = " << to_dump_sw_q_.size();
   }
 
-  if (unlikely(to_dump_sw_q_.size() > 0)) {
+  // |to_dump_sw_q_| contains |sw_q| that cannot be assigned to a RCore.
+  // Just simply dump all packets for them.
+  if (to_dump_sw_q_.size() > 0) {
     for (auto& it : to_dump_sw_q_) {
-      DumpOnceSoftwareQueue(it, batch);
+      if (it != NULL) {
+        DumpOnceSoftwareQueue(it, batch);
+      }
     }
   }
 
-  return {.block = false, .packets = 0, .bits = 0};
+  return {.block = false, .packets = 1, .bits = 1};
 }
 
 void NFVCtrl::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {

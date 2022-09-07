@@ -182,6 +182,7 @@ std::string NFVCore::GetDesc() const {
 /* Get a batch from NIC and send it to downstream */
 struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
                                      void *arg) {
+  // For graceful termination
   if (rte_atomic16_read(&mark_to_disable_) == 1) {
     rte_atomic16_set(&disabled_, 1);
     return {.block = false, .packets = 0, .bits = 0};
@@ -216,6 +217,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // Process one batch
   cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), burst);
   if (cnt == 0) {
+    batch->set_cnt(0);
+    ProcessBatch(ctx, batch);
     MaybeEpochEndProcessBatch(batch);
     return {.block = false, .packets = 0, .bits = 0};
   }
@@ -231,9 +234,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   UpdateStatsPreProcessBatch(batch);
 
   ProcessBatch(ctx, batch);
-
   MaybeEpochEndProcessBatch(batch);
-
   return {.block = false,
           .packets = cnt,
           .bits = (total_bytes + cnt * 24) * 8};
