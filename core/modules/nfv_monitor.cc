@@ -163,7 +163,6 @@ bool NFVMonitor::update_traffic_stats() {
   if (curr_ts_ns_ - last_update_traffic_stats_ts_ns_ < update_traffic_stats_period_ns_) {
     return false;
   }
-  // LOG(INFO) << core_id_ << " epoch: " << next_epoch_id_;
 
   epoch_queue_length_ = all_local_core_stats[core_id_]->packet_queued;
   active_flow_count_ = all_local_core_stats[core_id_]->active_flow_count;

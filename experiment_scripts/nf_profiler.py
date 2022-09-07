@@ -1,15 +1,11 @@
 import os
 import sys
 from bess_runner import run_test
-from profile_plot import plot_nf_profile
+from plot_profile import plot_nf_profile
 
-# pkt_size_samples = range(150, 1500, 150)
-# pkt_rate_samples = [140000]
-# flow_count_samples = [1000, 2000]
-
-pkt_size_samples = range(150, 1500, 300)
-pkt_rate_samples = range(1600000, 2400000, 50000)
-flow_count_samples = range(900, 3400, 300)
+pkt_size_samples = [1050]
+pkt_rate_samples = range(100000, 1100000, 100000)
+flow_count_samples = range(1000, 21000, 500)
 
 def main():
     run_test("nfvctrl/profile_chain4", pkt_size_samples, pkt_rate_samples, flow_count_samples)
