@@ -40,6 +40,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     auto state_it = per_flow_states_.find(flow);
     if (state_it == per_flow_states_.end()) {
       state = new FlowState();
+      state->flow = flow;
       per_flow_states_.emplace(flow, state);
     } else {
       state = state_it->second;
@@ -100,24 +101,17 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
 
 void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
   using bess::utils::all_local_core_stats;
-  Flow flow;
   FlowState *state = nullptr;
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
-    if (!bess::utils::ParseFlowFromPacket(&flow, pkt)) {
-      LOG(INFO) << "Error: non-TCP packets found in PreProcessBatch";
-      continue;
-    }
-
-    // Update per-bucket packet counter.
-    uint32_t id = bess::utils::bucket_stats->RSSHashToID(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
-    // update per-bucket packet counter and per-bucket flow cache.
-    bess::utils::bucket_stats->bucket_table_lock.lock_shared();
-    bess::utils::bucket_stats->per_bucket_packet_counter[id] += 1;
-    bess::utils::bucket_stats->per_bucket_flow_cache[id].emplace(flow, true);
-    bess::utils::bucket_stats->bucket_table_lock.unlock_shared();
+    // Note: no need to parse |flow| again because we've parsed it first.
+    // Flow flow;
+    // if (!bess::utils::ParseFlowFromPacket(&flow, pkt)) {
+    //   LOG(INFO) << "Error: non-TCP packets found in PreProcessBatch";
+    //   continue;
+    // }
 
     // Update per-flow packet counter.
     state = get_attr<FlowState*>(this, flow_stats_attr_id_, pkt);
@@ -125,6 +119,14 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
       continue;
     }
     state->egress_packet_count += 1;
+
+    // Update per-bucket packet counter.
+    uint32_t id = bess::utils::bucket_stats->RSSHashToID(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
+    // update per-bucket packet counter and per-bucket flow cache.
+    bess::utils::bucket_stats->bucket_table_lock.lock_shared();
+    bess::utils::bucket_stats->per_bucket_packet_counter[id] += 1;
+    bess::utils::bucket_stats->per_bucket_flow_cache[id].emplace(state->flow, true);
+    bess::utils::bucket_stats->bucket_table_lock.unlock_shared();
   }
 
   // Update per-epoch packet counter

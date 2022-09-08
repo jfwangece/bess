@@ -66,6 +66,7 @@ struct FlowState {
     sw_q_state = nullptr;
   }
 
+  Flow flow;
   uint32_t ingress_packet_count; // packet counter at ingress
   uint32_t short_epoch_packet_count; // short-term epoch packet counter
   uint32_t egress_packet_count; // packet counter at egress
