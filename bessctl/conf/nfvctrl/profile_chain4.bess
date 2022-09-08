@@ -92,8 +92,9 @@ for i in range(lb_cnt / 20):
 fw::FlowACL(rules=acl_rules)
 lb::FlowLB(endpoints=nat_hosts)
 monitor::FlowCounter()
+nfvmo::NFVMonitor(core_id=0)
 
-queue -> fw -> lb -> monitor -> MACSwap() -> Measure(offset=TS_OFFSET) -> Sink()
+queue -> fw -> lb -> monitor -> MACSwap() -> Measure(offset=TS_OFFSET) -> nfvmo -> Sink()
 
 # configure burst size
 queue.set_burst(burst=burst_size)

@@ -85,6 +85,9 @@ for i in cores:
         pinc0[i] = QueueInc(port=port0, qid=i)
         nfvmo[i] = NFVMonitor(core_id=i, short_epoch_period_ns=short_epoch_period)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> pout0[i]
+    elif exp_idx == 3:
+        pinc0[i] = QueueInc(port=port0, qid=i)
+        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> pout0[i]
     else:
         pinc0[i] = QueueInc(port=port0, qid=i)
         nfvmo[i] = NFVMonitor(core_id=i, short_epoch_period_ns=short_epoch_period)
