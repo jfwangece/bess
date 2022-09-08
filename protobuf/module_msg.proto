@@ -988,14 +988,15 @@ message NFVCtrlArg {
 
 message NFVMonitorArg {
   int32 core_id = 1; /// The target CPU core's ID
-  int32 update_stats_period_ns = 2; /// Time period of collecting system performance metrics
-  int64 latency_sample_buffer_size = 3; // Size of vector to calculate tail latency
+  int64 latency_sample_buffer_size = 2; /// Size of vector to calculate tail latency
+  int32 short_epoch_period_ns = 3; /// Time period of collecting system performance metrics
 }
 
 message NFVCoreArg {
   int32 core_id = 1; /// The target CPU core's ID
-  string port = 2;
-  uint64 qid = 3;
+  string port = 2; /// which NIC interface
+  uint64 qid = 3; /// which NIC queue
+  int32 short_epoch_period_ns = 4; /// The size of a short-term optimization epoch
 }
 
 message NFVRCoreArg {

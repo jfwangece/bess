@@ -12,6 +12,7 @@ struct llring;
 class NFVCtrl;
 class NFVCore;
 class NFVRCore;
+class NFVMonitor;
 
 namespace bess {
 namespace ctrl {
@@ -33,6 +34,8 @@ extern NFVCtrl* nfv_ctrl;
 extern NFVCore* nfv_cores[DEFAULT_INVALID_CORE_ID];
 
 extern NFVRCore* nfv_rcores[DEFAULT_INVALID_CORE_ID];
+
+extern NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID];
 
 extern PMDPort *pmd_port;
 

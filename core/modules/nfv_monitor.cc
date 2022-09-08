@@ -56,8 +56,8 @@ CommandResponse NFVMonitor::Init([[maybe_unused]]const bess::pb::NFVMonitorArg &
   next_epoch_id_ = 0;
 
   update_traffic_stats_period_ns_ = DEFAULT_TRAFFIC_STATS_LONG_TERM_UPDATE_PERIOD_NS;
-  if (arg.update_stats_period_ns() > 0) {
-    update_traffic_stats_period_ns_ = (uint64_t)arg.update_stats_period_ns();
+  if (arg.short_epoch_period_ns() > 0) {
+    update_traffic_stats_period_ns_ = (uint64_t)arg.short_epoch_period_ns();
   }
   LOG(INFO) << "Traffic update period: " << update_traffic_stats_period_ns_;
 
@@ -67,6 +67,9 @@ CommandResponse NFVMonitor::Init([[maybe_unused]]const bess::pb::NFVMonitorArg &
   for (size_t i = 0; i < buffer_size; i++) {
     per_core_latency_sample_.push_back(0);
   }
+
+  // Init
+  bess::ctrl::nfv_monitors[core_id_] = this;
 
   epoch_packet_counter_ = 0;
   epoch_slo_violation_counter_ = 0;
@@ -93,8 +96,6 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   // We don't use ctx->current_ns here for better accuracy
   curr_ts_ns_ = tsc_to_ns(rdtsc());
   curr_nic_ts_ns_ = nic_tsc_to_ns(nic_rdtsc());
-
-  update_traffic_stats();
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
@@ -141,6 +142,9 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       pkt_delay = (uint32_t)(curr_nic_ts_ns_ - pkt_ts_ns);
     }
 
+    // If the queue length at the beginning of this epoch is small,
+    // NFVMonitor should not see such a large packet delay. So, in
+    // this case, something must be wrong.
     if (epoch_queue_length_ < 64 && pkt_delay > (uint32_t)5000000) {
       epoch_packet_delay_error_ += 1;
     } else {
@@ -156,21 +160,18 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   RunNextModule(ctx, batch);
 }
 
-bool NFVMonitor::update_traffic_stats() {
+bool NFVMonitor::update_traffic_stats(uint32_t curr_epoch_id) {
   using bess::utils::all_local_core_stats;
   using bess::utils::all_core_stats_chan;
-
-  if (curr_ts_ns_ - last_update_traffic_stats_ts_ns_ < update_traffic_stats_period_ns_) {
-    return false;
-  }
 
   epoch_queue_length_ = all_local_core_stats[core_id_]->packet_queued;
   active_flow_count_ = all_local_core_stats[core_id_]->active_flow_count;
   packet_rate_ = all_local_core_stats[core_id_]->packet_rate;
 
+  // Note: this is to find all bursty flows. Later, MFVMonitor records
+  // len(msg->bursty_flows) in the per-core epoch snapshot.
   bess::utils::CoreStats *msg = new bess::utils::CoreStats();
   msg->packet_rate = packet_rate_;
-
   epoch_packet_thresh_ = epoch_packet_counter_ * 0.05;
   if (epoch_slo_violation_counter_ > epoch_packet_counter_ * 0.01) {
     for (auto &it : per_flow_packet_counter_) {
@@ -182,7 +183,7 @@ bool NFVMonitor::update_traffic_stats() {
   all_core_stats_chan[core_id_]->Push(msg);
 
   if (packet_rate_ > 0.1) {
-    core_snapshots_.push_back(CoreSnapshot{epoch_id: next_epoch_id_});
+    core_snapshots_.push_back(CoreSnapshot{epoch_id: curr_epoch_id});
     core_snapshots_[next_epoch_id_].epoch_size = (uint32_t)(curr_ts_ns_ - last_update_traffic_stats_ts_ns_);
     core_snapshots_[next_epoch_id_].slo_violation = epoch_slo_violation_counter_;
     core_snapshots_[next_epoch_id_].packet_delay_error = epoch_packet_delay_error_;

@@ -18,6 +18,8 @@ NFVCore* nfv_cores[DEFAULT_INVALID_CORE_ID] = {nullptr};
 
 NFVRCore* nfv_rcores[DEFAULT_INVALID_CORE_ID] = {nullptr};
 
+NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID] = {nullptr};
+
 PMDPort* pmd_port = nullptr;
 
 std::mutex nfvctrl_mu;

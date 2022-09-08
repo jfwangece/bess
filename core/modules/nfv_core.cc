@@ -1,4 +1,5 @@
 #include "nfv_core.h"
+#include "nfv_monitor.h"
 
 #include <bitset>
 #include <fstream>
@@ -82,6 +83,17 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
     core_id_ = arg.core_id();
   }
   core_.core_id = core_id_;
+
+  // Configure the short-term optimization epoch size
+  short_epoch_period_ns_ = 1000000000;
+  if (arg.short_epoch_period_ns() > 0) {
+    short_epoch_period_ns_ = (uint64_t)arg.short_epoch_period_ns();
+  }
+  LOG(INFO) << "Core " << core_id_ << ": short-term epoch " << short_epoch_period_ns_ << " ns";
+
+  curr_ts_ns_ = tsc_to_ns(rdtsc());
+  last_short_epoch_end_ns_ = curr_ts_ns_;
+  curr_epoch_id_ = 0;
 
   // Add a metadata filed for recording flow stats pointer
   std::string attr_name = "flow_stats";
@@ -182,21 +194,27 @@ std::string NFVCore::GetDesc() const {
 /* Get a batch from NIC and send it to downstream */
 struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
                                      void *arg) {
-  // For graceful termination
-  if (rte_atomic16_read(&mark_to_disable_) == 1) {
-    rte_atomic16_set(&disabled_, 1);
-    return {.block = false, .packets = 0, .bits = 0};
-  }
-  if (rte_atomic16_read(&disabled_) == 1) {
-    return {.block = false, .packets = 0, .bits = 0};
-  }
-
   Port *p = port_;
   const queue_t qid = (queue_t)(uintptr_t)arg;
   const int burst = ACCESS_ONCE(burst_);
+  bool epoch_advanced = false;
 
   // Read the CPU cycle counter for better accuracy
   curr_ts_ns_ = tsc_to_ns(rdtsc());
+  if (curr_ts_ns_ - last_short_epoch_end_ns_ > short_epoch_period_ns_) {
+    epoch_advanced = true;
+  }
+
+  // For graceful termination
+  if (epoch_advanced) {
+    if (rte_atomic16_read(&mark_to_disable_) == 1) {
+      rte_atomic16_set(&disabled_, 1);
+      return {.block = false, .packets = 0, .bits = 0};
+    }
+    if (rte_atomic16_read(&disabled_) == 1) {
+      return {.block = false, .packets = 0, .bits = 0};
+    }
+  }
 
   // Busy pulling from the NIC queue
   uint32_t cnt = 0, pull_rounds = 0;
@@ -216,12 +234,6 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   // Process one batch
   cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), burst);
-  if (cnt == 0) {
-    batch->set_cnt(0);
-    ProcessBatch(ctx, batch);
-    MaybeEpochEndProcessBatch(batch);
-    return {.block = false, .packets = 0, .bits = 0};
-  }
   batch->set_cnt(cnt);
 
   uint64_t total_bytes = 0;
@@ -229,12 +241,28 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     total_bytes += batch->pkts()[i]->total_len();
   }
 
-  // Update the number of packets / flows processed:
-  // |epoch_packet_processed_| and |per_flow_states_|
-  UpdateStatsPreProcessBatch(batch);
+  if (cnt > 0) {
+    // Update the number of packets / flows processed:
+    // |epoch_packet_processed_| and |per_flow_states_|
+    UpdateStatsPreProcessBatch(batch);
 
-  ProcessBatch(ctx, batch);
-  MaybeEpochEndProcessBatch(batch);
+    ProcessBatch(ctx, batch);
+  }
+
+  if (epoch_advanced) {
+    // Get latency summaries.
+    if (bess::ctrl::nfv_monitors[core_id_]) {
+      bess::ctrl::nfv_monitors[core_id_]->update_traffic_stats(curr_epoch_id_);
+    }
+
+    ShortEpochProcess();
+    if (true) {
+      SplitQToSwQ(local_queue_, batch);
+    }
+    curr_epoch_id_ += 1;
+    last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
+  }
+
   return {.block = false,
           .packets = cnt,
           .bits = (total_bytes + cnt * 24) * 8};

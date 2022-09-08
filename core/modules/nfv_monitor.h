@@ -7,6 +7,8 @@
 #include <set>
 #include <vector>
 
+#include "nfv_ctrl_msg.h"
+
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
 #include "../utils/flow.h"
@@ -45,16 +47,17 @@ class NFVMonitor final : public Module {
     return latency_copy[idx];
   }
 
- private:
-  bool update_traffic_stats();
+  // Generate an epoch summary
+  bool update_traffic_stats(uint32_t curr_epoch_id);
 
+ private:
   // Timestamp
   uint64_t curr_ts_ns_;
   uint64_t curr_nic_ts_ns_;
+  // Performance statistics recorded in Epoch
   uint64_t last_update_traffic_stats_ts_ns_;
   uint64_t update_traffic_stats_period_ns_;
-
-  int next_epoch_id_; // Performance statistics recorded in Epoch
+  uint32_t next_epoch_id_;
 
   // Core statistics
   std::vector<CoreSnapshot> core_snapshots_;

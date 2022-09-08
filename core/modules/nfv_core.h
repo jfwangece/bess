@@ -150,6 +150,10 @@ class NFVCore final : public Module {
 
   // Time-related
   uint64_t curr_ts_ns_;
+  uint64_t last_short_epoch_end_ns_;
+  uint64_t short_epoch_period_ns_;
+  // The current epoch ID
+  uint32_t curr_epoch_id_;
 
   // Per-core admission control to avoid latency SLO violations
   // Based on our design, it approximates the NF profile curve

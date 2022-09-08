@@ -24,14 +24,14 @@ struct Snapshot {
 };
 
 struct CoreSnapshot {
-  CoreSnapshot(int t_id) {
+  CoreSnapshot(uint32_t t_id) {
     epoch_id = t_id;
     slo_violation = 0; packet_delay_error = 0; packet_delay_max = 0;
     active_flow_count = 0; bursty_flow_count = 0;
     packet_rate = 0; packet_processed = 0; packet_queued = 0;
   };
 
-  int epoch_id; // Starting from 0
+  uint32_t epoch_id; // Starting from 0
   uint32_t epoch_size;
   uint16_t slo_violation; // Number of packets with SLO violations
   uint16_t packet_delay_error; // Number of packets with a wrong timestamp
