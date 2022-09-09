@@ -72,7 +72,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
       return CommandFailure(ENOMEM, "Task creation failed");
     }
 
-    Resize(256);
+    Resize(2048);
     local_batch_ = reinterpret_cast<bess::PacketBatch *>
           (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   }
@@ -105,7 +105,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   bess::ctrl::nfv_cores[core_id_] = this;
 
   // Begin with 0 software queue
-  sw_q_mask_ = bess::ctrl::NFVCtrlRequestNSwQ(core_id_, 4);
+  sw_q_mask_ = bess::ctrl::NFVCtrlRequestNSwQ(core_id_, 5);
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     uint64_t sw_q_idx = (1ULL << i) & sw_q_mask_;
     if (sw_q_idx != 0) {

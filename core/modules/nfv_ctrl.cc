@@ -189,20 +189,37 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
     long_profile_fname = arg.nf_long_term_profile();
   }
 
-  std::ifstream file(long_profile_fname, std::ifstream::in);
-  if (file.is_open()) {
-    while (!file.eof()) {
+  std::ifstream long_profile_file(long_profile_fname, std::ifstream::in);
+  if (long_profile_file.is_open()) {
+    while (!long_profile_file.eof()) {
       double pps;
       double flow_count;
-      file >> flow_count;
-      file >> pps;
+      long_profile_file >> flow_count;
+      long_profile_file >> pps;
       flow_count_pps_threshold_[flow_count] = pps;
     }
-    file.close();
+    long_profile_file.close();
     LOG(INFO) << "Long-term NF profile " + long_profile_fname;
     LOG(INFO) << "Points: " << flow_count_pps_threshold_.size();
   } else {
     LOG(INFO) << "Failed to read " + long_profile_fname;
+  }
+
+  std::string short_profile_fname = "nf_profiles/short_term.pro";
+  std::ifstream short_profile_file(short_profile_fname, std::ifstream::in);
+  if (short_profile_file.is_open()) {
+    while (!short_profile_file.eof()) {
+      uint32_t pkt_count;
+      uint32_t flow_count;
+      short_profile_file >> flow_count;
+      short_profile_file >> pkt_count;
+      flow_count_pkt_threshold_[flow_count] = pkt_count;
+    }
+    short_profile_file.close();
+    LOG(INFO) << "Short-term NF profile " + short_profile_fname;
+    LOG(INFO) << "Points: " << flow_count_pkt_threshold_.size();
+  } else {
+    LOG(INFO) << "Failed to read " + short_profile_fname;
   }
 
   size_t kQSize = 64;

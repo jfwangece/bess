@@ -8,7 +8,7 @@ burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 slo = int($BESS_SLO!"400000")
-long_update_stats_period = int($BESS_LSTATS_PERIOD!"500000000")
+long_update_stats_period = int($BESS_LSTATS_PERIOD!"100000000")
 short_epoch_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
 
