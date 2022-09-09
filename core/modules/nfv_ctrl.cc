@@ -164,8 +164,8 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   }
 
   total_core_count_ = 0;
-  long_epoch_update_period_ = LONG_TERM_UPDATE_PERIOD;
-  long_epoch_last_update_time_ = tsc_to_ns(rdtsc());
+  long_epoch_period_ns_ = LONG_TERM_UPDATE_PERIOD;
+  last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
   for (const auto& core_addr : arg.core_addrs()) {
     cpu_cores_.push_back(
       WorkerCore {
@@ -253,23 +253,24 @@ CommandResponse NFVCtrl::CommandGetSummary(const bess::pb::EmptyArg &arg) {
 }
 
 struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *) {
-  // For graceful termination
-  if (rte_atomic16_read(&mark_to_disable_) == 1) {
-    rte_atomic16_set(&disabled_, 1);
-    return {.block = false, .packets = 1, .bits = 1};
-  }
-  if (rte_atomic16_read(&disabled_) == 1) {
-    return {.block = false, .packets = 1, .bits = 1};
-  }
   if (port_ == nullptr) {
     return {.block = false, .packets = 1, .bits = 1};
   }
 
   uint64_t curr_ts_ns = tsc_to_ns(rdtsc());
-  if (curr_ts_ns - long_epoch_last_update_time_ > long_epoch_update_period_) {
-    // UpdateFlowAssignment();
-    long_epoch_last_update_time_ = curr_ts_ns;
-    LOG(INFO) << "long op";
+  if (curr_ts_ns - last_long_epoch_end_ns_ > long_epoch_period_ns_) {
+    // For graceful termination
+    if (rte_atomic16_read(&mark_to_disable_) == 1) {
+      rte_atomic16_set(&disabled_, 1);
+      return {.block = false, .packets = 1, .bits = 1};
+    }
+    if (rte_atomic16_read(&disabled_) == 1) {
+      return {.block = false, .packets = 1, .bits = 1};
+    }
+
+    // Re-group RSS buckets to cores to adpat to long-term load changes
+    UpdateFlowAssignment();
+    last_long_epoch_end_ns_ = curr_ts_ns;
   }
 
   // The following is a factory that dumps packets (in batch) that won't

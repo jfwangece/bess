@@ -77,8 +77,8 @@ class NFVCtrl final : public Module {
       const std::vector<double>& per_bucket_flow_count,
       std::vector<uint16_t>& to_move_cores);
 
-  uint64_t long_epoch_update_period_;
-  uint64_t long_epoch_last_update_time_;
+  uint64_t long_epoch_period_ns_;
+  uint64_t last_long_epoch_end_ns_;
   uint64_t slo_p50_ = 200000000; // Current target is 200 ms
 
   // For each normal CPU core, the set of assigned RSS buckets

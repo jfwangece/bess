@@ -47,7 +47,10 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     }
 
     // Append flow's stats pointer to pkt's metadata
-    set_attr<FlowState*>(this, flow_stats_attr_id_, pkt, state);
+    // set_attr<FlowState*>(this, flow_stats_attr_id_, pkt, state);
+    *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt)) = state;
+    // LOG(INFO) << "set: " << state
+    //           << " " << *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
 
     state->ingress_packet_count += 1;
     if (state->short_epoch_packet_count == 0) {
@@ -114,8 +117,9 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
     // }
 
     // Update per-flow packet counter.
-    state = get_attr<FlowState*>(this, flow_stats_attr_id_, pkt);
+    state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
     if (state == nullptr) {
+      LOG(ERROR) << "invalid per-flow state";
       continue;
     }
     state->egress_packet_count += 1;
@@ -186,7 +190,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
-    state = get_attr<FlowState*>(this, flow_stats_attr_id_, pkt);
+    state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
     if (state == nullptr) {
       local_batch_->add(pkt);
       continue;

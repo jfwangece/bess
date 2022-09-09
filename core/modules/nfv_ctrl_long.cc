@@ -147,7 +147,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
     if (!bess::ctrl::core_state[i]) {
       continue;
     }
-
+    // LOG(INFO) << i << ", " << per_cpu_flow_count[i] << ", " << GetMaxPktRateFromLongTermProfile(per_cpu_flow_count[i]);
     // Move a bucket and do this until the aggregated packet rate is below the threshold
     while (per_cpu_pkt_rate[i] >
           GetMaxPktRateFromLongTermProfile(per_cpu_flow_count[i]) * (1 - MIGRATE_HEAD_ROOM) &&
@@ -236,10 +236,11 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
 }
 
 void NFVCtrl::UpdateFlowAssignment() {
+  uint64_t to_rate_per_sec = 1000000000ULL / long_epoch_period_ns_;
+
   // Per-bucket packet rate and flow count are to be used by the long-term op.
   std::vector<double> per_bucket_pkt_rate;
   std::vector<double> per_bucket_flow_count;
-  uint64_t to_rate_per_sec = 1000000000ULL / long_epoch_update_period_;
 
   bess::utils::bucket_stats->bucket_table_lock.lock();
   for (int i = 0; i < RETA_SIZE; i++) {
@@ -256,6 +257,6 @@ void NFVCtrl::UpdateFlowAssignment() {
       // port_->UpdateRssReta(moves);
       port_->UpdateRssFlow(moves);
     }
-    LOG(INFO) << "(UpdateFlowAssignment) moves: " << moves.size();
+    LOG(INFO) << "(UpdateFlowAssignment) total moves: " << moves.size();
   }
 }

@@ -72,7 +72,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
       return CommandFailure(ENOMEM, "Task creation failed");
     }
 
-    Resize(2048);
+    Resize(256);
     local_batch_ = reinterpret_cast<bess::PacketBatch *>
           (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   }
@@ -98,7 +98,8 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   // Add a metadata filed for recording flow stats pointer
   std::string attr_name = "flow_stats";
   using AccessMode = bess::metadata::Attribute::AccessMode;
-  flow_stats_attr_id_ = AddMetadataAttr(attr_name, sizeof(uint64_t), AccessMode::kWrite);
+  flow_stats_attr_id_ = AddMetadataAttr(attr_name, sizeof(FlowState*), AccessMode::kWrite);
+  LOG(INFO) << core_id_ << ": flow state metadata id = " << flow_stats_attr_id_;
 
   // Init
   bess::ctrl::nfv_cores[core_id_] = this;

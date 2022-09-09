@@ -44,6 +44,9 @@ class alignas(16) Flow {
   uint16_t padding1;
 
   Flow() : proto_ip(0), padding0(0), padding1(0) {}
+  Flow(const Flow &other) {
+    memcpy(this, &other, sizeof(*this));
+  }
 
   bool operator==(const Flow &other) const {
     return memcmp(this, &other, sizeof(*this)) == 0;
