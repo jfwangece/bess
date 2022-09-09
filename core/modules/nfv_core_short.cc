@@ -1,4 +1,5 @@
 #include "nfv_core.h"
+#include "nfv_ctrl.h"
 
 #include "../utils/ether.h"
 #include "../utils/ip.h"
@@ -161,6 +162,14 @@ void NFVCore::SplitQToSwQ(llring* q, bess::PacketBatch* batch) {
   uint32_t total_cnt = llring_count(q);
   if (total_cnt <= epoch_packet_thresh_) {
     return;
+  }
+
+  if (total_cnt > 0.8 * size_) {
+    num_epoch_with_large_queue_ += 1;
+    if (num_epoch_with_large_queue_ >= 10) {
+      bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow();
+      num_epoch_with_large_queue_ = 0;
+    }
   }
 
   int burst, cnt;

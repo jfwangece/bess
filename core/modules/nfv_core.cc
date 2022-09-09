@@ -15,12 +15,11 @@ const Commands NFVCore::cmds = {
 };
 
 // NFVCore member functions
-int NFVCore::Resize(int slots) {
+int NFVCore::Resize(uint32_t slots) {
   struct llring *old_queue = local_queue_;
   struct llring *new_queue;
 
   int bytes = llring_bytes_with_slots(slots);
-
   new_queue =
       reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
   if (!new_queue) {
@@ -36,7 +35,6 @@ int NFVCore::Resize(int slots) {
   /* migrate packets from the old queue */
   if (old_queue) {
     bess::Packet *pkt;
-
     while (llring_sc_dequeue(old_queue, (void **)&pkt) == 0) {
       ret = llring_sp_enqueue(new_queue, pkt);
       if (ret == -LLRING_ERR_NOBUF) {
@@ -48,7 +46,6 @@ int NFVCore::Resize(int slots) {
   }
 
   local_queue_ = new_queue;
-  size_ = slots;
   return 0;
 }
 
@@ -72,7 +69,9 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
       return CommandFailure(ENOMEM, "Task creation failed");
     }
 
-    Resize(2048);
+    size_ = 2048;
+    Resize(size_);
+
     local_batch_ = reinterpret_cast<bess::PacketBatch *>
           (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   }
@@ -121,6 +120,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   epoch_packet_arrival_ = 0;
   epoch_packet_processed_ = 0;
   epoch_packet_queued_ = 0;
+  num_epoch_with_large_queue_ = 0;
   epoch_flow_cache_.clear();
   per_flow_states_.clear();
 

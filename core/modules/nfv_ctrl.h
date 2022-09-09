@@ -55,7 +55,14 @@ class NFVCtrl final : public Module {
 
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg) override;
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
+
+  // This function is called by NFVCore to get latency summaries at
+  // the end of a short-term epoch.
   void UpdateFlowAssignment();
+
+  // This function can be called by NFVCore and NFVRCore when
+  // they decide that an immediate load rebalancing is required.
+  void NotifyCtrlLoadBalanceNow();
 
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &arg);
 
@@ -107,6 +114,13 @@ class NFVCtrl final : public Module {
   // If true, |this| normal core stops pulling packets from its NIC queue
   rte_atomic16_t disabled_;
   rte_atomic16_t mark_to_disable_;
+
+  // Set by |NFVCore| and |NFVRCore| when a persistent traffic burst is
+  // observed. |this| module will run a long-term optimization to rebalance
+  // traffic loads across cores now. However, it should still respect the
+  // NIC's hardware limitation: one cannot reprogram the NIC forwarding
+  // table rule within ~5 ms (according to our measurement results).
+  rte_atomic16_t is_rebalancing_load_now_;
 };
 
 #endif // BESS_MODULES_NFV_CTRL_H_

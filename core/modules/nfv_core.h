@@ -124,7 +124,8 @@ class NFVCore final : public Module {
   CommandResponse CommandSetBurst(const bess::pb::NFVCoreCommandSetBurstArg &arg);
 
  private:
-  int Resize(int slots);
+  // Return 0 if |local_queue_| is resized successfully.
+  int Resize(uint32_t slots);
 
   cpu_core_t core_id_;
   WorkerCore core_;
@@ -137,7 +138,7 @@ class NFVCore final : public Module {
   struct llring *local_queue_;
   bess::PacketBatch *local_batch_;
   int burst_;
-  uint64_t size_;
+  uint32_t size_;
 
   // Software queues borrowed from NFVCtrl
   uint64_t sw_q_mask_;
@@ -164,6 +165,11 @@ class NFVCore final : public Module {
   uint32_t epoch_packet_arrival_;
   uint32_t epoch_packet_processed_;
   uint32_t epoch_packet_queued_;
+
+  // Number of consecutive short-term epochs with a large packet queue;
+  // If |num_epoch_with_large_queue_| is large, |this| core should call
+  // nfvctrl->NotifyCtrlLoadBalanceNow();
+  uint32_t num_epoch_with_large_queue_;
 
   // For recording active flows in an epoch
   std::unordered_map<Flow, FlowState*, FlowHash> epoch_flow_cache_;

@@ -7,7 +7,8 @@
 #include "../module_graph.h"
 
 // The time interval for the long term optimization to run
-#define LONG_TERM_UPDATE_PERIOD 500000000
+#define LONG_TERM_UPDATE_PERIOD_NS 500000000
+#define MIN_NIC_RSS_UPDATE_PERIOD_NS 5000000
 
 namespace {
 #pragma GCC diagnostic push
@@ -154,6 +155,10 @@ int NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   return 0;
 }
 
+void NFVCtrl::NotifyCtrlLoadBalanceNow() {
+  rte_atomic16_set(&is_rebalancing_load_now_, 0);
+}
+
 CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   bess::ctrl::nfv_ctrl = this;
   bess::ctrl::NFVCtrlCheckAllComponents();
@@ -164,8 +169,6 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   }
 
   total_core_count_ = 0;
-  long_epoch_period_ns_ = LONG_TERM_UPDATE_PERIOD;
-  last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
   for (const auto& core_addr : arg.core_addrs()) {
     cpu_cores_.push_back(
       WorkerCore {
@@ -177,7 +180,12 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   }
   assert(total_core_count_ == cpu_cores_.size());
 
-  curr_ts_ns_ = 0;
+  long_epoch_period_ns_ = LONG_TERM_UPDATE_PERIOD_NS;
+  if (arg.long_epoch_period_ns() > 0) {
+    long_epoch_period_ns_ = (uint64_t)arg.long_epoch_period_ns();
+  }
+  curr_ts_ns_ = tsc_to_ns(rdtsc());
+  last_long_epoch_end_ns_ = curr_ts_ns_;
 
   if (arg.slo_ns() > 0) {
     bess::utils::slo_ns = arg.slo_ns();
@@ -234,6 +242,7 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   }
 
   // Run!
+  rte_atomic16_set(&is_rebalancing_load_now_, 0);
   rte_atomic16_set(&mark_to_disable_, 0);
   rte_atomic16_set(&disabled_, 0);
   return CommandSuccess();
@@ -241,6 +250,7 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
 
 void NFVCtrl::DeInit() {
   // Mark to stop the pipeline and wait until the pipeline stops
+  rte_atomic16_set(&is_rebalancing_load_now_, 0);
   rte_atomic16_set(&mark_to_disable_, 1);
   while (rte_atomic16_read(&disabled_) == 0) { usleep(100000); }
 
@@ -276,6 +286,7 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
 
   uint64_t curr_ts_ns = tsc_to_ns(rdtsc());
   if (curr_ts_ns - last_long_epoch_end_ns_ > long_epoch_period_ns_) {
+    // Default long-term op
     // For graceful termination
     if (rte_atomic16_read(&mark_to_disable_) == 1) {
       rte_atomic16_set(&disabled_, 1);
@@ -287,7 +298,18 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
 
     // Re-group RSS buckets to cores to adpat to long-term load changes
     UpdateFlowAssignment();
-    last_long_epoch_end_ns_ = curr_ts_ns;
+    last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
+    LOG(INFO) << "Long-term op: default; time = " << last_long_epoch_end_ns_;
+  } else {
+    // On-demand long-term op
+    if (rte_atomic16_read(&is_rebalancing_load_now_) > 0) {
+      rte_atomic16_set(&is_rebalancing_load_now_, 0);
+      if (curr_ts_ns - last_long_epoch_end_ns_ > MIN_NIC_RSS_UPDATE_PERIOD_NS) {
+        UpdateFlowAssignment();
+        last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
+        LOG(INFO) << "Long-term op: on-demand; time = " << last_long_epoch_end_ns_;
+      }
+    }
   }
 
   // The following is a factory that dumps packets (in batch) that won't
