@@ -192,6 +192,10 @@ void NFVCore::SplitQToSwQ(llring* q, bess::PacketBatch* batch) {
     SplitAndEnqueue(batch);
     curr_cnt += cnt;
   }
+  // Debug log
+  // if (llring_count(local_queue_) > epoch_packet_thresh_) {
+  //   LOG(INFO) << "short-term op failed; " << llring_count(local_queue_);
+  // }
 }
 
 // Split a batch of packets and respect pre-determined flow-affinity
@@ -317,11 +321,13 @@ bool NFVCore::ShortEpochProcess() {
         }
         if (!assigned) {
           // Existing software queues cannot hold this flow. Need more queues
-          LOG(INFO) << "Short-term op: not enough software queue; this flow's packets in queue: " << flow_it->second->queued_packet_count;
+          // LOG(INFO) << "Short-term op: not enough software queue; this flow's packets in queue: " << flow_it->second->queued_packet_count;
+          flow_it->second->sw_q_state = &system_dump_q_;
           flow_it++;
         }
       }
     } else {
+      // This flow cannot be handled by only 1 core.
       flow_it->second->sw_q_state = &system_dump_q_;
       flow_it++;
     }

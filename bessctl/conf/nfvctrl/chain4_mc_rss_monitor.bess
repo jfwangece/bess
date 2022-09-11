@@ -31,8 +31,8 @@ core_addrs = [
     {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
     {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
 ]
-core_cnt=10
-rcore_cnt=0
+core_cnt=7
+rcore_cnt=7
 total_core_cnt = core_cnt + rcore_cnt
 cores = [i for i in range(core_cnt)]
 rcores = [core_cnt + i for i in range(rcore_cnt)]
