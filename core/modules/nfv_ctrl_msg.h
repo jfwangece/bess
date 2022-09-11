@@ -5,7 +5,7 @@
 #include "../utils/cpu_core.h"
 
 // Number of software packet queues
-#define DEFAULT_SWQ_COUNT 50
+#define DEFAULT_SWQ_COUNT 80
 
 // Forward declaration
 struct llring;
@@ -44,6 +44,7 @@ extern PMDPort *pmd_port;
 // Note: only NFVCtrl can access data structures below
 
 // A pool of software packet queues
+extern struct llring* system_dump_q_;
 extern struct llring* sw_q[DEFAULT_SWQ_COUNT];
 
 // States for maintaining software packet queues, normal and reserved cores.

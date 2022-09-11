@@ -7,7 +7,7 @@ nic=int($BESS_NIC!'1')
 burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
-slo = int($BESS_SLO!"400000")
+slo = int($BESS_SLO!"200000")
 long_update_stats_period = int($BESS_LSTATS_PERIOD!"100000000")
 short_epoch_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
@@ -31,7 +31,7 @@ core_addrs = [
     {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
     {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
 ]
-core_cnt=6
+core_cnt=10
 rcore_cnt=0
 total_core_cnt = core_cnt + rcore_cnt
 cores = [i for i in range(core_cnt)]

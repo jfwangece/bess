@@ -56,9 +56,11 @@ class NFVCtrl final : public Module {
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg) override;
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
-  // This function is called by NFVCore to get latency summaries at
-  // the end of a short-term epoch.
-  void UpdateFlowAssignment();
+  // This function runs a heurisics algorithm to re-group RSS buckets
+  // to the minimal # of normal cores according to the long-term NF
+  // performance profile. It returns the # of moves for rebalancing
+  // RSS buckets. 0 if nothing will change.
+  uint32_t LongEpochProcess();
 
   // This function can be called by NFVCore and NFVRCore when
   // they decide that an immediate load rebalancing is required.

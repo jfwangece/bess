@@ -63,6 +63,10 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     // Determine the packet's destination queue
     auto& q_state = state->sw_q_state;
     if (q_state) {
+      if (q_state == &system_dump_q_) {
+        bess::Packet::Free(pkt);
+        continue;
+      }
       // This flow is redirected only if |sw_q| is handled by an active RCore;
       // otherwise, reset the flow's redirection decision.
       if (q_state->idle_epoch_count != -1) {
@@ -79,6 +83,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
         }
         continue;
       }
+      // Not dump / offload (because RCore is not active). Reset the offloading decision.
       state->sw_q_state = nullptr;
     }
     local_batch_->add(pkt);
@@ -164,9 +169,9 @@ void NFVCore::SplitQToSwQ(llring* q, bess::PacketBatch* batch) {
     return;
   }
 
-  if (total_cnt > 0.8 * size_) {
+  if (total_cnt > epoch_flow_thresh_ * 4) {
     num_epoch_with_large_queue_ += 1;
-    if (num_epoch_with_large_queue_ >= 10) {
+    if (num_epoch_with_large_queue_ > 5) {
       bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow();
       num_epoch_with_large_queue_ = 0;
     }
@@ -183,6 +188,7 @@ void NFVCore::SplitQToSwQ(llring* q, bess::PacketBatch* batch) {
     batch->clear();
     cnt = llring_sc_dequeue_burst(q, (void **)batch->pkts(), burst);
     batch->set_cnt(cnt);
+    // bess::Packet::Free(batch);
     SplitAndEnqueue(batch);
     curr_cnt += cnt;
   }
@@ -207,6 +213,10 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
 
     auto& q_state = state->sw_q_state;
     if (q_state) {
+      if (q_state == &system_dump_q_) {
+        bess::Packet::Free(pkt);
+        continue;
+      }
       // This flow is redirected only if |sw_q| is handled by an active RCore;
       // otherwise, reset the flow's redirection decision.
       if (q_state->idle_epoch_count != -1) {
@@ -220,6 +230,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
 
   // Just drop excessive packets when a software queue is full
   if (local_batch_->cnt()) {
+    // bess::Packet::Free(local_batch_);
     int queued = llring_sp_enqueue_burst(local_queue_, (void **)local_batch_->pkts(), local_batch_->cnt());
     if (queued < 0) {
       queued = queued & (~RING_QUOT_EXCEED);
@@ -306,10 +317,12 @@ bool NFVCore::ShortEpochProcess() {
         }
         if (!assigned) {
           // Existing software queues cannot hold this flow. Need more queues
+          LOG(INFO) << "Short-term op: not enough software queue; this flow's packets in queue: " << flow_it->second->queued_packet_count;
           flow_it++;
         }
       }
     } else {
+      flow_it->second->sw_q_state = &system_dump_q_;
       flow_it++;
     }
   }

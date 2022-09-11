@@ -78,9 +78,13 @@ PacketPool::PacketPool(size_t capacity, int socket_id) {
                << " (rte_errno=" << rte_errno << ")";
   }
 
-  int ret = rte_mempool_set_ops_byname(pool_, "ring_mp_mc", NULL);
+  std::string mempool_mode = "ring_mp_mc";
+  // std::string mempool_mode = "stack";
+  int ret = rte_mempool_set_ops_byname(pool_, (const char*)mempool_mode.c_str(), NULL);
   if (ret < 0) {
     LOG(FATAL) << "rte_mempool_set_ops_byname() returned " << ret;
+  } else {
+    LOG(INFO) << "rte_mempool_set_ops: " << mempool_mode << " mode";
   }
 }
 

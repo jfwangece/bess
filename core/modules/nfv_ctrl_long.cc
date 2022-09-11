@@ -235,8 +235,8 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
   return final_moves;
 }
 
-void NFVCtrl::UpdateFlowAssignment() {
-  uint64_t to_rate_per_sec = 1000000000ULL / long_epoch_period_ns_;
+uint32_t NFVCtrl::LongEpochProcess() {
+  uint64_t to_rate_per_sec = 1000000000ULL / (tsc_to_ns(rdtsc()) - last_long_epoch_end_ns_);
 
   // Per-bucket packet rate and flow count are to be used by the long-term op.
   std::vector<double> per_bucket_pkt_rate;
@@ -257,6 +257,6 @@ void NFVCtrl::UpdateFlowAssignment() {
       // port_->UpdateRssReta(moves);
       port_->UpdateRssFlow(moves);
     }
-    LOG(INFO) << "(UpdateFlowAssignment) total moves: " << moves.size();
   }
+  return moves.size();
 }

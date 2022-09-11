@@ -24,6 +24,10 @@ PMDPort* pmd_port = nullptr;
 
 std::mutex nfvctrl_mu;
 
+// A software queue as this server's trash bin. Any packets that are
+// moved into this queue will be freed without any processing.
+struct llring* system_dump_q_ = nullptr;
+
 struct llring* sw_q[DEFAULT_SWQ_COUNT] = {nullptr};
 
 SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr}; // sw_q can be assigned if |up_core_id| is invalid
@@ -57,6 +61,17 @@ void NFVCtrlMsgInit(int slots) {
     sw_q_state[i]->down_core_id = DEFAULT_INVALID_CORE_ID;
   }
 
+  // Assign a system dump queue.
+  size_t kPktQsize = 4096;
+  bytes = llring_bytes_with_slots(kPktQsize);
+  system_dump_q_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+  if (system_dump_q_) {
+    llring_init(system_dump_q_, kPktQsize, 0, 1);
+  } else {
+    std::free(system_dump_q_);
+    LOG(ERROR) << "failed to allocate system_dump_q_";
+  }
+
   LOG(INFO) << "NFV control messages are initialized";
 }
 
@@ -80,6 +95,14 @@ void NFVCtrlMsgDeInit() {
       std::free(q_state);
     }
     q_state = nullptr;
+  }
+
+  if (system_dump_q_) {
+    while (llring_sc_dequeue(system_dump_q_, (void **)&pkt) == 0) {
+      bess::Packet::Free(pkt);
+    }
+    std::free(system_dump_q_);
+    system_dump_q_ = nullptr;
   }
 
   LOG(INFO) << "NFV control messages are de-initialized";

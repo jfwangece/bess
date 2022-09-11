@@ -27,7 +27,14 @@ using bess::utils::WorkerCore;
 // |processed_packet_count|: the number of packets seen by the queue;
 // |idle_epoch_count|: the number of epoches with no packet arrivals;
 struct SoftwareQueueState {
+  SoftwareQueueState() {
+    // The system's dump queue
+    sw_q_id = DEFAULT_SWQ_COUNT + 1;
+    sw_q = bess::ctrl::system_dump_q_;
+    idle_epoch_count = assigned_packet_count = processed_packet_count = 0;
+  }
   SoftwareQueueState(int qid) : sw_q_id(qid) {
+    // The system's software queue for offloading
     sw_q = bess::ctrl::sw_q[qid];
     idle_epoch_count = -1;
     assigned_packet_count = 0;
@@ -139,6 +146,9 @@ class NFVCore final : public Module {
   bess::PacketBatch *local_batch_;
   int burst_;
   uint32_t size_;
+
+  // The system dump queue state
+  SoftwareQueueState system_dump_q_;
 
   // Software queues borrowed from NFVCtrl
   uint64_t sw_q_mask_;

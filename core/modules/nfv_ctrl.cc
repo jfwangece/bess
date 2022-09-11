@@ -156,7 +156,7 @@ int NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
 }
 
 void NFVCtrl::NotifyCtrlLoadBalanceNow() {
-  rte_atomic16_set(&is_rebalancing_load_now_, 0);
+  rte_atomic16_set(&is_rebalancing_load_now_, 1);
 }
 
 CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
@@ -230,15 +230,21 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
     LOG(INFO) << "Failed to read " + short_profile_fname;
   }
 
-  size_t kQSize = 64;
-  int bytes = llring_bytes_with_slots(kQSize);
+  // Assign |to_add_queue_| and |to_remove_queue_| so that NFVCtrl
+  // can dump packets in software queues for NFVCore and NFVRCore.
+  size_t kQQSize = 64;
+  int bytes = llring_bytes_with_slots(kQQSize);
   to_add_queue_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
   if (to_add_queue_) {
-    llring_init(to_add_queue_, kQSize, 0, 1);
+    llring_init(to_add_queue_, kQQSize, 0, 1);
+  } else {
+    LOG(ERROR) << "failed to allocate to_add_queue_";
   }
   to_remove_queue_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
   if (to_remove_queue_) {
-    llring_init(to_remove_queue_, kQSize, 0, 1);
+    llring_init(to_remove_queue_, kQQSize, 0, 1);
+  } else {
+    LOG(ERROR) << "failed to allocate to_remove_queue_";
   }
 
   // Run!
@@ -297,17 +303,22 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
     }
 
     // Re-group RSS buckets to cores to adpat to long-term load changes
-    UpdateFlowAssignment();
+    uint32_t moves = LongEpochProcess();
     last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
-    LOG(INFO) << "Long-term op: default; time = " << last_long_epoch_end_ns_;
+    if (moves > 0) {
+      LOG(INFO) << "Long-term op: default, time = " << last_long_epoch_end_ns_;
+    }
   } else {
     // On-demand long-term op
     if (rte_atomic16_read(&is_rebalancing_load_now_) > 0) {
       rte_atomic16_set(&is_rebalancing_load_now_, 0);
       if (curr_ts_ns - last_long_epoch_end_ns_ > MIN_NIC_RSS_UPDATE_PERIOD_NS) {
-        UpdateFlowAssignment();
+        // Re-group RSS buckets to cores to adpat to long-term load changes
+        uint32_t moves = LongEpochProcess();
         last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
-        LOG(INFO) << "Long-term op: on-demand; time = " << last_long_epoch_end_ns_;
+        if (moves > 0) {
+          LOG(INFO) << "Long-term op: default, time = " << last_long_epoch_end_ns_;
+        }
       }
     }
   }

@@ -69,7 +69,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
       return CommandFailure(ENOMEM, "Task creation failed");
     }
 
-    size_ = 2048;
+    size_ = 1024;
     Resize(size_);
 
     local_batch_ = reinterpret_cast<bess::PacketBatch *>
@@ -104,7 +104,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   bess::ctrl::nfv_cores[core_id_] = this;
 
   // Begin with 0 software queue
-  sw_q_mask_ = bess::ctrl::NFVCtrlRequestNSwQ(core_id_, 5);
+  sw_q_mask_ = bess::ctrl::NFVCtrlRequestNSwQ(core_id_, 8);
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     uint64_t sw_q_idx = (1ULL << i) & sw_q_mask_;
     if (sw_q_idx != 0) {
@@ -115,8 +115,12 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   }
   LOG(INFO) << "Core " << core_id_ << " has " << sw_q_.size() << " sw_q. q_mask: " << std::bitset<64> (sw_q_mask_);
 
-  epoch_flow_thresh_ = 20;
-  epoch_packet_thresh_ = 35;
+  system_dump_q_ = SoftwareQueueState();
+
+  // epoch_flow_thresh_ = 20;
+  // epoch_packet_thresh_ = 35;
+  epoch_flow_thresh_ = 10;
+  epoch_packet_thresh_ = 30;
   epoch_packet_arrival_ = 0;
   epoch_packet_processed_ = 0;
   epoch_packet_queued_ = 0;
