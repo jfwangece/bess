@@ -124,6 +124,8 @@ class NFVCore final : public Module {
   void SplitQToSwQ(llring* q, bess::PacketBatch *batch);
   // - Split |batch| into |local_queue_| and other software queues
   void SplitAndEnqueue(bess::PacketBatch *batch);
+  // - Enqueue all packets in |batch| to the software queue |q|
+  void BestEffortEnqueue(bess::PacketBatch *batch, llring *q);
 
   std::string GetDesc() const override;
 

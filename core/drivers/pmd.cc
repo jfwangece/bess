@@ -432,12 +432,18 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
   reta_size_ = dev_info.reta_size;
   memset(reta_conf_, 0, sizeof(reta_conf_));
   for (size_t j = 0; j < reta_size_; j++) {
-    reta_table_.push_back(0);
+    // Option 1: default to use core 0
+    // reta_table_.push_back(0);
+    // reta_conf_[j / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
+    // reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = 0;
+
+    // Option 2: Default to use many cores
+    reta_table_.push_back(j % 6);
     reta_conf_[j / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
-    reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = 0;
+    reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = j % 6;
   }
   // |reta_flows_| and |rte_flow_id_| are required to apply RSS rules
-  // with the NIC's forwarding table
+  // with the NIC's forwarding table. They are flow rules.
   for (size_t j = 0; j < 3; j++) {
     rte_flow* f = nullptr;
     reta_flows_.push_back(f);

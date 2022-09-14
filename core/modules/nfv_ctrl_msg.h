@@ -5,7 +5,7 @@
 #include "../utils/cpu_core.h"
 
 // Number of software packet queues
-#define DEFAULT_SWQ_COUNT 80
+#define DEFAULT_SWQ_COUNT 64
 
 // Forward declaration
 struct llring;
