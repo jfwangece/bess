@@ -339,7 +339,11 @@ bool NFVCore::ShortEpochProcess() {
   uint32_t pkt_cnt = 0;
   for (auto& it : epoch_flow_cache_) {
     if (it.second != nullptr) {
-      it.second->queued_packet_count = it.second->ingress_packet_count - it.second->egress_packet_count;
+      if (it.second->ingress_packet_count > it.second->egress_packet_count) {
+        it.second->queued_packet_count = it.second->ingress_packet_count - it.second->egress_packet_count;
+      } else {
+        it.second->queued_packet_count = 0;
+      }
       // Reset so that the flow can be recorded in the next short epoch
       it.second->short_epoch_packet_count = 0;
       total_pkt_cnt += it.second->queued_packet_count;
@@ -385,15 +389,15 @@ bool NFVCore::ShortEpochProcess() {
         }
       }
     } else {
-      local_large_flow += task_size;
       // This flow cannot be handled by only 1 core.
+      local_large_flow += task_size;
       flow_it->second->sw_q_state = &system_dump_q1_;
       flow_it++;
     }
   }
+  // Debug log
   if (pkt_cnt > 0) {
-    // LOG(INFO) << "short-term: core" << core_id_ << ", tcnt=" << total_pkt_cnt << ", cnt=" << pkt_cnt << ", th=" << epoch_packet_thresh_ << ", as=" << local_assigned << ", off=" << local_offloaded << ", lf=" << local_large_flow;
-    LOG(INFO) << "short-term: core" << core_id_ << ", tct=" << total_pkt_cnt << ", ct=" << pkt_cnt
+    LOG(INFO) << "short-term: core" << core_id_ << ", tct=" << total_pkt_cnt << ", ct=" << pkt_cnt << ", lf=" << local_large_flow
               << ", d1=" << epoch_drop1_ << ", d2=" << epoch_drop2_ << ", d3=" << epoch_drop3_ << ", d4=" << epoch_drop4_;
   }
 

@@ -10,7 +10,7 @@ def read_epoch_log(file_name):
             if "short-term:" not in line:
                 continue
             data_line = line[line.find("short-term:") + len("short-term:"):].strip()
-            nums = [0, 0, 0, 0, 0, 0]
+            nums = [0, 0, 0, 0, 0, 0, 0]
             for x in data_line.split(","):
                 num_str = x.strip()
                 if "core" in num_str:
@@ -37,6 +37,10 @@ def read_epoch_log(file_name):
                     num = int(num_str[num_str.find("d4=") + len("d4="):])
                     nums[5] = num
                     continue
+                elif "lf=" in num_str:
+                    num = int(num_str[num_str.find("lf=") + len("lf="):])
+                    nums[6] = num
+                    continue
                 else:
                     continue
             packet_counters.append(nums)
@@ -53,6 +57,8 @@ def do_analysis(file_name):
     drop_type3 = 0
     drop_type4 = 0
     max_drop_type4 = 0
+    large_flow_pkts = 0
+    max_large_flow_pkts = 0
     for data in epoch_data:
         cores.add(data[0])
         num_arrivals += data[1]
@@ -61,7 +67,9 @@ def do_analysis(file_name):
         drop_type2 += data[3]
         drop_type3 += data[4]
         drop_type4 += data[5]
-        max_drop_type4 = max(max_drop_type4, data[4])
+        max_drop_type4 = max(max_drop_type4, data[5])
+        large_flow_pkts += data[6]
+        max_large_flow_pkts = max(max_large_flow_pkts, data[6])
 
     total_samples = len(epoch_data)
     total_epochs = total_samples / len(cores)
@@ -75,14 +83,28 @@ def do_analysis(file_name):
     print("max drop1: %d" %(max_drop_type1))
     print("avg drop4: %f" %(drop_type4 * 1.0 / total_samples))
     print("max drop4: %d" %(max_drop_type4))
+    print("avg large-flow pkts: %f" %(large_flow_pkts * 1.0 / total_samples))
+    print("max large-flow pkts: %d" %(max_large_flow_pkts))
+    return
+
+def do_parse_bess_log(bess_log, pkt_drop_log):
+    parse_cmd = "cat {} | grep nfv_core | grep tct > {}".format(bess_log, pkt_drop_log)
+    os.system(parse_cmd)
     return
 
 def main():
-    if len(sys.argv) == 1:
-        print("usage: python profile_plot.py <profile-filename>")
+    if len(sys.argv) > 2:
         return
-    file_name = sys.argv[1]
-    do_analysis(file_name)
+
+    if len(sys.argv) == 1:
+        bess_log = "/tmp/bessd.INFO"
+        pkt_drop_log = "./pkt_drop.dat"
+        do_parse_bess_log(bess_log, pkt_drop_log)
+        if os.path.exists(pkt_drop_log):
+            do_analysis(pkt_drop_log)
+    if len(sys.argv) == 2:
+        pkt_drop_log = sys.argv[1]
+        do_analysis(pkt_drop_log)
     return
 
 if __name__ == "__main__":
