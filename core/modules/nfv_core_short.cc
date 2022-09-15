@@ -62,11 +62,18 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     // Determine the packet's destination queue
     auto& q_state = state->sw_q_state;
     if (q_state != nullptr) {
-      if (q_state == &system_dump_q_) {
+      if (q_state == &system_dump_q0_) {
         // Egress 1: simple drop
         state->egress_packet_count += 1;
         bess::Packet::Free(pkt);
         epoch_drop1_ += 1;
+        continue;
+      }
+      if (q_state == &system_dump_q1_) {
+        // Egress 1: simple drop
+        state->egress_packet_count += 1;
+        bess::Packet::Free(pkt);
+        epoch_drop4_ += 1;
         continue;
       }
 
@@ -223,11 +230,18 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
 
     auto& q_state = state->sw_q_state;
     if (q_state != nullptr) {
-      if (q_state == &system_dump_q_) {
+      if (q_state == &system_dump_q0_) {
         // Egress 5: simple drop
         state->egress_packet_count += 1;
         bess::Packet::Free(pkt);
         epoch_drop1_ += 1;
+        continue;
+      }
+      if (q_state == &system_dump_q1_) {
+        // Egress 5: simple drop
+        state->egress_packet_count += 1;
+        bess::Packet::Free(pkt);
+        epoch_drop4_ += 1;
         continue;
       }
 
@@ -366,21 +380,21 @@ bool NFVCore::ShortEpochProcess() {
         if (!assigned) {
           // Existing software queues cannot hold this flow. Need more queues
           // LOG(INFO) << "short-term op: not enough software queue; this flow's packets in queue: " << flow_it->second->queued_packet_count;
-          flow_it->second->sw_q_state = &system_dump_q_;
+          flow_it->second->sw_q_state = &system_dump_q0_;
           flow_it++;
         }
       }
     } else {
       local_large_flow += task_size;
       // This flow cannot be handled by only 1 core.
-      flow_it->second->sw_q_state = &system_dump_q_;
+      flow_it->second->sw_q_state = &system_dump_q1_;
       flow_it++;
     }
   }
   if (pkt_cnt > 0) {
     // LOG(INFO) << "short-term: core" << core_id_ << ", tcnt=" << total_pkt_cnt << ", cnt=" << pkt_cnt << ", th=" << epoch_packet_thresh_ << ", as=" << local_assigned << ", off=" << local_offloaded << ", lf=" << local_large_flow;
     LOG(INFO) << "short-term: core" << core_id_ << ", tct=" << total_pkt_cnt << ", ct=" << pkt_cnt
-              << ", d1=" << epoch_drop1_ << ", d2=" << epoch_drop2_ << ", d3=" << epoch_drop3_;
+              << ", d1=" << epoch_drop1_ << ", d2=" << epoch_drop2_ << ", d3=" << epoch_drop3_ << ", d4=" << epoch_drop4_;
   }
 
   // Notify reserved cores to do the work.
@@ -423,5 +437,6 @@ bool NFVCore::ShortEpochProcess() {
   epoch_drop1_ = 0;
   epoch_drop2_ = 0;
   epoch_drop3_ = 0;
+  epoch_drop4_ = 0;
   return true;
 }

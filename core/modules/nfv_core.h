@@ -150,7 +150,10 @@ class NFVCore final : public Module {
   uint32_t size_;
 
   // The system dump queue state
-  SoftwareQueueState system_dump_q_;
+  // q0: for flows marked to drop when no idle RCore is available
+  // q1: for flows marked to drop when no single core can handle them
+  SoftwareQueueState system_dump_q0_;
+  SoftwareQueueState system_dump_q1_;
 
   // Software queues borrowed from NFVCtrl
   uint64_t sw_q_mask_;
@@ -175,6 +178,7 @@ class NFVCore final : public Module {
   uint32_t epoch_drop1_;
   uint32_t epoch_drop2_;
   uint32_t epoch_drop3_;
+  uint32_t epoch_drop4_;
 
   // Max number of new flows processed in a epoch
   uint32_t epoch_packet_arrival_;

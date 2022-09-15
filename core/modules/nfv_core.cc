@@ -115,8 +115,6 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   }
   LOG(INFO) << "Core " << core_id_ << " has " << sw_q_.size() << " sw_q. q_mask: " << std::bitset<64> (sw_q_mask_);
 
-  system_dump_q_ = SoftwareQueueState();
-
   // epoch_flow_thresh_ = 20;
   // epoch_packet_thresh_ = 35;
   epoch_flow_thresh_ = 10;

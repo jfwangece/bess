@@ -10,7 +10,7 @@ def read_epoch_log(file_name):
             if "short-term:" not in line:
                 continue
             data_line = line[line.find("short-term:") + len("short-term:"):].strip()
-            nums = [0, 0, 0, 0, 0]
+            nums = [0, 0, 0, 0, 0, 0]
             for x in data_line.split(","):
                 num_str = x.strip()
                 if "core" in num_str:
@@ -33,6 +33,10 @@ def read_epoch_log(file_name):
                     num = int(num_str[num_str.find("d3=") + len("d3="):])
                     nums[4] = num
                     continue
+                elif "d4=" in num_str:
+                    num = int(num_str[num_str.find("d4=") + len("d4="):])
+                    nums[5] = num
+                    continue
                 else:
                     continue
             packet_counters.append(nums)
@@ -47,6 +51,8 @@ def do_analysis(file_name):
     max_drop_type1 = 0
     drop_type2 = 0
     drop_type3 = 0
+    drop_type4 = 0
+    max_drop_type4 = 0
     for data in epoch_data:
         cores.add(data[0])
         num_arrivals += data[1]
@@ -54,6 +60,8 @@ def do_analysis(file_name):
         max_drop_type1 = max(max_drop_type1, data[2])
         drop_type2 += data[3]
         drop_type3 += data[4]
+        drop_type4 += data[5]
+        max_drop_type4 = max(max_drop_type4, data[4])
 
     total_samples = len(epoch_data)
     total_epochs = total_samples / len(cores)
@@ -61,10 +69,12 @@ def do_analysis(file_name):
     print("Exp time: %d (seconds)" %(total_exp_seconds))
     print("# of normal cores: %d" %(len(cores)))
     print("# of (short) epochs: %d" %(total_epochs))
-    print("arrivals: %d; drop1: %d; drop2: %d; drop3: %d" \
-        %(num_arrivals, drop_type1, drop_type2, drop_type3))
+    print("arrivals: %d; drop1: %d; drop2: %d; drop3: %d; drop4: %d" \
+        %(num_arrivals, drop_type1, drop_type2, drop_type3, drop_type4))
     print("avg drop1: %f" %(drop_type1 * 1.0 / total_samples))
     print("max drop1: %d" %(max_drop_type1))
+    print("avg drop4: %f" %(drop_type4 * 1.0 / total_samples))
+    print("max drop4: %d" %(max_drop_type4))
     return
 
 def main():
