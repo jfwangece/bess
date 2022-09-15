@@ -32,15 +32,21 @@ void NFVCtrl::InitPMD(PMDPort* port) {
   }
 
   port_ = port;
+  // Reset PMD's reta table (even-distributed RSS buckets)
+  for (uint16_t i = 0; i < port_->reta_size_; i++) {
+    port_->reta_table_[i] = i % total_core_count_;
+  }
+
   // Init the core-bucket mapping
   for (uint16_t i = 0; i < total_core_count_; i++) {
     core_bucket_mapping_[i] = std::vector<uint16_t>();
   }
-  for(uint16_t i = 0; i < port_->reta_size_; i++) {
+  for (uint16_t i = 0; i < port_->reta_size_; i++) {
     uint16_t core_id = port_->reta_table_[i];
     core_bucket_mapping_[core_id].push_back(i);
   }
 
+  // Init the number of |active_core_count_|
   active_core_count_ = 0;
   for (uint16_t i = 0; i < total_core_count_; i++) {
     if (core_bucket_mapping_[i].size() > 0) {
@@ -236,6 +242,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
 }
 
 uint32_t NFVCtrl::LongEpochProcess() {
+  return 0;
   uint64_t to_rate_per_sec = 1000000000ULL / (tsc_to_ns(rdtsc()) - last_long_epoch_end_ns_);
 
   // Per-bucket packet rate and flow count are to be used by the long-term op.
