@@ -72,14 +72,15 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
 
       if (q_state->idle_epoch_count == -1) {
         // Egress 2: simple drop (idle RCore)
-        // Not dump / offload (because RCore is not active). Reset the offloading decision.
-        // state->sw_q_state = nullptr;
+        // Do not offload because RCore is inactive. Reset the offloading.
+        state->sw_q_state = nullptr;
+        local_batch_->add(pkt);
         // bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q_state->sw_q_id);
         // q_state->idle_epoch_count = 0;
 
-        state->egress_packet_count += 1;
-        bess::Packet::Free(pkt);
-        epoch_drop2_ += 1;
+        // state->egress_packet_count += 1;
+        // bess::Packet::Free(pkt);
+        // epoch_drop2_ += 1;
         continue;
       }
 
