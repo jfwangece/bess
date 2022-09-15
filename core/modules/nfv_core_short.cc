@@ -379,7 +379,7 @@ bool NFVCore::ShortEpochProcess() {
         }
         if (!assigned) {
           // Existing software queues cannot hold this flow. Need more queues
-          // LOG(INFO) << "short-term op: not enough software queue; this flow's packets in queue: " << flow_it->second->queued_packet_count;
+          // LOG(INFO) << "short-term: core" << core_id_ << " (no enough sw_q). Flow w/ " << low_it->second->queued_packet_count << " pkts";
           flow_it->second->sw_q_state = &system_dump_q0_;
           flow_it++;
         }
