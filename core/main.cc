@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
 
   bess::PacketPool::CreateDefaultPools(FLAGS_buffers);
   bess::utils::SysMeasureInit();
-  bess::ctrl::NFVCtrlMsgInit(1024);
+  bess::ctrl::NFVCtrlMsgInit();
   PortBuilder::InitDrivers();
 
   {

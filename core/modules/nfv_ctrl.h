@@ -92,9 +92,6 @@ class NFVCtrl final : public Module {
 
   // For each normal CPU core, the set of assigned RSS buckets
   std::map<uint16_t, std::vector<uint16_t>> core_bucket_mapping_;
-  // packet rate threshold given the flow count. Values are found using offline profiling
-  std::map<double, double> flow_count_pps_threshold_;
-  std::map<uint32_t, uint32_t> flow_count_pkt_threshold_;
 
   // For updating RSS bucket assignment
   PMDPort *port_;

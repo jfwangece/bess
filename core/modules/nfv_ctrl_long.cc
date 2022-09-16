@@ -111,16 +111,16 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt
 }
 
 double NFVCtrl::GetMaxPktRateFromLongTermProfile(double fc) {
-  if (flow_count_pps_threshold_.size() == 0) {
+  if (bess::ctrl::long_flow_count_pps_threshold.size() == 0) {
     return 1000000.0;
   }
 
-  for (auto& it : flow_count_pps_threshold_) {
+  for (auto& it : bess::ctrl::long_flow_count_pps_threshold) {
     if (it.first > fc) {
       return it.second;
     }
   }
-  return (--flow_count_pps_threshold_.end())->second;
+  return (--bess::ctrl::long_flow_count_pps_threshold.end())->second;
 }
 
 std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(

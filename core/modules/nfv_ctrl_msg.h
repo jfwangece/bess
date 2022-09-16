@@ -5,7 +5,13 @@
 #include "../utils/cpu_core.h"
 
 // Number of software packet queues
+// Why 64? nfvctrl uses uint64_t to indicate the assignment of
+// software queues to NFVCore.
 #define DEFAULT_SWQ_COUNT 64
+
+// Default queue size
+#define DEFAULT_SWQ_SIZE 4096;
+#define DEFAULT_DUMPQ_SIZE 4096;
 
 // Forward declaration
 struct llring;
@@ -41,6 +47,10 @@ extern PMDPort *pmd_port;
 
 //static int ready_components = 0;
 
+// packet rate threshold given the flow count. Values are found using offline profiling
+extern std::map<double, double> long_flow_count_pps_threshold;
+extern std::map<uint32_t, uint32_t> short_flow_count_pkt_threshold;
+
 // Note: only NFVCtrl can access data structures below
 
 // A pool of software packet queues
@@ -54,7 +64,7 @@ extern bool rcore_state[DEFAULT_INVALID_CORE_ID];
 extern int core_liveness[DEFAULT_INVALID_CORE_ID];
 
 // Create software queues and reset flags
-void NFVCtrlMsgInit(int slots);
+void NFVCtrlMsgInit();
 void NFVCtrlMsgDeInit();
 
 // Check if all NFV components are ready. If yes:

@@ -204,11 +204,11 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
       double flow_count;
       long_profile_file >> flow_count;
       long_profile_file >> pps;
-      flow_count_pps_threshold_[flow_count] = pps;
+      bess::ctrl::long_flow_count_pps_threshold[flow_count] = pps;
     }
     long_profile_file.close();
     LOG(INFO) << "Long-term NF profile " + long_profile_fname;
-    LOG(INFO) << "Points: " << flow_count_pps_threshold_.size();
+    LOG(INFO) << "Points: " << bess::ctrl::long_flow_count_pps_threshold.size();
   } else {
     LOG(INFO) << "Failed to read " + long_profile_fname;
   }
@@ -221,11 +221,11 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
       uint32_t flow_count;
       short_profile_file >> flow_count;
       short_profile_file >> pkt_count;
-      flow_count_pkt_threshold_[flow_count] = pkt_count;
+      bess::ctrl::short_flow_count_pkt_threshold[flow_count] = pkt_count;
     }
     short_profile_file.close();
     LOG(INFO) << "Short-term NF profile " + short_profile_fname;
-    LOG(INFO) << "Points: " << flow_count_pkt_threshold_.size();
+    LOG(INFO) << "Points: " << bess::ctrl::short_flow_count_pkt_threshold.size();
   } else {
     LOG(INFO) << "Failed to read " + short_profile_fname;
   }

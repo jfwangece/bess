@@ -101,7 +101,9 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
         val = llring_count(q_state->sw_q);
         TagUint32(pkt, 98, val);
       }
+
       // This flow is redirected only if an active RCore works on |sw_q|
+      state->egress_packet_count += 1;
       q_state->sw_batch->add(pkt);
       continue;
     }
@@ -136,10 +138,6 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
 
     // Update per-flow packet counter.
     state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
-    if (state == nullptr) {
-      LOG(ERROR) << "pre-process: error (invalid per-flow state)";
-      continue;
-    }
     // Egress 4: normal processing
     state->egress_packet_count += 1;
 
@@ -161,19 +159,6 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
   all_local_core_stats[core_id_]->packet_rate = epoch_packet_arrival_;
   all_local_core_stats[core_id_]->packet_processed = epoch_packet_processed_;
   all_local_core_stats[core_id_]->packet_queued = epoch_packet_queued_;
-}
-
-void NFVCore::MaybeEpochEndProcessBatch(bess::PacketBatch* batch) {
-  using bess::utils::all_core_stats_chan;
-
-  // If a new epoch starts, absorb the current queue before doing anything
-  bool is_new_epoch = (all_core_stats_chan[core_id_]->Size() > 0);
-  if (is_new_epoch) {
-    ShortEpochProcess();
-    if (true) {
-      SplitQToSwQ(local_queue_, batch);
-    }
-  }
 }
 
 void NFVCore::SplitQToSwQ(llring* q, bess::PacketBatch* batch) {
@@ -259,6 +244,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
       }
 
       // This flow is redirected only if an active RCore works on |sw_q|
+      state->egress_packet_count += 1;
       q_state->sw_batch->add(pkt);
       continue;
     }

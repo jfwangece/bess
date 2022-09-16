@@ -12,6 +12,7 @@
 namespace bess {
 namespace ctrl {
 
+// NFVCtrl system components
 NFVCtrl* nfv_ctrl = nullptr;
 
 NFVCore* nfv_cores[DEFAULT_INVALID_CORE_ID] = {nullptr};
@@ -23,6 +24,10 @@ NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID] = {nullptr};
 PMDPort* pmd_port = nullptr;
 
 std::mutex nfvctrl_mu;
+
+// Long-term and short-term NF profiles
+std::map<double, double> long_flow_count_pps_threshold;
+std::map<uint32_t, uint32_t> short_flow_count_pkt_threshold;
 
 // A software queue as this server's trash bin. Any packets that are
 // moved into this queue will be freed without any processing.
@@ -40,12 +45,14 @@ int core_liveness[DEFAULT_INVALID_CORE_ID] = {0}; // the number of long epochs i
 
 // Global software queue / reserved core management functions
 
-void NFVCtrlMsgInit(int slots) {
-  int bytes = llring_bytes_with_slots(slots);
+// bess/core/main.cc calls this function to init when bessd starts
+void NFVCtrlMsgInit() {
+  size_t sw_qsize = DEFAULT_SWQ_SIZE;
+  int bytes = llring_bytes_with_slots(sw_qsize);
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     sw_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
 
-    int ret = llring_init(sw_q[i], slots, 1, 1);
+    int ret = llring_init(sw_q[i], sw_qsize, 1, 1);
     if (ret) {
       std::free(sw_q[i]);
       LOG(ERROR) << "llring_init failed on software queue " << i;
@@ -62,11 +69,11 @@ void NFVCtrlMsgInit(int slots) {
   }
 
   // Assign a system dump queue.
-  size_t kPktQsize = 4096;
-  bytes = llring_bytes_with_slots(kPktQsize);
+  size_t dump_qsize = DEFAULT_DUMPQ_SIZE;
+  bytes = llring_bytes_with_slots(dump_qsize);
   system_dump_q_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
   if (system_dump_q_) {
-    llring_init(system_dump_q_, kPktQsize, 0, 1);
+    llring_init(system_dump_q_, dump_qsize, 0, 1);
   } else {
     std::free(system_dump_q_);
     LOG(ERROR) << "failed to allocate system_dump_q_";
