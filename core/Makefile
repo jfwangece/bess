@@ -28,10 +28,10 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+# DEBUG ?= 1
 # Disable all implicit Makefile rules
 MAKEFLAGS += --no-builtin-rules
 .SUFFIXES: ;
-
 CXX ?= g++
 PROTOC ?= protoc
 PKG_CONFIG ?= pkg-config

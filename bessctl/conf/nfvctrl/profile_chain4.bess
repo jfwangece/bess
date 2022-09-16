@@ -21,6 +21,7 @@ traffic_pattern=int($BESS_TRAFFIC_DIST!'1')
 flow_time=int($BESS_FLOW_TIME!'10') # in Seconds
 base_pkt_rate=int($BESS_PKT_RATE!'10000000')
 base_bit_rate=int($BESS_BIT_RATE!'100000000000')
+split=int($BESS_SPLIT!'1')
 
 # NF-specifc parameters
 burst_size = int($BESS_BURST!'32')
@@ -63,7 +64,14 @@ def get_pkt_template(core_id):
     return pkt_data
 
 flowgens = dict()
-queue::Queue(size=4096)
+queue = dict()
+for i in range(split):
+    if i == 0:
+        queue[i] = Queue(size=4096)
+    else:
+        queue[i] = Queue(size=4096, backpressure=True)
+    # configure burst size
+    queue[i].set_burst(burst=burst_size)
 
 for i in range(num_cores):
     pkt_data = get_pkt_template(i)
@@ -76,7 +84,7 @@ for i in range(num_cores):
         quick_rampup = True, \
         ip_src_range = 255, ip_dst_range = 255, \
         ignore_synfin=False)
-    flowgens[i] -> Timestamp(offset=TS_OFFSET) -> queue
+    flowgens[i] -> Timestamp(offset=TS_OFFSET) -> queue[0]
 
 acl_rules = []
 for i in range(acl_cnt / 50):
@@ -94,17 +102,24 @@ lb::FlowLB(endpoints=nat_hosts)
 monitor::FlowCounter()
 nfvmo::NFVMonitor(core_id=0)
 
-queue -> fw -> lb -> monitor -> MACSwap() -> Measure(offset=TS_OFFSET) -> nfvmo -> Sink()
-
-# configure burst size
-queue.set_burst(burst=burst_size)
-
+# Core assignment
 offset = 3
 for wid in range(num_cores):
     cid = wid + offset
     bess.add_worker(wid=wid, core=cid)
     flowgens[wid].attach_task(wid=wid)
 
-nf_core = num_cores + offset
-bess.add_worker(wid=nf_core, core=nf_core)
-queue.attach_task(wid=nf_core)
+if split == 1:
+    queue[0] -> fw -> lb -> monitor -> MACSwap() -> Measure(offset=TS_OFFSET) -> nfvmo -> Sink()
+elif split == 2:
+    queue[0] -> fw -> lb -> queue[1]
+    queue[1] -> monitor -> MACSwap() -> Measure(offset=TS_OFFSET) -> nfvmo -> Sink()
+elif split == 3:
+    queue[0] -> fw -> queue[1]
+    queue[1] -> lb -> queue[2]
+    queue[2] -> monitor -> MACSwap() -> Measure(offset=TS_OFFSET) -> nfvmo -> Sink()
+
+for i in range(split):
+    nf_core = num_cores + offset + i
+    bess.add_worker(wid=nf_core, core=nf_core)
+    queue[i].attach_task(wid=nf_core)
