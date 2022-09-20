@@ -68,7 +68,9 @@ struct SoftwareQueueState {
 
 struct FlowState {
   FlowState() {
-    ingress_packet_count = egress_packet_count = queued_packet_count = 0;
+    ingress_packet_count = 0;
+    egress_packet_count = 0;
+    queued_packet_count = 0;
     short_epoch_packet_count = 0;
     sw_q_state = nullptr;
   }
@@ -119,7 +121,7 @@ class NFVCore final : public Module {
 
   // EpochEndProcess:
   // - Scan all packets in |q| and split them to all software queues
-  void SplitQToSwQ(llring* q, bess::PacketBatch *batch);
+  void SplitQToSwQ(llring* q);
   // - Split |batch| into |local_queue_| and other software queues
   void SplitAndEnqueue(bess::PacketBatch *batch);
   // - Enqueue all packets in |batch| to the software queue |q|

@@ -42,6 +42,8 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     if (state_it == per_flow_states_.end()) {
       state = new FlowState();
       state->flow = flow;
+      state->ingress_packet_count = 0;
+      state->egress_packet_count = 0;
       per_flow_states_.emplace(flow, state);
     } else {
       state = state_it->second;
@@ -63,31 +65,34 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     auto& q_state = state->sw_q_state;
     if (q_state != nullptr) {
       if (q_state == &system_dump_q0_) {
-        // Egress 1: simple drop
-        state->egress_packet_count += 1;
+        // Egress 1: drop (no sw_q)
+        if (state->ingress_packet_count > state->egress_packet_count) {
+          state->egress_packet_count += 1;
+        }
         bess::Packet::Free(pkt);
         epoch_drop1_ += 1;
         continue;
       }
       if (q_state == &system_dump_q1_) {
-        // Egress 1: simple drop
-        state->egress_packet_count += 1;
+        // Egress 2: drop (super flow)
+        if (state->ingress_packet_count > state->egress_packet_count) {
+          state->egress_packet_count += 1;
+        }
         bess::Packet::Free(pkt);
         epoch_drop4_ += 1;
         continue;
       }
 
       if (q_state->idle_epoch_count == -1) {
-        // Egress 2: simple drop (idle RCore)
+        // Egress 3: drop (idle RCore)
         // Do not offload because RCore is inactive. Reset the offloading.
         state->sw_q_state = nullptr;
-        local_batch_->add(pkt);
-        // bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q_state->sw_q_id);
-        // q_state->idle_epoch_count = 0;
 
-        // state->egress_packet_count += 1;
-        // bess::Packet::Free(pkt);
-        // epoch_drop2_ += 1;
+        if (state->ingress_packet_count > state->egress_packet_count) {
+          state->egress_packet_count += 1;
+        }
+        bess::Packet::Free(pkt);
+        epoch_drop2_ += 1;
         continue;
       }
 
@@ -102,8 +107,11 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
         TagUint32(pkt, 98, val);
       }
 
+      // Egress 4: normal offloading
       // This flow is redirected only if an active RCore works on |sw_q|
-      state->egress_packet_count += 1;
+      if (state->ingress_packet_count > state->egress_packet_count) {
+        state->egress_packet_count += 1;
+      }
       q_state->sw_batch->add(pkt);
       continue;
     }
@@ -115,10 +123,10 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   epoch_packet_arrival_ += cnt;
 
   // Just drop excessive packets when a software queue is full
-  // Egress 3: drop on queue overflow
+  // Egress 5: drop (|local_queue_| overflow)
   BestEffortEnqueue(local_batch_, local_queue_);
   for (auto& sw_q_it : sw_q_) {
-    BestEffortEnqueue(sw_q_it.sw_batch, sw_q_it.sw_q);
+    sw_q_it.EnqueueBatch();
   }
 }
 
@@ -138,8 +146,10 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
 
     // Update per-flow packet counter.
     state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
-    // Egress 4: normal processing
-    state->egress_packet_count += 1;
+    // Egress 6: normal processing
+    if (state->ingress_packet_count > state->egress_packet_count) {
+      state->egress_packet_count += 1;
+    }
 
     // Update per-bucket packet counter.
     uint32_t id = bess::utils::bucket_stats->RSSHashToID(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
@@ -161,7 +171,8 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
   all_local_core_stats[core_id_]->packet_queued = epoch_packet_queued_;
 }
 
-void NFVCore::SplitQToSwQ(llring* q, bess::PacketBatch* batch) {
+void NFVCore::SplitQToSwQ(llring* q) {
+  bess::PacketBatch batch;
   uint32_t total_cnt = llring_count(q);
   if (total_cnt <= epoch_packet_thresh_) {
     return;
@@ -182,11 +193,11 @@ void NFVCore::SplitQToSwQ(llring* q, bess::PacketBatch* batch) {
       burst = 32;
     }
 
-    batch->clear();
-    int cnt = llring_sc_dequeue_burst(q, (void **)batch->pkts(), burst);
-    batch->set_cnt(cnt);
+    batch.clear();
+    int cnt = llring_sc_dequeue_burst(q, (void **)batch.pkts(), burst);
+    batch.set_cnt(cnt);
     // bess::Packet::Free(batch);
-    SplitAndEnqueue(batch);
+    SplitAndEnqueue(&batch);
     curr_cnt += cnt;
   }
   // Debug log
@@ -209,42 +220,51 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
     state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
     if (state == nullptr) {
       LOG(ERROR) << "split&enq: error (invalid non-flow packet)";
-      local_batch_->add(pkt);
+      bess::Packet::Free(pkt);
       continue;
     }
 
     auto& q_state = state->sw_q_state;
     if (q_state != nullptr) {
       if (q_state == &system_dump_q0_) {
-        // Egress 5: simple drop
-        state->egress_packet_count += 1;
+        // Egress 7: drop (no sw_q)
+        if (state->ingress_packet_count > state->egress_packet_count) {
+          state->egress_packet_count += 1;
+        }
         bess::Packet::Free(pkt);
         epoch_drop1_ += 1;
         continue;
       }
       if (q_state == &system_dump_q1_) {
-        // Egress 5: simple drop
-        state->egress_packet_count += 1;
+        // Egress 8: drop (super flow)
+        if (state->ingress_packet_count > state->egress_packet_count) {
+          state->egress_packet_count += 1;
+        }
         bess::Packet::Free(pkt);
         epoch_drop4_ += 1;
         continue;
       }
 
       if (q_state->idle_epoch_count == -1) {
-        // Egress 6: simple drop (idle RCore)
-        // Reset migration / Drop packet
-        // state->sw_q_state = nullptr;
-        // bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q_state->sw_q_id);
-        // q_state->idle_epoch_count = 0;
+        // Egress 9: drop (idle RCore)
+        // Reset migration and drop |pkt|.
+        state->sw_q_state = nullptr;
 
-        state->egress_packet_count += 1;
+        if (state->ingress_packet_count > state->egress_packet_count) {
+          state->egress_packet_count += 1;
+        }
         bess::Packet::Free(pkt);
         epoch_drop2_ += 1;
+        // bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q_state->sw_q_id);
+        // q_state->idle_epoch_count = 0;
         continue;
       }
 
-      // This flow is redirected only if an active RCore works on |sw_q|
-      state->egress_packet_count += 1;
+      // Egress 10: normal offloading
+      // This flow is redirected only if an active RCore works on |sw_q|.
+      if (state->ingress_packet_count > state->egress_packet_count) {
+        state->egress_packet_count += 1;
+      }
       q_state->sw_batch->add(pkt);
       continue;
     }
@@ -253,12 +273,10 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
   }
 
   // Just drop excessive packets when a software queue is full
-  // Egress 7: drop on queue overflow
-  // Note: if we drop |local_batch_| here, the system can achieve a very low P99 latency.
-  // bess::Packet::Free(local_batch_);
+  // Egress 11: drop (|local_queue_| overflow)
   BestEffortEnqueue(local_batch_, local_queue_);
   for (auto& sw_q_it : sw_q_) {
-    BestEffortEnqueue(sw_q_it.sw_batch, sw_q_it.sw_q);
+    sw_q_it.EnqueueBatch();
   }
 }
 
@@ -274,7 +292,9 @@ void NFVCore::BestEffortEnqueue(bess::PacketBatch *batch, llring *q) {
       for (int i = 0; i < to_drop; i++) {
         bess::Packet *pkt = batch->pkts()[queued + i];
         state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
-        state->egress_packet_count += 1;
+        if (state->ingress_packet_count > state->egress_packet_count) {
+          state->egress_packet_count += 1;
+        }
         epoch_drop3_ += 1;
       }
       bess::Packet::Free(batch->pkts() + queued, to_drop);
@@ -325,9 +345,10 @@ bool NFVCore::ShortEpochProcess() {
   uint32_t pkt_cnt = 0;
   for (auto& it : epoch_flow_cache_) {
     if (it.second != nullptr) {
-      if (it.second->ingress_packet_count > it.second->egress_packet_count) {
+      if (it.second->ingress_packet_count >= it.second->egress_packet_count) {
         it.second->queued_packet_count = it.second->ingress_packet_count - it.second->egress_packet_count;
       } else {
+        // LOG(ERROR) << "short-term: error. ig=" << it.second->ingress_packet_count << ", eg=" << it.second->egress_packet_count;
         it.second->queued_packet_count = 0;
       }
       // Reset so that the flow can be recorded in the next short epoch
@@ -382,7 +403,7 @@ bool NFVCore::ShortEpochProcess() {
     }
   }
   // Debug log
-  if (pkt_cnt > 0) {
+  if (false && pkt_cnt > 0) {
     LOG(INFO) << "short-term: core" << core_id_ << ", tct=" << total_pkt_cnt << ", ct=" << pkt_cnt << ", lf=" << local_large_flow
               << ", d1=" << epoch_drop1_ << ", d2=" << epoch_drop2_ << ", d3=" << epoch_drop3_ << ", d4=" << epoch_drop4_;
   }

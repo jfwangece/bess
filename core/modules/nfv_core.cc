@@ -222,6 +222,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // Busy pulling from the NIC queue
   uint32_t cnt = 0, pull_rounds = 0;
   while (pull_rounds++ < 10) {
+    batch->clear();
     cnt = p->RecvPackets(qid, batch->pkts(), 32);
     batch->set_cnt(cnt);
     if (cnt) {
@@ -236,6 +237,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   }
 
   // Process one batch
+  batch->clear();
   cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), burst);
   batch->set_cnt(cnt);
 
@@ -260,7 +262,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
     ShortEpochProcess();
     if (true) {
-      SplitQToSwQ(local_queue_, batch);
+      SplitQToSwQ(local_queue_);
     }
     curr_epoch_id_ += 1;
     last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
