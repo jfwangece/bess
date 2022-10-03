@@ -245,6 +245,11 @@ message IPLookupCommandDeleteArg {
 message IPLookupCommandClearArg {
 }
 
+message IPRewriteArg {
+  string src_ip = 1;    /// Source IP after IPRewrite
+  string dst_ip = 2;    /// Destination IP after IPRewrite
+}
+
 message LossCounterArg {
   uint64 offset = 1;
   uint32 port_index = 2;
