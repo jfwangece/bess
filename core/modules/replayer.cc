@@ -12,6 +12,7 @@ using bess::utils::GetPacketTimestamp;
 namespace {
 #define kDefaultTagOffset 64
 #define kDefaultRateCalcPeriodUs 100000
+#define kMinPlaybackSpeed 0.001
 }
 
 CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
@@ -38,12 +39,19 @@ CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
             prev_speed + double(i) * (next_speed - prev_speed) / steps;
           dynamic_speed_conf_.push_back(curr_speed);
         }
-        dynamic_speed_conf_.push_back(0.0);
         prev_ts = next_ts;
         prev_speed = next_speed;
       }
+      dynamic_speed_conf_.push_back(0);
       traffic_conf_file.close();
       LOG(INFO) << "Dynamic traffic conf: " + traffic_conf_fname;
+
+      std::ofstream output;
+      output.open("/tmp/traffic.conf");
+      for (uint32_t r = 0; r < dynamic_speed_conf_.size(); r++) {
+        output << dynamic_speed_conf_[r] << " ";
+      }
+      output.close();
     } else {
       LOG(INFO) << "Failed to read " + traffic_conf_fname;
     }
@@ -155,8 +163,10 @@ void Replayer::WaitToSendPkt(bess::Packet *pkt) {
       if (time_diff > 60000000000) { // 60 sec
         time_diff = 100;
       }
-      if (playback_speed_ >= 0.1) {
+      if (playback_speed_ >= kMinPlaybackSpeed) {
         time_diff /= playback_speed_;
+      } else {
+        time_diff /= kMinPlaybackSpeed;
       }
     }
     next_pkt_time_ = startup_ts_ + time_diff;

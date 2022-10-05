@@ -7,13 +7,14 @@
 # (2) increase Queue size in queue.cc and recompile BESS:
 #
 
-PCAPFILE = $PCAP!"equinix-nyc.dirA.20190117-125910.UTC.short.pcap"
+PCAPFILE = $PCAP!"./experiment_conf/equinix-nyc.dirA.20190117-125910.UTC.short.pcap"
 assert PCAPFILE
 print("Target PCAP file: %s" %(PCAPFILE))
 
 playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
 playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
 playback_speed = float($BESS_SPEED!"1")
+playback_speed_conf = $BESS_RATE_CONF!"./experiment_conf/pcap_dynamics_0.conf"
 burst_size=int($BESS_BURST!'32')
 tag_offset = 72
 pcap_file = '{}'.format(PCAPFILE)
@@ -25,6 +26,8 @@ if playback_rate_mpps > 0:
     replayer = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
 elif playback_rate_mbps > 0:
     replayer = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
+elif len(playback_speed_conf) > 0:
+    replayer = Replayer(offset=tag_offset, dynamic_traffic_conf=playback_speed_conf)
 else:
     replayer = Replayer(offset=tag_offset, speed=playback_speed)
 
