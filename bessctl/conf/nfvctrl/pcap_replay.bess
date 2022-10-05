@@ -10,6 +10,7 @@ print("Target PCAP file: %s" %(PCAPFILE))
 playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
 playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
 playback_speed = float($BESS_SPEED!"1")
+playback_speed_conf = $BESS_RATE_CONF!"./experiment_config/pcap_dynamics0.conf"
 burst_size=int($BESS_BURST!'32')
 tag_offset = 72
 pcie0, offset0="05:00.0", 0
@@ -23,6 +24,8 @@ if playback_rate_mpps > 0:
     replayer = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
 elif playback_rate_mbps > 0:
     replayer = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
+elif len(playback_speed_conf) > 0:
+    replayer = Replayer(offset=tag_offset, dynamic_traffic_conf=playback_speed_conf)
 else:
     replayer = Replayer(offset=tag_offset, speed=playback_speed)
 

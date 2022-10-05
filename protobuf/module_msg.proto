@@ -1191,6 +1191,7 @@ message ReplayerArg {
   double rate_mpps = 3;
   double rate_mbps = 4;
   bool use_batching = 5;
+  string dynamic_traffic_conf = 6; /// A input conf file that specifies traffic dynamics
 }
 
 /**

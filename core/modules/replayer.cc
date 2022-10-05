@@ -20,17 +20,48 @@ CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
   } else {
     offset_ = kDefaultTagOffset;
   }
+
+  if (arg.dynamic_traffic_conf().length() > 0) {
+    std::string traffic_conf_fname = arg.dynamic_traffic_conf();
+    std::ifstream traffic_conf_file(traffic_conf_fname, std::ifstream::in);
+    if (traffic_conf_file.is_open()) {
+      uint64_t prev_ts = 0;
+      double prev_speed = 0;
+      uint64_t next_ts = 0;
+      double next_speed = 0;
+      while (!traffic_conf_file.eof()) {
+        traffic_conf_file >> next_ts;
+        traffic_conf_file >> next_speed;
+        int steps = (next_ts - prev_ts) * 5; // 200 ms per update
+        for (int i = 0; i < steps; i++) {
+          double curr_speed =
+            prev_speed + double(i) * (next_speed - prev_speed) / steps;
+          dynamic_speed_conf_.push_back(curr_speed);
+        }
+        dynamic_speed_conf_.push_back(0.0);
+        prev_ts = next_ts;
+        prev_speed = next_speed;
+      }
+      traffic_conf_file.close();
+      LOG(INFO) << "Dynamic traffic conf: " + traffic_conf_fname;
+    } else {
+      LOG(INFO) << "Failed to read " + traffic_conf_fname;
+    }
+  }
+
   playback_speed_ = 1.0;
-  if (arg.speed() >= 0.5) {
-    playback_speed_ = arg.speed();
-  }
   playback_rate_mpps_ = 0.0;
-  if (arg.rate_mpps() > 0) {
-    playback_rate_mpps_ = arg.rate_mpps();
-  }
   playback_rate_mbps_ = 0.0;
-  if (arg.rate_mbps() > 0) {
-    playback_rate_mbps_ = arg.rate_mbps();
+  if (dynamic_speed_conf_.size()) {
+    if (arg.speed() >= 0.5) {
+      playback_speed_ = arg.speed();
+    }
+    if (arg.rate_mpps() > 0) {
+      playback_rate_mpps_ = arg.rate_mpps();
+    }
+    if (arg.rate_mbps() > 0) {
+      playback_rate_mbps_ = arg.rate_mbps();
+    }
   }
 
   use_trace_time_ = !(playback_rate_mpps_ > 0 || playback_rate_mbps_ > 0);
@@ -44,33 +75,39 @@ CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
   temp_bit_cnt_ = 0;
   // Record the startup timestamp.
   // Note: this module starts to send packets after 2 sec
-  curr_time_ = tsc_to_ns(rdtsc());
+  curr_ts_ = tsc_to_ns(rdtsc());
   startup_ts_ = tsc_to_ns(rdtsc()) + 2000000000;
   last_rate_calc_ts_ = startup_ts_;
   next_pkt_time_ = startup_ts_;
 
+  if (dynamic_speed_conf_.size() > 0) {
+    playback_speed_ = 0.0;
+    last_dynamic_speed_idx_ = 0;
+    last_dynamic_speed_ts_ = curr_ts_;
+  }
+
   // CPU freq in GHz
   LOG(INFO) << "CPU freq: " << 1000.0 / double(tsc_to_ns(1000));
-
   return CommandSuccess();
 }
 
-void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
-  int cnt = batch->cnt();
+void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {  
+  UpdateDynamicPlaybackSpeed();
 
+  int cnt = batch->cnt();
   if (use_batching_) { // batching
     WaitToSendPkt(batch->pkts()[cnt-1]);
 
     if (playback_rate_mpps_ > 0) {
       // Replay at a certain packet rate
-      next_pkt_time_ = curr_time_ + cnt * 1000 / playback_rate_mpps_;
+      next_pkt_time_ = curr_ts_ + cnt * 1000 / playback_rate_mpps_;
     } else if (playback_rate_mbps_ > 0) {
       // Replay at a certain bit rate
       uint64_t sum_bytes = 0;
       for (int i = 0; i < cnt; i++) {
         sum_bytes += batch->pkts()[i]->total_len();
       }
-      next_pkt_time_ = curr_time_ + sum_bytes * 8000 / playback_rate_mbps_;
+      next_pkt_time_ = curr_ts_ + sum_bytes * 8000 / playback_rate_mbps_;
     }
 
     RunNextModule(ctx, batch);
@@ -85,12 +122,24 @@ void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       temp_bit_cnt_ += pkt->total_len() * 8;
       if (playback_rate_mpps_ > 0) {
         // Replay at a certain packet rate (time unit: us)
-        next_pkt_time_ = curr_time_ + 1000 / playback_rate_mpps_;
+        next_pkt_time_ = curr_ts_ + 1000 / playback_rate_mpps_;
       } else if (playback_rate_mbps_ > 0) {
         // Replay at a certain bit rate (time unit: ns)
-        next_pkt_time_ = curr_time_ + pkt->total_len() * 8000 / playback_rate_mbps_;
+        next_pkt_time_ = curr_ts_ + pkt->total_len() * 8000 / playback_rate_mbps_;
       }
     }
+  }
+}
+
+void Replayer::UpdateDynamicPlaybackSpeed() {
+  curr_ts_ = tsc_to_ns(rdtsc());
+  // |playback_speed_| is updated every 200 ms.
+  if (curr_ts_ - last_dynamic_speed_ts_ > 200000000) {
+    playback_speed_ = dynamic_speed_conf_[++last_dynamic_speed_idx_];
+    if (last_dynamic_speed_idx_ == dynamic_speed_conf_.size()) {
+      last_dynamic_speed_idx_ -= 1;
+    }
+    last_dynamic_speed_ts_ = curr_ts_;
   }
 }
 
@@ -113,10 +162,10 @@ void Replayer::WaitToSendPkt(bess::Packet *pkt) {
     next_pkt_time_ = startup_ts_ + time_diff;
   }
 
-// Emit a packet only if |curr_time_| passes the calculated packet timestamp
+// Emit a packet only if |curr_ts_| passes the calculated packet timestamp
 checktime:
-  curr_time_ = tsc_to_ns(rdtsc());
-  if (curr_time_ >= next_pkt_time_) {
+  curr_ts_ = tsc_to_ns(rdtsc());
+  if (curr_ts_ >= next_pkt_time_) {
     return;
   } else {
     goto checktime;
