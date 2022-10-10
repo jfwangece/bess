@@ -3,7 +3,7 @@
 #
 import scapy.all as scapy
 
-PCAPFILE = $PCAP!"./experiment_conf/equinix-nyc.dirA.20190117-125910.UTC.short.pcap"
+PCAPFILE = $PCAP!"./experiment_conf/20190117-130000.tcp.pcap"
 assert PCAPFILE
 print("Target PCAP file: %s" %(PCAPFILE))
 
