@@ -62,11 +62,18 @@ class NFVCtrl final : public Module {
   // RSS buckets. 0 if nothing will change.
   uint32_t LongEpochProcess();
 
+  // Send the current worker's info via a raw packet.
+  void SendWorkerInfo();
+
   // This function can be called by NFVCore and NFVRCore when
   // they decide that an immediate load rebalancing is required.
   void NotifyCtrlLoadBalanceNow();
 
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &arg);
+
+  uint16_t GetCurrActiveCoreCount() {
+    return rte_atomic16_read(&curr_active_core_count_);
+  }
 
  private:
   // Return the max packet rate under flow count |fc| given the input NF profile.
@@ -95,10 +102,14 @@ class NFVCtrl final : public Module {
 
   // For updating RSS bucket assignment
   PMDPort *port_;
+  queue_t qid_;
+  bess::PacketBatch* local_batch_;
+
   // Normal cores and reserved cores
   std::vector<WorkerCore> cpu_cores_;
   uint16_t total_core_count_;
-  uint16_t active_core_count_;
+  uint16_t active_core_count_; // Updated during the algorithm
+  rte_atomic16_t curr_active_core_count_; // Updated after the algorithm
 
   // The lock for maintaining a pool of software queues
   mutable std::mutex sw_q_mtx_;

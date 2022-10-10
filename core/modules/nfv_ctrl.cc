@@ -230,6 +230,11 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
     LOG(INFO) << "Failed to read " + short_profile_fname;
   }
 
+  qid_ = 0;
+  if (arg.qid() > 0) {
+    qid_ = arg.qid();
+  }
+
   // Assign |to_add_queue_| and |to_remove_queue_| so that NFVCtrl
   // can dump packets in software queues for NFVCore and NFVRCore.
   size_t kQQSize = 64;

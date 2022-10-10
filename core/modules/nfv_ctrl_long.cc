@@ -37,6 +37,14 @@ void NFVCtrl::InitPMD(PMDPort* port) {
     port_->reta_table_[i] = i % total_core_count_;
   }
 
+  local_batch_ = reinterpret_cast<bess::PacketBatch *>
+          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+  if (!local_batch_) {
+    LOG(FATAL) << "Failed to alloc a local batch at NFVCtrl.";
+    return;
+  }
+  local_batch_->clear();
+
   // Init the core-bucket mapping
   for (uint16_t i = 0; i < total_core_count_; i++) {
     core_bucket_mapping_[i] = std::vector<uint16_t>();
@@ -54,6 +62,7 @@ void NFVCtrl::InitPMD(PMDPort* port) {
       active_core_count_ += 1;
     }
   }
+  rte_atomic16_set(&curr_active_core_count_, active_core_count_);
 
   LOG(INFO) << "NIC init: " << active_core_count_ << " active normal cores";
   // port_->UpdateRssReta();
@@ -242,7 +251,6 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
 }
 
 uint32_t NFVCtrl::LongEpochProcess() {
-  return 0;
   uint64_t to_rate_per_sec = 1000000000ULL / (tsc_to_ns(rdtsc()) - last_long_epoch_end_ns_);
 
   // Per-bucket packet rate and flow count are to be used by the long-term op.
@@ -259,6 +267,9 @@ uint32_t NFVCtrl::LongEpochProcess() {
   bess::utils::bucket_stats->bucket_table_lock.unlock();
 
   std::map<uint16_t, uint16_t> moves = LongTermOptimization(per_bucket_pkt_rate, per_bucket_flow_count);
+  rte_atomic16_set(&curr_active_core_count_, active_core_count_);
+  SendWorkerInfo();
+
   if (moves.size()) {
     if (port_) {
       // port_->UpdateRssReta(moves);
@@ -266,4 +277,34 @@ uint32_t NFVCtrl::LongEpochProcess() {
     }
   }
   return moves.size();
+}
+
+void NFVCtrl::SendWorkerInfo() {
+  const queue_t qid = ACCESS_ONCE(qid_);
+
+  local_batch_->clear();
+  bess::Packet* pkt = current_worker.packet_pool()->Alloc();
+
+  uint32_t totallen = 100;
+  char *p = pkt->buffer<char *>() + SNBUF_HEADROOM;
+  pkt->set_data_off(SNBUF_HEADROOM);
+  pkt->set_total_len(totallen);
+  pkt->set_data_len(totallen);
+
+  Ethernet* eth = reinterpret_cast<Ethernet *>(p);
+  eth->src_addr = Ethernet::Address("ec:0d:9a:67:ff:68");
+  eth->dst_addr = Ethernet::Address("82:a3:ae:74:72:30");
+  eth->ether_type = be16_t(Ethernet::Type::kIpv4);
+
+  Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
+  ip->src = be32_t(0xaa12);
+  ip->dst = be32_t(0xaa11);
+  ip->protocol = Ipv4::kTcp;
+
+  Tcp* tcp = reinterpret_cast<Tcp *>(ip + 1);
+  tcp->src_port = be16_t(0x02); // whoami
+  tcp->dst_port = be16_t(active_core_count_); // # of normal cores
+
+  local_batch_->add(pkt);
+  port_->SendPackets(qid, local_batch_->pkts(), 1);
 }

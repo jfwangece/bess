@@ -51,11 +51,15 @@ for i in range(lb_cnt / 20):
         nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
 
 # Module
-nfvctrl::NFVCtrl(core_addrs=core_addrs, slo_ns=slo,
+nfvctrl::NFVCtrl(core_addrs=core_addrs[core_cnt],
+    slo_ns=slo,
     long_epoch_period_ns=long_update_stats_period,
     nf_long_term_profile="nf_profiles/long_term_psize1050_slo100.pro")
+
 port0::PMDPort(pci=pcie0,
-    num_inc_q=core_cnt, num_out_q=total_core_cnt, bench_rss=False)
+    num_inc_q=core_cnt,
+    num_out_q=total_core_cnt+1,
+    bench_rss=False)
 pinc0 = {}
 pout0 = {}
 fw = {}
