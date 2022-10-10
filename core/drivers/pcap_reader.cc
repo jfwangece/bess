@@ -91,7 +91,7 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
   eth_template_.ether_type = be16_t(Ethernet::Type::kIpv4);
 
   // Record the startup timestamp in usec
-  startup_ts_ = tsc_to_us(rdtsc());
+  last_pkt_ts_ = 0;
 
   // Initialize the multi-core pcap packet counters
   const std::lock_guard<std::mutex> lock(mtx_);
@@ -224,7 +224,9 @@ int PCAPReader::RecvPackets(queue_t, bess::Packet** pkts, int cnt) {
       } else {
         ts -= uint64_t(init_tnsec_ - tnsec);
       }
-      TagPacketTimestamp(pkt, offset_, ts);
+
+      TagPacketTimestamp(pkt, offset_, ts - last_pkt_ts_);
+      last_pkt_ts_ = ts;
     }
 
     local_batch_->add(pkt);

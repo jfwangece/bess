@@ -37,7 +37,7 @@ class Replayer final : public Module {
   uint64_t last_dynamic_speed_ts_;
 
   // Timestamp info
-  uint64_t startup_ts_; // Startup timestmap
+  uint64_t last_pkt_ts_; // The last packet arrival's timestamp
   uint64_t curr_ts_; // The system's current timestamp (updated per packet batch)
   uint64_t next_pkt_time_; // The calculated timestamp for generating the next packet
 

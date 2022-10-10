@@ -64,7 +64,7 @@ class PCAPReader final : public Port {
   // Initial time origin
   long init_tsec_;
   long init_tnsec_;
-  uint64_t startup_ts_;
+  uint64_t last_pkt_ts_;
 };
 
 #endif // BESS_DRIVERS_PCAP_READER_H_

@@ -12,7 +12,7 @@ using bess::utils::GetPacketTimestamp;
 namespace {
 #define kDefaultTagOffset 64
 #define kDefaultRateCalcPeriodUs 100000
-#define kMinPlaybackSpeed 0.1
+#define kMinPlaybackSpeed 0.005
 }
 
 CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
@@ -84,9 +84,9 @@ CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
   // Record the startup timestamp.
   // Note: this module starts to send packets after 2 sec
   curr_ts_ = tsc_to_ns(rdtsc());
-  startup_ts_ = tsc_to_ns(rdtsc()) + 2000000000;
-  last_rate_calc_ts_ = startup_ts_;
-  next_pkt_time_ = startup_ts_;
+  last_pkt_ts_ = curr_ts_ + 2000000000;
+  last_rate_calc_ts_ = last_pkt_ts_;
+  next_pkt_time_ = last_pkt_ts_;
 
   if (dynamic_speed_conf_.size() > 0) {
     last_dynamic_speed_idx_ = 1;
@@ -172,13 +172,14 @@ void Replayer::WaitToSendPkt(bess::Packet *pkt) {
         time_diff /= kMinPlaybackSpeed;
       }
     }
-    next_pkt_time_ = startup_ts_ + time_diff;
+    next_pkt_time_ = last_pkt_ts_ + time_diff;
   }
 
 // Emit a packet only if |curr_ts_| passes the calculated packet timestamp
 checktime:
   curr_ts_ = tsc_to_ns(rdtsc());
   if (curr_ts_ >= next_pkt_time_) {
+    last_pkt_ts_ = curr_ts_;
     return;
   } else {
     goto checktime;
