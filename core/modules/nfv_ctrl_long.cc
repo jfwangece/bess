@@ -1,6 +1,7 @@
 #include "nfv_ctrl.h"
 #include "nfv_ctrl_msg.h"
 
+#include "../utils/checksum.h"
 #include "../utils/sys_measure.h"
 
 // The amount of space to leave when packing buckets into CPUs
@@ -297,13 +298,18 @@ void NFVCtrl::SendWorkerInfo() {
   eth->ether_type = be16_t(Ethernet::Type::kIpv4);
 
   Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
+  ip->header_length = 5;
   ip->src = be32_t(0xaa12);
   ip->dst = be32_t(0xaa11);
-  ip->protocol = Ipv4::kTcp;
+  ip->protocol = Ipv4::Proto::kTcp;
 
   Tcp* tcp = reinterpret_cast<Tcp *>(ip + 1);
   tcp->src_port = be16_t(0x02); // whoami
   tcp->dst_port = be16_t(active_core_count_); // # of normal cores
+  tcp->reserved = 0x01; // a special indicator
+
+  tcp->checksum = CalculateIpv4TcpChecksum(*ip, *tcp);
+  ip->checksum = CalculateIpv4Checksum(*ip);
 
   local_batch_->add(pkt);
   port_->SendPackets(qid, local_batch_->pkts(), 1);

@@ -12,7 +12,7 @@ using bess::utils::GetPacketTimestamp;
 namespace {
 #define kDefaultTagOffset 64
 #define kDefaultRateCalcPeriodUs 100000
-#define kMinPlaybackSpeed 0.001
+#define kMinPlaybackSpeed 0.01
 }
 
 CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
@@ -142,9 +142,10 @@ void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 void Replayer::UpdateDynamicPlaybackSpeed() {
   curr_ts_ = tsc_to_ns(rdtsc());
   // |playback_speed_| is updated every 200 ms.
-  if (last_dynamic_speed_idx_ < dynamic_speed_conf_.size() &&
-      curr_ts_ - last_dynamic_speed_ts_ > 200000000) {
-    playback_speed_ = dynamic_speed_conf_[++last_dynamic_speed_idx_];
+  if (curr_ts_ - last_dynamic_speed_ts_ > 200000000) {
+    if (last_dynamic_speed_idx_ < dynamic_speed_conf_.size()) {
+      playback_speed_ = dynamic_speed_conf_[++last_dynamic_speed_idx_];
+    }
     last_dynamic_speed_ts_ = curr_ts_;
   }
 }
