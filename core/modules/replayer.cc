@@ -89,8 +89,8 @@ CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
   next_pkt_time_ = startup_ts_;
 
   if (dynamic_speed_conf_.size() > 0) {
-    playback_speed_ = dynamic_speed_conf_[last_dynamic_speed_idx_];
     last_dynamic_speed_idx_ = 1;
+    playback_speed_ = dynamic_speed_conf_[1];
     last_dynamic_speed_ts_ = curr_ts_;
   }
 
