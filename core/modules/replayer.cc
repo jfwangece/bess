@@ -89,7 +89,7 @@ CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
   next_pkt_time_ = startup_ts_;
 
   if (dynamic_speed_conf_.size() > 0) {
-    playback_speed_ = 0.0;
+    playback_speed_ = 1.0;
     last_dynamic_speed_idx_ = 0;
     last_dynamic_speed_ts_ = curr_ts_;
   }
@@ -99,10 +99,13 @@ CommandResponse Replayer::Init(const bess::pb::ReplayerArg &arg) {
   return CommandSuccess();
 }
 
-void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {  
-  UpdateDynamicPlaybackSpeed();
-
+void Replayer::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   int cnt = batch->cnt();
+  if (cnt == 0) {
+    RunNextModule(ctx, batch);
+  }
+
+  UpdateDynamicPlaybackSpeed();
   if (use_batching_) { // batching
     WaitToSendPkt(batch->pkts()[cnt-1]);
 
