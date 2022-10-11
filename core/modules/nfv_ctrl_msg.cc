@@ -6,8 +6,6 @@
 
 #include "../module_graph.h"
 
-#include <mutex>
-
 /// Initialize global NFV control messages
 namespace bess {
 namespace ctrl {
@@ -24,6 +22,7 @@ NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID] = {nullptr};
 PMDPort* pmd_port = nullptr;
 
 std::mutex nfvctrl_mu;
+std::mutex nfvctrl_worker_mu;
 
 // Long-term and short-term NF profiles
 std::map<double, double> long_flow_count_pps_threshold;
@@ -42,6 +41,8 @@ bool core_state[DEFAULT_INVALID_CORE_ID] = {false}; // core is in-use if true
 bool rcore_state[DEFAULT_INVALID_CORE_ID] = {false}; // rcore can be assigned if true
 
 int core_liveness[DEFAULT_INVALID_CORE_ID] = {0}; // the number of long epochs in which a core has been live
+
+int worker_ncore[DEFAULT_INVALID_WORKER_ID] = {0}; // the number of in-use normal cores on a server
 
 // Global software queue / reserved core management functions
 

@@ -14,29 +14,29 @@ using bess::utils::be32_t;
 using bess::utils::Flow;
 using bess::utils::FlowHash;
 
-class FlowIPLookup final : public Module {
+class IronsideIngress final : public Module {
  public:
-  static const Commands cmds;
+  IronsideIngress() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; }
 
-  FlowIPLookup() : Module(), lpm_(), default_gate_() {
-    max_allowed_workers_ = Worker::kMaxWorkers;
-  }
-
-  CommandResponse Init(const bess::pb::FlowIPLookupArg &arg);
-
+  CommandResponse Init(const bess::pb::IronsideIngressArg &arg);
   void DeInit() override;
 
+  void UpdateEndpointLB();
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
  private:
-  // For longest prefix matching
-  struct rte_lpm *lpm_;
-  // Per-flow connection table
-  std::unordered_map<Flow, be32_t, FlowHash> flow_cache_;
-  // Default next hop
-  gate_idx_t default_gate_;
+  // Workers in the cluster.
+  std::vector<be32_t> endpoints_;
 
-  ParsedPrefix ParseIpv4Prefix(const std::string &prefix, uint64_t prefix_len);
+  // Normal core threshold.
+  int ncore_thresh_;
+  int endpoint_id_ = 0;
+
+  // Per-flow connection table
+  // std::map<Flow, be32_t, FlowHash> flow_cache_;
+
+  // Per-flow-aggregate connection table
+  std::map<uint64_t, be32_t> flow_cache_;
 };
 
 #endif  // BESS_MODULES_FLOW_IP_LOOKUP_H_

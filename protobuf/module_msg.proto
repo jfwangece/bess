@@ -388,6 +388,14 @@ message FlowStatsCommandGetSummaryResponse {
   double peak_flow_pkt_rate = 6; /// The max per-flow packet rate.
 }
 
+message IronsideIngressArg {
+  message EndhostAddr {
+    string endpoint = 1; /// A worker server's interface IP
+  }
+  repeated EndhostAddr endpoints = 1; /// A list of workers in the cluster
+  int32 ncore_thresh = 2; /// The normal core threshold for ToR-level scaling
+}
+
 message MemAnalyzerArg {
   bool hack_mode = 1;
   oneof type {

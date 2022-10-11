@@ -4,6 +4,11 @@
 #include "../drivers/pmd.h"
 #include "../utils/cpu_core.h"
 
+#include <mutex>
+
+// Number of NFV workers in a cluster
+#define DEFAULT_INVALID_WORKER_ID 10
+
 // Number of software packet queues
 // Why 64? nfvctrl uses uint64_t to indicate the assignment of
 // software queues to NFVCore.
@@ -22,6 +27,8 @@ class NFVMonitor;
 
 namespace bess {
 namespace ctrl {
+
+extern std::mutex nfvctrl_worker_mu;
 
 // |SoftwareQueue| tracks the mapping of (NFVCore, sw_q, NFVRCore)
 class SoftwareQueue {
@@ -62,6 +69,13 @@ extern SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT];
 extern bool core_state[DEFAULT_INVALID_CORE_ID];
 extern bool rcore_state[DEFAULT_INVALID_CORE_ID];
 extern int core_liveness[DEFAULT_INVALID_CORE_ID];
+
+// The number of in-use normal cores at each worker in the cluster.
+extern int worker_ncore[DEFAULT_INVALID_WORKER_ID];
+
+// Set and get per-worker load balancing info.
+// void NFVCtrlSetWorker(int worker_id, int ncore);
+// int NFVCtrlGetWorker(int worker_id);
 
 // Create software queues and reset flags
 void NFVCtrlMsgInit();
