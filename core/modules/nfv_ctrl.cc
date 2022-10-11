@@ -168,6 +168,11 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
     return CommandFailure(ENOMEM, "Task creation failed");
   }
 
+  worker_id_ = 0;
+  if (arg.wid() > 0) {
+    worker_id_ = arg.wid();
+  }
+
   total_core_count_ = 0;
   for (const auto& core_addr : arg.core_addrs()) {
     cpu_cores_.push_back(

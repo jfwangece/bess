@@ -337,9 +337,9 @@ void NFVCtrl::SendWorkerInfo() {
     ip->src = be32_t(0x0a0a0102);
     ip->dst = be32_t(0x0a0a0101);
     ip->length = be16_t(40);
-    tcp->src_port = be16_t(0x01); // whoami
+    tcp->src_port = be16_t(uint16_t(worker_id_)); // whoami
     tcp->dst_port = be16_t(active_core_count_); // # of normal cores
-    tcp->seq_num = be32_t(0x01);
+    tcp->seq_num = be32_t(worker_id_);
     tcp->ack_num = be32_t(active_core_count_);
     tcp->flags = Tcp::Flag::kSyn;
 

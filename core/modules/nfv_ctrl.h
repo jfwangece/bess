@@ -97,6 +97,8 @@ class NFVCtrl final : public Module {
   uint64_t last_long_epoch_end_ns_;
   uint64_t slo_p50_ = 200000000; // Current target is 200 ms
 
+  int worker_id_;
+
   // For each normal CPU core, the set of assigned RSS buckets
   std::map<uint16_t, std::vector<uint16_t>> core_bucket_mapping_;
 

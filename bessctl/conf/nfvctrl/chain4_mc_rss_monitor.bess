@@ -53,6 +53,7 @@ for i in range(lb_cnt / 20):
 # Module
 nfvctrl::NFVCtrl(core_addrs=core_addrs[:core_cnt],
     slo_ns=slo,
+    wid=0,
     qid=total_core_cnt,
     long_epoch_period_ns=long_update_stats_period,
     nf_long_term_profile="nf_profiles/long_term_psize1050_slo100.pro")

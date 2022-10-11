@@ -992,13 +992,14 @@ message NFVIngressArg {
 }
 
 message NFVCtrlArg {
-  repeated CoreAddr core_addrs = 1; /// list of routing addresses for available CPU cores in the cluster
-  int32 slo_ns = 2; /// The target NF chain's tail latency SLO (in ns)
+  int32 wid = 1; /// server ID
+  repeated CoreAddr core_addrs = 2; /// list of routing addresses for available CPU cores in the cluster
   string port = 3; /// which NIC PMD to manage
   uint64 qid = 4; /// which NIC queue to send worker info
-  int32 long_epoch_period_ns = 5; /// Time period of applying long-term RSS-based scaling
-  string nf_long_term_profile = 6; /// A text file for the long-term NF performance profile
-  string nf_short_term_profile = 7; /// A text file for the short-term NF performance profile
+  int32 slo_ns = 5; /// The target NF chain's tail latency SLO (in ns)
+  int32 long_epoch_period_ns = 6; /// Time period of applying long-term RSS-based scaling
+  string nf_long_term_profile = 7; /// A text file for the long-term NF performance profile
+  string nf_short_term_profile = 8; /// A text file for the short-term NF performance profile
 }
 
 message NFVMonitorArg {
