@@ -29,7 +29,8 @@ else:
 pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
 pout0::PortOut(port=pmd_port0)
 pinc0::PortInc(port=pmd_port0)
-ig::IronsideIngress(endpoints=["10.10.1.2"], ncore_thresh=3)
+workers=[{'endpoint': '10.10.1.2'}]
+ig::IronsideIngress(endpoints=workers, ncore_thresh=3)
 
 src -> queue -> replayer -> ig -> Timestamp(offset=tag_offset) -> pout0
 pinc0 -> Measure(offset=tag_offset) -> Sink()
