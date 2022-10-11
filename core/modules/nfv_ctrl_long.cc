@@ -9,6 +9,41 @@
 #define ASSIGN_HEAD_ROOM 0.2
 
 namespace {
+// Template for generating TCP packets without data
+struct[[gnu::packed]] PacketTemplate {
+  Ethernet eth;
+  Ipv4 ip;
+  Tcp tcp;
+
+  PacketTemplate() {
+    eth.dst_addr = Ethernet::Address();  // To fill in
+    eth.src_addr = Ethernet::Address();  // To fill in
+    eth.ether_type = be16_t(Ethernet::Type::kIpv4);
+    ip.version = 4;
+    ip.header_length = 5;
+    ip.type_of_service = 0;
+    ip.length = be16_t(40);
+    ip.id = be16_t(0);  // To fill in
+    ip.fragment_offset = be16_t(0);
+    ip.ttl = 0x40;
+    ip.protocol = Ipv4::Proto::kTcp;
+    ip.checksum = 0;           // To fill in
+    ip.src = be32_t(0);        // To fill in
+    ip.dst = be32_t(0);        // To fill in
+    tcp.src_port = be16_t(0);  // To fill in
+    tcp.dst_port = be16_t(0);  // To fill in
+    tcp.seq_num = be32_t(0);   // To fill in
+    tcp.ack_num = be32_t(0);   // To fill in
+    tcp.reserved = 0x01;
+    tcp.offset = 5;
+    tcp.flags = Tcp::Flag::kAck | Tcp::Flag::kRst;
+    tcp.window = be16_t(0);
+    tcp.checksum = 0;  // To fill in
+    tcp.urgent_ptr = be16_t(0);
+  }
+};
+static PacketTemplate info_template;
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 // Query the Gurobi optimization server to get a core assignment scheme.
@@ -282,35 +317,36 @@ uint32_t NFVCtrl::LongEpochProcess() {
 
 void NFVCtrl::SendWorkerInfo() {
   const queue_t qid = ACCESS_ONCE(qid_);
+  int pktcnt = 3;
 
   local_batch_->clear();
-  bess::Packet* pkt = current_worker.packet_pool()->Alloc();
+  for (int i = 0; i < pktcnt; i++) {
+    bess::Packet* pkt = current_worker.packet_pool()->Alloc();    
+    char *p = pkt->buffer<char *>() + SNBUF_HEADROOM;
+    pkt->set_data_off(SNBUF_HEADROOM);
+    pkt->set_total_len(sizeof(info_template));
+    pkt->set_data_len(sizeof(info_template));
+    bess::utils::Copy(p, &info_template, sizeof(info_template));
 
-  uint32_t totallen = 100;
-  char *p = pkt->buffer<char *>() + SNBUF_HEADROOM;
-  pkt->set_data_off(SNBUF_HEADROOM);
-  pkt->set_total_len(totallen);
-  pkt->set_data_len(totallen);
+    Ethernet* eth = reinterpret_cast<Ethernet *>(p);
+    Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
+    Tcp* tcp = reinterpret_cast<Tcp *>(ip + 1);
 
-  Ethernet* eth = reinterpret_cast<Ethernet *>(p);
-  eth->src_addr = Ethernet::Address("ec:0d:9a:67:ff:68");
-  eth->dst_addr = Ethernet::Address("82:a3:ae:74:72:30");
-  eth->ether_type = be16_t(Ethernet::Type::kIpv4);
+    eth->src_addr = Ethernet::Address("ec:0d:9a:67:ff:68");
+    eth->dst_addr = Ethernet::Address("b4:96:91:b3:89:b4");
+    ip->src = be32_t(0x0a0a0102);
+    ip->dst = be32_t(0x0a0a0101);
+    ip->length = be16_t(40);
+    tcp->src_port = be16_t(0x01); // whoami
+    tcp->dst_port = be16_t(active_core_count_); // # of normal cores
+    tcp->seq_num = be32_t(0x01);
+    tcp->ack_num = be32_t(active_core_count_);
+    tcp->flags = Tcp::Flag::kSyn;
 
-  Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
-  ip->header_length = 5;
-  ip->src = be32_t(0xaa12);
-  ip->dst = be32_t(0xaa11);
-  ip->protocol = Ipv4::Proto::kTcp;
+    tcp->checksum = CalculateIpv4TcpChecksum(*ip, *tcp);
+    ip->checksum = CalculateIpv4Checksum(*ip);
+    local_batch_->add(pkt);
+  }
 
-  Tcp* tcp = reinterpret_cast<Tcp *>(ip + 1);
-  tcp->src_port = be16_t(0x02); // whoami
-  tcp->dst_port = be16_t(active_core_count_); // # of normal cores
-  tcp->reserved = 0x01; // a special indicator
-
-  tcp->checksum = CalculateIpv4TcpChecksum(*ip, *tcp);
-  ip->checksum = CalculateIpv4Checksum(*ip);
-
-  local_batch_->add(pkt);
-  port_->SendPackets(qid, local_batch_->pkts(), 1);
+  port_->SendPackets(qid, local_batch_->pkts(), pktcnt);
 }
