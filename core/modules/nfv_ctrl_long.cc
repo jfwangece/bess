@@ -339,8 +339,7 @@ void NFVCtrl::SendWorkerInfo() {
     ip->length = be16_t(40);
     tcp->src_port = be16_t(uint16_t(worker_id_)); // whoami
     tcp->dst_port = be16_t(active_core_count_); // # of normal cores
-    tcp->seq_num = be32_t(worker_id_);
-    tcp->ack_num = be32_t(active_core_count_);
+    tcp->seq_num = be32_t(612345);
     tcp->flags = Tcp::Flag::kSyn;
 
     tcp->checksum = CalculateIpv4TcpChecksum(*ip, *tcp);

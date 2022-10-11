@@ -28,6 +28,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
+#include "nfv_ctrl_msg.h"
 #include "measure.h"
 #include "timestamp.h"
 
@@ -43,10 +44,34 @@
 using bess::utils::Ethernet;
 using bess::utils::Ipv4;
 using bess::utils::Udp;
+using bess::utils::Tcp;
 using bess::utils::GetUint32;
 using bess::utils::add_debug_tag_nfvcore;
 
+Ethernet::Address INFO_DST("ec:0d:9a:67:ff:68");
 Ethernet::Address BG_DST("00:00:00:00:00:01");
+
+static bool IsWorkerInfo(bess::Packet *pkt) {
+  Ethernet *eth = pkt->head_data<Ethernet *>();
+  if (eth->dst_addr != INFO_DST) {
+    return false;
+  }
+  Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
+  if (ip->protocol != Ipv4::Proto::kTcp) {
+    return false;
+  }
+  Tcp* tcp = reinterpret_cast<Tcp *>(ip + 1);
+  if (tcp->seq_num.value() != 612345) {
+    return false;
+  }
+
+  bess::ctrl::nfvctrl_worker_mu.lock();
+  int worker_id = tcp->src_port.value();
+  int ncore = tcp->dst_port.value();
+  bess::ctrl::worker_ncore[worker_id] = ncore;
+  bess::ctrl::nfvctrl_worker_mu.unlock();
+  return true;
+}
 
 static bool IsTimestamped(bess::Packet *pkt, size_t offset, uint64_t *time) {
   auto *marker = pkt->head_data<Timestamp::MarkerType *>(offset);
@@ -139,20 +164,26 @@ void Measure::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
-    uint64_t pkt_time = 0;
-    uint64_t qlen = 0;
-    if (attr_id_ != -1)
-      pkt_time = get_attr<uint64_t>(this, attr_id_, batch->pkts()[i]);
-
-    if (bg_dst_filter_) {
-      bess::Packet *pkt = batch->pkts()[i];
-      Ethernet *eth = pkt->head_data<Ethernet *>();
-      if (eth->dst_addr == BG_DST) {
-        continue;
-      }
+    if (IsWorkerInfo(batch->pkts()[i])) {
+      continue;
     }
 
-    if (pkt_time || IsTimestamped(batch->pkts()[i], offset, &pkt_time)) {
+    uint64_t pkt_time = 0;
+    uint64_t qlen = 0;
+    if (attr_id_ != -1) {
+      pkt_time = get_attr<uint64_t>(this, attr_id_, batch->pkts()[i]);
+    }
+
+    // if (bg_dst_filter_) {
+    //   bess::Packet *pkt = batch->pkts()[i];
+    //   Ethernet *eth = pkt->head_data<Ethernet *>();
+    //   if (eth->dst_addr == BG_DST) {
+    //     continue;
+    //   }
+    // }
+
+    if (pkt_time ||
+        IsTimestamped(batch->pkts()[i], offset, &pkt_time)) {
       uint64_t diff;
 
       if (now_ns >= pkt_time) {
