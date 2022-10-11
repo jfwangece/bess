@@ -48,7 +48,7 @@ using bess::utils::Tcp;
 using bess::utils::GetUint32;
 using bess::utils::add_debug_tag_nfvcore;
 
-Ethernet::Address INFO_DST("ec:0d:9a:67:ff:68");
+Ethernet::Address INFO_DST("b4:96:91:b3:89:b4");
 Ethernet::Address BG_DST("00:00:00:00:00:01");
 
 static bool IsWorkerInfo(bess::Packet *pkt) {
@@ -70,6 +70,7 @@ static bool IsWorkerInfo(bess::Packet *pkt) {
   int ncore = tcp->dst_port.value();
   bess::ctrl::worker_ncore[worker_id] = ncore;
   bess::ctrl::nfvctrl_worker_mu.unlock();
+  // LOG(INFO) << "worker " << worker_id << ": " << ncore;
   return true;
 }
 

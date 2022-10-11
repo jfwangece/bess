@@ -113,6 +113,8 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt
                                                 const std::vector<double>& per_bucket_flow_count,
                                                 std::vector<uint16_t>& to_move_buckets) {
   std::map<uint16_t, uint16_t> moves;
+  int skipped_buckets = 0;
+
   for (auto bucket : to_move_buckets) {
     double bucket_pkt_rate = per_bucket_pkt_rate[bucket];
     double bucket_flow_count = per_bucket_flow_count[bucket];
@@ -150,9 +152,13 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt
 
       // No enough cores for handling the excessive load. Ideally, this should never happen
       if (!found) {
-        LOG(INFO) << "No idle normal core found for bucket: " << bucket << " w/ rate: " << bucket_pkt_rate;
+        skipped_buckets += 1;
       }
     }
+  }
+
+  if (skipped_buckets > 0) {
+    LOG(INFO) << "No idle ncore found for " << skipped_buckets << " buckets; active ncores: " << active_core_count_;
   }
   return moves;
 }
@@ -201,6 +207,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
       continue;
     }
     // LOG(INFO) << i << ", " << per_cpu_flow_count[i] << ", " << GetMaxPktRateFromLongTermProfile(per_cpu_flow_count[i]);
+
     // Move a bucket and do this until the aggregated packet rate is below the threshold
     while (per_cpu_pkt_rate[i] >
           GetMaxPktRateFromLongTermProfile(per_cpu_flow_count[i]) * (1 - MIGRATE_HEAD_ROOM) &&
@@ -305,6 +312,7 @@ uint32_t NFVCtrl::LongEpochProcess() {
   bess::utils::bucket_stats->bucket_table_lock.unlock();
 
   std::map<uint16_t, uint16_t> moves = LongTermOptimization(per_bucket_pkt_rate, per_bucket_flow_count);
+
   rte_atomic16_set(&curr_active_core_count_, active_core_count_);
   SendWorkerInfo();
 
@@ -313,6 +321,7 @@ uint32_t NFVCtrl::LongEpochProcess() {
       // port_->UpdateRssReta(moves);
       port_->UpdateRssFlow(moves);
     }
+    LOG(INFO) << moves.size() << ", " << active_core_count_;
   }
   return moves.size();
 }

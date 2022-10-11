@@ -64,11 +64,6 @@ void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
   UpdateEndpointLB();
 
-  if (endpoint_id_ == -1) {
-    bess::Packet::Free(batch);
-    return;
-  }
-
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
@@ -89,6 +84,10 @@ void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     auto it = flow_cache_.find(flow_id);
     if (it == flow_cache_.end()) {
+      if (endpoint_id_ == -1) {
+        DropPacket(ctx, pkt);
+        continue;
+      }
       // This is a new flow.
       std::tie(it, std::ignore) = flow_cache_.emplace(
                                   std::piecewise_construct,
