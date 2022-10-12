@@ -155,8 +155,8 @@ int NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   return 0;
 }
 
-void NFVCtrl::NotifyCtrlLoadBalanceNow() {
-  rte_atomic16_set(&is_rebalancing_load_now_, 1);
+void NFVCtrl::NotifyCtrlLoadBalanceNow(uint16_t core_id) {
+  rte_atomic16_set(&is_rebalancing_load_now_, core_id + 1);
 }
 
 CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
@@ -315,21 +315,24 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
     // Re-group RSS buckets to cores to adpat to long-term load changes
     uint32_t moves = LongEpochProcess();
     last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
-    if (moves > 0) {
+    if (false && moves > 0) {
       LOG(INFO) << "Long-term op: default, time = " << last_long_epoch_end_ns_;
     }
   } else {
     // On-demand long-term op
-    if (rte_atomic16_read(&is_rebalancing_load_now_) > 0) {
-      rte_atomic16_set(&is_rebalancing_load_now_, 0);
+    uint16_t core_id = rte_atomic16_read(&is_rebalancing_load_now_);
+    if (core_id > 0) {
+      core_id -= 1;
       if (curr_ts_ns - last_long_epoch_end_ns_ > MIN_NIC_RSS_UPDATE_PERIOD_NS) {
         // Re-group RSS buckets to cores to adpat to long-term load changes
-        uint32_t moves = LongEpochProcess();
+        uint32_t moves = OnDemandLongEpochProcess(core_id);
         last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
-        if (moves > 0) {
+        if (false && moves > 0) {
           LOG(INFO) << "Long-term op: on-demand, time = " << last_long_epoch_end_ns_;
         }
       }
+
+      rte_atomic16_set(&is_rebalancing_load_now_, 0);
     }
   }
 

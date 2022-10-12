@@ -331,12 +331,100 @@ uint32_t NFVCtrl::LongEpochProcess() {
   rte_atomic16_set(&curr_active_core_count_, active_core_count_);
   SendWorkerInfo();
 
-  if (moves.size()) {
-    if (port_) {
-      // port_->UpdateRssReta(moves);
-      port_->UpdateRssFlow(moves);
+  if (moves.size() && port_) {
+    port_->UpdateRssFlow(moves);
+    LOG(INFO) << "default; moves=" << moves.size() << ", cores=" << active_core_count_;
+  }
+  return moves.size();
+}
+
+std::map<uint16_t, uint16_t> NFVCtrl::OnDemandLongTermOptimization(uint16_t core_id,
+      const std::vector<double>& per_bucket_pkt_rate,
+      const std::vector<double>& per_bucket_flow_count) {
+
+  std::vector<double> per_cpu_pkt_rate(total_core_count_);
+  std::vector<double> per_cpu_flow_count(total_core_count_);
+  for (uint16_t i = 0; i < total_core_count_; i++) {
+    per_cpu_pkt_rate[i] = 0;
+    if (core_bucket_mapping_[i].size() > 0) {
+      for (auto it : core_bucket_mapping_[i]) {
+        per_cpu_pkt_rate[i] += per_bucket_pkt_rate[it];
+        per_cpu_flow_count[i] += per_bucket_flow_count[it];
+      }
+      bess::ctrl::core_state[i] = true;
+      bess::ctrl::core_liveness[i] += 1;
     }
-    LOG(INFO) << moves.size() << ", " << active_core_count_;
+  }
+
+  // Add buckets to |to_move_buckets|.
+  std::vector<uint16_t> to_move_buckets;
+  double target_pkt_rate = 0.5 * per_cpu_pkt_rate[core_id];
+  while (per_cpu_pkt_rate[core_id] > target_pkt_rate &&
+        core_bucket_mapping_[core_id].size() > 0) {
+    uint16_t bucket = core_bucket_mapping_[core_id].back();
+    to_move_buckets.push_back(bucket);
+    core_bucket_mapping_[core_id].pop_back();
+
+    per_cpu_pkt_rate[core_id] -= per_bucket_pkt_rate[bucket];
+    per_cpu_flow_count[core_id] -= per_bucket_flow_count[bucket];
+    bess::ctrl::core_liveness[core_id] = 1;
+  }
+
+  uint16_t mr_core = DEFAULT_INVALID_CORE_ID;
+  double min_rate = 0;
+  for(uint16_t i = 0; i < total_core_count_; i++) {
+    if (bess::ctrl::nfv_cores[i]) {
+      if (mr_core == DEFAULT_INVALID_CORE_ID) {
+        mr_core = i;
+        min_rate = per_cpu_pkt_rate[i];
+        continue;
+      }
+      if (per_cpu_pkt_rate[i] < min_rate) {
+        mr_core = i;
+        min_rate = per_cpu_pkt_rate[i];
+      }
+    }
+  }
+
+  if (!bess::ctrl::core_state[mr_core]) {
+    bess::ctrl::core_state[mr_core] = true;
+    bess::ctrl::core_liveness[mr_core] = 1;
+    active_core_count_ += 1;
+  }
+
+  std::map<uint16_t, uint16_t> moves;
+  for (auto bucket : to_move_buckets) {
+    per_cpu_pkt_rate[mr_core] += per_bucket_pkt_rate[bucket];
+    per_cpu_flow_count[mr_core] += per_bucket_flow_count[bucket];
+    moves[bucket] = mr_core;
+    core_bucket_mapping_[mr_core].push_back(bucket);
+  }
+  return moves;
+}
+
+uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
+  // Per-bucket packet rate and flow count are to be used by the long-term op.
+  std::vector<double> per_bucket_pkt_rate;
+  std::vector<double> per_bucket_flow_count;
+
+  bess::utils::bucket_stats->bucket_table_lock.lock();
+  for (int i = 0; i < RETA_SIZE; i++) {
+    per_bucket_pkt_rate.push_back(bess::utils::bucket_stats->per_bucket_packet_counter[i]);
+    per_bucket_flow_count.push_back(bess::utils::bucket_stats->per_bucket_flow_cache[i].size());
+    bess::utils::bucket_stats->per_bucket_packet_counter[i] = 0;
+    bess::utils::bucket_stats->per_bucket_flow_cache[i].clear();
+  }
+  bess::utils::bucket_stats->bucket_table_lock.unlock();
+
+  std::map<uint16_t, uint16_t> moves =
+      OnDemandLongTermOptimization(core_id, per_bucket_pkt_rate, per_bucket_flow_count);
+
+  rte_atomic16_set(&curr_active_core_count_, active_core_count_);
+  SendWorkerInfo();
+
+  if (moves.size() && port_) {
+    port_->UpdateRssFlow(moves);
+    LOG(INFO) << "on-demand; moves=" <<  moves.size() << ", cores=" << active_core_count_;
   }
   return moves.size();
 }

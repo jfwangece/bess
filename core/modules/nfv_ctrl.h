@@ -62,12 +62,17 @@ class NFVCtrl final : public Module {
   // RSS buckets. 0 if nothing will change.
   uint32_t LongEpochProcess();
 
+  // This function runs a heurisics algorithm to split RSS buckets
+  // assigned to a core into two portions. One is kept locally. The
+  // other one is migrated to the core with the min load on the worker.
+  uint32_t OnDemandLongEpochProcess(u_int16_t core_id);
+
   // Send the current worker's info via a raw packet.
   void SendWorkerInfo();
 
   // This function can be called by NFVCore and NFVRCore when
   // they decide that an immediate load rebalancing is required.
-  void NotifyCtrlLoadBalanceNow();
+  void NotifyCtrlLoadBalanceNow(uint16_t core_id);
 
   CommandResponse CommandGetSummary(const bess::pb::EmptyArg &arg);
 
@@ -82,6 +87,11 @@ class NFVCtrl final : public Module {
   // that no cores are violating p50 SLO. It also reduces resource consumption by
   // packing flows tightly and freeing up CPU cores.
   std::map<uint16_t, uint16_t> LongTermOptimization(
+      const std::vector<double>& per_bucket_pkt_rate,
+      const std::vector<double>& per_bucket_flow_count);
+
+  std::map<uint16_t, uint16_t> OnDemandLongTermOptimization(
+      uint16_t core_id,
       const std::vector<double>& per_bucket_pkt_rate,
       const std::vector<double>& per_bucket_flow_count);
 
