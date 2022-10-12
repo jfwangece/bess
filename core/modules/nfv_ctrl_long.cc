@@ -113,7 +113,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt
                                                 const std::vector<double>& per_bucket_flow_count,
                                                 std::vector<uint16_t>& to_move_buckets) {
   std::map<uint16_t, uint16_t> moves;
-  int skipped_buckets = 0;
+  std::vector<uint16_t> skipped_buckets;
 
   for (auto bucket : to_move_buckets) {
     double bucket_pkt_rate = per_bucket_pkt_rate[bucket];
@@ -152,13 +152,15 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt
 
       // No enough cores for handling the excessive load. Ideally, this should never happen
       if (!found) {
-        skipped_buckets += 1;
+        skipped_buckets.push_back(bucket);
       }
     }
   }
 
-  if (skipped_buckets > 0) {
-    LOG(INFO) << "No idle ncore found for " << skipped_buckets << " buckets; active ncores: " << active_core_count_;
+  to_move_buckets = skipped_buckets;
+  size_t skip = to_move_buckets.size();
+  if (skip > 0) {
+    LOG(INFO) << "No idle ncore found for " << skip << " buckets; active ncores: " << active_core_count_;
   }
   return moves;
 }
@@ -202,6 +204,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
 
   // Find if any core is exceeding threshold and add it to the to be moved list
   std::vector<uint16_t> to_move_buckets;
+  std::map<uint16_t, uint16_t> to_move_buckets_to_cores;
   for (uint16_t i = 0; i < total_core_count_; i++) {
     if (!bess::ctrl::core_state[i]) {
       continue;
@@ -214,6 +217,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
           core_bucket_mapping_[i].size() > 0) {
       uint16_t bucket = core_bucket_mapping_[i].back();
       to_move_buckets.push_back(bucket);
+      to_move_buckets_to_cores.emplace(bucket, i);
       core_bucket_mapping_[i].pop_back();
 
       per_cpu_pkt_rate[i] -= per_bucket_pkt_rate[bucket];
@@ -227,6 +231,16 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
       per_cpu_pkt_rate, per_cpu_flow_count,
       per_bucket_pkt_rate, per_bucket_flow_count,
       to_move_buckets);
+
+  // Keep track of these buckets
+  if (to_move_buckets.size() > 0) {
+    for (auto bucket : to_move_buckets) {
+      uint16_t core = to_move_buckets_to_cores[bucket];
+      core_bucket_mapping_[core].push_back(bucket);
+      per_cpu_pkt_rate[core] += per_bucket_pkt_rate[bucket];
+      per_cpu_flow_count[core] += per_bucket_flow_count[bucket];
+    }
+  }
 
   if (active_core_count_ == 1) {
     return final_moves;
@@ -263,18 +277,19 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
   // Move all buckets at the min-rate core; before that, save the current state
   per_cpu_pkt_rate[min_rate_core] = 100000000;
   int org_active_cores = active_core_count_;
-  std::vector<uint16_t> org_buckets = core_bucket_mapping_[min_rate_core];
+  std::vector<uint16_t> pack_buckets = core_bucket_mapping_[min_rate_core];
+  size_t pack_bucket_cnt = pack_buckets.size();
 
   std::map<uint16_t, uint16_t> tmp_moves = FindMoves(
       per_cpu_pkt_rate, per_cpu_flow_count,
       per_bucket_pkt_rate, per_bucket_flow_count,
-      core_bucket_mapping_[min_rate_core]);
+      pack_buckets);
 
   if (active_core_count_ > org_active_cores ||
-      tmp_moves.size() != org_buckets.size()) {
+      tmp_moves.size() != pack_bucket_cnt || pack_buckets.size() > 0) {
     // If this trial fails, undo all changes
     // - case 1: |FindMoves| uses more cores;
-    // - case 2: |org_buckets| cannot be fit into normal cores;
+    // - case 2: |pack_buckets| cannot be fit into normal cores;
     per_cpu_pkt_rate[min_rate_core] = min_rate;
     for (auto& m_it : tmp_moves) {
       core_bucket_mapping_[m_it.second].pop_back();

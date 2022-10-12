@@ -327,7 +327,7 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
         uint32_t moves = LongEpochProcess();
         last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
         if (moves > 0) {
-          LOG(INFO) << "Long-term op: default, time = " << last_long_epoch_end_ns_;
+          LOG(INFO) << "Long-term op: on-demand, time = " << last_long_epoch_end_ns_;
         }
       }
     }
