@@ -50,6 +50,14 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       state = state_it->second;
     }
 
+    // bess::ctrl::nfvctrl_bucket_mu.lock_shared();
+    // bool should_trans = bess::ctrl::trans_buckets.find(state->rss) != bess::ctrl::trans_buckets.end();
+    // bess::ctrl::nfvctrl_bucket_mu.unlock_shared();
+    // if (should_trans) {
+    //   bess::Packet::Free(pkt);
+    //   continue;
+    // }
+
     // Append flow's stats pointer to pkt's metadata
     *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt)) = state;
     // LOG(INFO) << "set: " << *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
@@ -140,13 +148,22 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
     // Note: no need to parse |flow| again because we've parsed it first.
     // Update per-flow packet counter.
     state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
+    uint32_t id = state->rss;
+
+    // bess::ctrl::nfvctrl_bucket_mu.lock_shared();
+    // bool should_trans = bess::ctrl::trans_buckets.find(id) != bess::ctrl::trans_buckets.end();
+    // bess::ctrl::nfvctrl_bucket_mu.unlock_shared();
+    // if (should_trans) {
+    //   bess::Packet::Free(pkt);
+    //   continue;
+    // }
+
     // Egress 6: normal processing
     if (state->ingress_packet_count > state->egress_packet_count) {
       state->egress_packet_count += 1;
     }
 
     // update per-bucket packet counter and per-bucket flow cache.
-    uint32_t id = state->rss;
     bess::utils::bucket_stats->bucket_table_lock.lock_shared();
     bess::utils::bucket_stats->per_bucket_packet_counter[id] += 1;
     bess::utils::bucket_stats->per_bucket_flow_cache[id].emplace(state->flow, true);
@@ -189,13 +206,13 @@ void NFVCore::SplitQToSwQ(llring* q) {
     batch.clear();
     int cnt = llring_sc_dequeue_burst(q, (void **)batch.pkts(), burst);
     batch.set_cnt(cnt);
-    // bess::Packet::Free(batch);
+    // bess::Packet::Free(&batch);
     SplitAndEnqueue(&batch);
     curr_cnt += cnt;
   }
   // Debug log
   if (llring_count(q) > epoch_packet_thresh_) {
-    LOG(INFO) << "splitQ: error (large local_queue=" << llring_count(local_queue_) << ")";
+    LOG(INFO) << "splitQ: error (large local_queue=" << llring_count(local_queue_) << ", core=" << core_id_ << ")";
   }
 }
 
