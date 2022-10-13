@@ -50,14 +50,6 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       state = state_it->second;
     }
 
-    // bess::ctrl::nfvctrl_bucket_mu.lock_shared();
-    // bool should_trans = bess::ctrl::trans_buckets.find(state->rss) != bess::ctrl::trans_buckets.end();
-    // bess::ctrl::nfvctrl_bucket_mu.unlock_shared();
-    // if (should_trans) {
-    //   bess::Packet::Free(pkt);
-    //   continue;
-    // }
-
     // Append flow's stats pointer to pkt's metadata
     *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt)) = state;
     // LOG(INFO) << "set: " << *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
@@ -136,6 +128,11 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   for (auto& sw_q_it : sw_q_) {
     sw_q_it.EnqueueBatch();
   }
+
+  if (rte_eth_rx_queue_count(((PMDPort*)port_)->get_dpdk_port_id(), core_id_) +
+      llring_count(local_queue_) > epoch_flow_thresh_ * 4) {
+    bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
+  }
 }
 
 void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
@@ -149,14 +146,6 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
     // Update per-flow packet counter.
     state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
     uint32_t id = state->rss;
-
-    // bess::ctrl::nfvctrl_bucket_mu.lock_shared();
-    // bool should_trans = bess::ctrl::trans_buckets.find(id) != bess::ctrl::trans_buckets.end();
-    // bess::ctrl::nfvctrl_bucket_mu.unlock_shared();
-    // if (should_trans) {
-    //   bess::Packet::Free(pkt);
-    //   continue;
-    // }
 
     // Egress 6: normal processing
     if (state->ingress_packet_count > state->egress_packet_count) {
@@ -187,13 +176,8 @@ void NFVCore::SplitQToSwQ(llring* q) {
   if (total_cnt <= epoch_packet_thresh_) {
     return;
   }
-
   if (total_cnt > epoch_flow_thresh_ * 4) {
-    num_epoch_with_large_queue_ += 1;
-    if (num_epoch_with_large_queue_ > 5) {
-      bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
-      num_epoch_with_large_queue_ = 0;
-    }
+    bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
   }
 
   uint32_t burst, curr_cnt = 0;
