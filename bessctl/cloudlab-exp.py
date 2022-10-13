@@ -5,6 +5,7 @@ import os
 import io
 from multiprocessing import Process, Queue
 import subprocess
+import time
 from bessctl import run_cli
 
 INIT_SERVER = False
@@ -41,7 +42,7 @@ def start_traffic(tip):
     run_remote_besscmd(tip, cmds)
 
 def start_ironside_worker(wip):
-    cmds = ["run", "samples/acl"]
+    cmds = ["run", "nfvctrl/cloud_chain4"]
     run_remote_besscmd(wip, cmds)
 
 def parse_latency_result(tip):
@@ -70,7 +71,9 @@ def main():
         start_traffic(tip)
     print("exp: traffic started")
 
+    time.sleep(2)
 
+    parse_latency_result
     return
 
 if __name__ == "__main__":
