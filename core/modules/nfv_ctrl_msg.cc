@@ -21,12 +21,13 @@ NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID] = {nullptr};
 
 PMDPort* pmd_port = nullptr;
 
-std::mutex nfvctrl_mu;
 std::mutex nfvctrl_worker_mu;
+std::shared_mutex nfvctrl_bucket_mu;
 
 // Long-term and short-term NF profiles
 std::map<double, double> long_flow_count_pps_threshold;
 std::map<uint32_t, uint32_t> short_flow_count_pkt_threshold;
+std::map<uint16_t, uint16_t> trans_buckets;
 
 // A software queue as this server's trash bin. Any packets that are
 // moved into this queue will be freed without any processing.

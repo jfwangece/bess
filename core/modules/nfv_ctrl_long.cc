@@ -332,6 +332,10 @@ uint32_t NFVCtrl::LongEpochProcess() {
   SendWorkerInfo();
 
   if (moves.size() && port_) {
+    bess::ctrl::nfvctrl_bucket_mu.lock();
+    bess::ctrl::trans_buckets = moves;
+    bess::ctrl::nfvctrl_bucket_mu.unlock();
+
     port_->UpdateRssFlow(moves);
     LOG(INFO) << "default; moves=" << moves.size() << ", cores=" << active_core_count_;
   }
@@ -423,6 +427,10 @@ uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
   SendWorkerInfo();
 
   if (moves.size() && port_) {
+    bess::ctrl::nfvctrl_bucket_mu.lock();
+    bess::ctrl::trans_buckets = moves;
+    bess::ctrl::nfvctrl_bucket_mu.unlock();
+
     port_->UpdateRssFlow(moves);
     LOG(INFO) << "on-demand; moves=" <<  moves.size() << ", cores=" << active_core_count_;
   }

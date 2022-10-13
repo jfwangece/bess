@@ -42,6 +42,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     if (state_it == per_flow_states_.end()) {
       state = new FlowState();
       state->flow = flow;
+      state->rss = bess::utils::bucket_stats->RSSHashToID(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
       state->ingress_packet_count = 0;
       state->egress_packet_count = 0;
       per_flow_states_.emplace(flow, state);
@@ -50,7 +51,6 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     }
 
     // Append flow's stats pointer to pkt's metadata
-    // set_attr<FlowState*>(this, flow_stats_attr_id_, pkt, state);
     *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt)) = state;
     // LOG(INFO) << "set: " << *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
 
@@ -138,12 +138,6 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
     // Note: no need to parse |flow| again because we've parsed it first.
-    // Flow flow;
-    // if (!bess::utils::ParseFlowFromPacket(&flow, pkt)) {
-    //   LOG(INFO) << "Error: non-TCP packets found in PreProcessBatch";
-    //   continue;
-    // }
-
     // Update per-flow packet counter.
     state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
     // Egress 6: normal processing
@@ -151,9 +145,8 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
       state->egress_packet_count += 1;
     }
 
-    // Update per-bucket packet counter.
-    uint32_t id = bess::utils::bucket_stats->RSSHashToID(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
     // update per-bucket packet counter and per-bucket flow cache.
+    uint32_t id = state->rss;
     bess::utils::bucket_stats->bucket_table_lock.lock_shared();
     bess::utils::bucket_stats->per_bucket_packet_counter[id] += 1;
     bess::utils::bucket_stats->per_bucket_flow_cache[id].emplace(state->flow, true);

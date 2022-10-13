@@ -28,7 +28,10 @@ class NFVMonitor;
 namespace bess {
 namespace ctrl {
 
+// Used in measure, ironside_ingress
 extern std::mutex nfvctrl_worker_mu;
+// Used in nfvctrl, nfv_core
+extern std::shared_mutex nfvctrl_bucket_mu;
 
 // |SoftwareQueue| tracks the mapping of (NFVCore, sw_q, NFVRCore)
 class SoftwareQueue {
@@ -52,11 +55,14 @@ extern NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID];
 
 extern PMDPort *pmd_port;
 
-//static int ready_components = 0;
-
 // packet rate threshold given the flow count. Values are found using offline profiling
 extern std::map<double, double> long_flow_count_pps_threshold;
 extern std::map<uint32_t, uint32_t> short_flow_count_pkt_threshold;
+extern std::map<uint16_t, uint16_t> trans_buckets;
+
+/// ToR-layer core mapping (used in Ironside ingress)
+// The number of in-use normal cores at each worker in the cluster.
+extern int worker_ncore[DEFAULT_INVALID_WORKER_ID];
 
 // Note: only NFVCtrl can access data structures below
 
@@ -64,18 +70,12 @@ extern std::map<uint32_t, uint32_t> short_flow_count_pkt_threshold;
 extern struct llring* system_dump_q_;
 extern struct llring* sw_q[DEFAULT_SWQ_COUNT];
 
+/// Worker-layer core mapping
 // States for maintaining software packet queues, normal and reserved cores.
 extern SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT];
 extern bool core_state[DEFAULT_INVALID_CORE_ID];
 extern bool rcore_state[DEFAULT_INVALID_CORE_ID];
 extern int core_liveness[DEFAULT_INVALID_CORE_ID];
-
-// The number of in-use normal cores at each worker in the cluster.
-extern int worker_ncore[DEFAULT_INVALID_WORKER_ID];
-
-// Set and get per-worker load balancing info.
-// void NFVCtrlSetWorker(int worker_id, int ncore);
-// int NFVCtrlGetWorker(int worker_id);
 
 // Create software queues and reset flags
 void NFVCtrlMsgInit();
