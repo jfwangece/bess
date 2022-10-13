@@ -12,6 +12,9 @@ short_epoch_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
 ncore = int($BESS_NCORE!"5")
 
+short_profile = "/local/bess/nf_profiles/short_term.pro"
+long_profile = "/local/bess/nf_profiles/long_term_psize1050_slo100.pro"
+
 # By default, pick MLX NICs
 pcie0, offset0="41:00.0", 1
 
@@ -29,8 +32,8 @@ core_addrs = [
     {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
     {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
 ]
-core_cnt=ncore
-rcore_cnt=nfvctrl_core-(1+ncore)
+core_cnt = ncore
+rcore_cnt = nfvctrl_core - (2 + ncore)
 total_core_cnt = core_cnt + rcore_cnt
 cores = [i for i in range(core_cnt)]
 rcores = [core_cnt + i for i in range(rcore_cnt)]
@@ -54,7 +57,8 @@ nfvctrl::NFVCtrl(core_addrs=core_addrs[:core_cnt],
     wid=0,
     qid=total_core_cnt,
     long_epoch_period_ns=long_update_stats_period,
-    nf_long_term_profile="nf_profiles/long_term_psize1050_slo100.pro")
+    nf_short_term_profile=short_profile,
+    nf_long_term_profile=long_profile)
 
 port0::PMDPort(pci=pcie0,
     num_inc_q=core_cnt,

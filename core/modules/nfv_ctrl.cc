@@ -219,6 +219,9 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   }
 
   std::string short_profile_fname = "nf_profiles/short_term.pro";
+  if (arg.nf_short_term_profile().size() > 0) {
+    short_profile_fname = arg.nf_short_term_profile();
+  }
   std::ifstream short_profile_file(short_profile_fname, std::ifstream::in);
   if (short_profile_file.is_open()) {
     while (!short_profile_file.eof()) {

@@ -11,7 +11,7 @@ playback_speed_conf = $BESS_RATE_CONF!"./experiment_conf/pcap_dynamics_0.conf"
 burst_size=int($BESS_BURST!'32')
 ncore=int($BESS_NCORE!'4')
 tag_offset = 72
-pcie0, offset0="05:00.0", 0
+pcie0, offset0="41:00.0", 0
 
 pcap_file = '{}'.format(PCAPFILE)
 

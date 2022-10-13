@@ -36,6 +36,7 @@ import sys
 import os
 import os.path
 import io
+import ipaddress
 import tempfile
 import time
 import cli
@@ -169,18 +170,33 @@ def main():
     if len(sys.argv) == 1:
         run_cli()
     else:
-        cmds = []
-        line_buf = []
+        if ipaddress.ip_address(unicode(sys.argv[1])):
+            ip = sys.argv[1]
+            cmds = []
+            line_buf = []
 
-        for arg in sys.argv[1:]:
-            if arg == '--':
-                cmds.append(' '.join(line_buf))
-                line_buf = []
-            else:
-                line_buf.append(arg)
+            for arg in sys.argv[2:]:
+                if arg == '--':
+                    cmds.append(' '.join(line_buf))
+                    line_buf = []
+                else:
+                    line_buf.append(arg)
 
-        cmds.append(u' '.join(line_buf))
-        run_cli(io.StringIO('\n'.join(cmds)))
+            cmds.append(u' '.join(line_buf))
+            run_cli(ip, io.StringIO('\n'.join(cmds)))
+        else:
+            cmds = []
+            line_buf = []
+
+            for arg in sys.argv[1:]:
+                if arg == '--':
+                    cmds.append(' '.join(line_buf))
+                    line_buf = []
+                else:
+                    line_buf.append(arg)
+
+            cmds.append(u' '.join(line_buf))
+            run_cli(io.StringIO('\n'.join(cmds)))
 
 if __name__ == '__main__':
     main()

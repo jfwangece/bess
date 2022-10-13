@@ -1,32 +1,33 @@
 #!/usr/bin/env python
-import multiprocessing
 import sys
 import os
 import io
-from multiprocessing import Process, Queue
+import multiprocessing
 import subprocess
 import time
 from bessctl import run_cli
 
 INIT_SERVER = False
 traffic_ip = ["128.110.219.148"]
-worker_ip = ["128.110.219.135", "128.110.219.131", "128.110.219.154", "128.110.219.147"]
+# worker_ip = ["128.110.219.135", "128.110.219.131", "128.110.219.154", "128.110.219.147"]
+worker_ip = ["128.110.219.135"]
 all_ip = traffic_ip + worker_ip
 
-
 def run_remote_command(ip, cmd):
-    remote_cmd = ['ssh', '-t', 'uscnsl@{}'.format(ip), '"{}"'.format(cmd)]
+    remote_cmd = ['ssh', '-tt', 'uscnsl@{}'.format(ip), '"{}"'.format(cmd), '>/dev/null 2>&1', '\n']
     os.system(' '.join(remote_cmd))
     return
 
 def run_remote_besscmd(ip, cmds):
-    list_cmds = []
-    list_cmds.append(u' '.join(cmds))
-    run_cli(ip, io.StringIO('\n'.join(list_cmds)))
+    cmds.append('\n')
+    cmds_str = u' '.join(cmds)
+    remote_cmds = ['./bessctl/bessctl.py', ip, cmds_str, '\n']
+    os.system(' '.join(remote_cmds))
+    # run_cli(ip, io.StringIO('\n'.join(list_cmds)))
 
 def start_remote_bessd(ip):
     bessd = "/local/bess/core/bessd"
-    bessd_cmd = "sudo -E {} --dpdk=true --buffers=262144 -k".format(bessd)
+    bessd_cmd = "sudo {} --dpdk=true --buffers=262144 -k".format(bessd)
     run_remote_command(ip, bessd_cmd)
     return
 
@@ -56,24 +57,33 @@ def main():
             setup_remote_hugepage(ip)
 
     # Start all bessd
+    pids = []
     for tip in traffic_ip:
-        multiprocessing.Process(target=start_remote_bessd, args=(tip))
+        p = multiprocessing.Process(target=start_remote_bessd, args=(tip,))
+        p.start()
+        pids.append(p)
+
     for wip in worker_ip:
-        multiprocessing.Process(target=start_remote_bessd, args=(wip))
-    print("exp: all bessd started")
+        p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
+        p.start()
+        pids.append(p)
+
+    for p in pids:
+        p.join()
+    print("exp: all bessd started\n")
 
     # Run all workers
     for wip in worker_ip:
         start_ironside_worker(wip)
     print("exp: all workers started")
-
+    return
     for tip in traffic_ip:
         start_traffic(tip)
     print("exp: traffic started")
 
     time.sleep(2)
 
-    parse_latency_result
+    parse_latency_result(traffic_ip[0])
     return
 
 if __name__ == "__main__":
