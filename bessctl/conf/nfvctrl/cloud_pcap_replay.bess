@@ -3,11 +3,12 @@
 #
 import scapy.all as scapy
 
-PCAPFILE = $PCAP!"./experiment_conf/20190117-130000.tcp.pcap"
+PCAPFILE = $PCAP!"/local/bess/experiment_conf/20190117-130000.tcp.pcap"
+playback_speed_conf = $PCAPCONF!"/local/bess/experiment_conf/pcap_dynamics_0.conf"
+
 playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
 playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
 playback_speed = float($BESS_SPEED!"1")
-playback_speed_conf = $BESS_RATE_CONF!"./experiment_conf/pcap_dynamics_0.conf"
 burst_size=int($BESS_BURST!'32')
 ncore=int($BESS_NCORE!'4')
 tag_offset = 72
