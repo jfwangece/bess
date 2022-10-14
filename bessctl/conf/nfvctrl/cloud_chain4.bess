@@ -105,7 +105,7 @@ for i in cores:
 for i in rcores:
     pinc0[i] = NFVRCore(core_id=i)
     pout0[i] = QueueOut(port=port0, qid=i)
-    pinc0[i] -> MACSwap() -> pout0[i]
+    pinc0[i] -> IPRewrite(dst_ip="10.10.1.1") -> pout0[i]
 
 # Burst
 for i in cores:

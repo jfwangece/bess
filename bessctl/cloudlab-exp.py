@@ -90,7 +90,7 @@ def main():
         start_traffic(tip)
     print("exp: traffic started\n")
 
-    time.sleep(30)
+    time.sleep(5)
 
     parse_latency_result(traffic_ip[0])
     return
