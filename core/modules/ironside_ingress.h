@@ -31,6 +31,7 @@ class IronsideIngress final : public Module {
   // Workers in the cluster.
   std::vector<Ethernet::Address> macs_;
   std::vector<be32_t> ips_;
+  std::vector<uint32_t> pkt_cnts_;
 
   // Normal core threshold.
   int ncore_thresh_;

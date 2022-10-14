@@ -14,6 +14,7 @@ using bess::utils::UpdateChecksum16;
 CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
   ips_.clear();
   macs_.clear();
+  pkt_cnts_.clear();
 
   for (const auto &host : arg.endpoints()) {
     macs_.push_back(Ethernet::Address(host.mac()));
@@ -25,6 +26,7 @@ CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
       return CommandFailure(EINVAL, "invalid IP address %s", host_addr.c_str());
     }
     ips_.push_back(addr);
+    pkt_cnts_.push_back(0);
   }
 
   ncore_thresh_ = 16;
@@ -53,31 +55,30 @@ void IronsideIngress::UpdateEndpointLB() {
 
   // Do it once
   last_endpoint_update_ts_ = curr_ts;
-  bess::ctrl::nfvctrl_worker_mu.lock_shared();
-
-  // int endpoint_ncore = 0;
   uint32_t endpoint_pkt_rate = 0;
   endpoint_id_ = -1;
+
+  bess::ctrl::nfvctrl_worker_mu.lock_shared();
   for (size_t i = 0; i < ips_.size(); i++) {
-    if (bess::ctrl::worker_packet_rate[i] > pkt_rate_thresh_) {
+    // Skip overloaded workers
+    if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
       continue;
     }
-    if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
-      // Skip overloaded workers
+    if (10 * pkt_cnts_[i] > pkt_rate_thresh_) {
       continue;
     }
 
-    // if (i == 0 || bess::ctrl::worker_ncore[i] > endpoint_ncore) {
-    //   endpoint_ncore = bess::ctrl::worker_ncore[i];
-    //   endpoint_id_ = i;
-    // }
-    if (i == 0 || bess::ctrl::worker_packet_rate[i] > endpoint_pkt_rate) {
-      endpoint_pkt_rate = bess::ctrl::worker_packet_rate[i];
+    if (pkt_cnts_[i] > endpoint_pkt_rate) {
+      endpoint_pkt_rate = pkt_cnts_[i];
       endpoint_id_ = i;
     }
   }
-
   bess::ctrl::nfvctrl_worker_mu.unlock_shared();
+
+  // Reset
+  for (size_t i = 0; i < pkt_cnts_.size(); i++) {
+    pkt_cnts_[i] = 0;
+  }
 }
 
 void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
@@ -114,6 +115,7 @@ void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       it->second = endpoint_id_;
     }
 
+    pkt_cnts_[it->second] += 1;
     // Update Ether dst, IP dst, checksum, and TCP checksum
     eth->dst_addr = macs_[it->second];
     be32_t before = ip->dst;
