@@ -43,7 +43,7 @@ void IronsideIngress::DeInit() {
 
 void IronsideIngress::UpdateEndpointLB() {
   uint64_t curr_ts = tsc_to_ns(rdtsc());
-  if (curr_ts - last_endpoint_update_ts_ < 10000000) {
+  if (curr_ts - last_endpoint_update_ts_ < 100000000) {
     return;
   }
 

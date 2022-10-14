@@ -35,8 +35,9 @@ for i in range(num_cores):
     src[i] = PortInc(port=pcap_port[i])
     queue[i] = Queue(size=pow(2,24))
     re[i] = Replayer(offset=tag_offset, dynamic_traffic_conf=playback_speed_conf)
-    qout[i] = QueueOut(port=pmd_port0, qid=i)
     ig[i] = IronsideIngress(endpoints=workers, ncore_thresh=ncore)
+
+    qout[i] = QueueOut(port=pmd_port0, qid=i)
     src[i] -> queue[i] -> re[i] -> ig[i] -> Timestamp(offset=tag_offset) -> qout[i]
 
 pinc0 -> Measure(offset=tag_offset) -> Sink()

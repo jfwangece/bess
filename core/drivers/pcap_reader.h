@@ -4,6 +4,7 @@
 #include <pcap.h>
 #include <glog/logging.h>
 #include <mutex>
+#include <shared_mutex>
 
 #include "../utils/ether.h"
 #include "../utils/ip.h"
@@ -18,10 +19,9 @@ class PCAPReader final : public Port {
  public:
   static const int MAX_TEMPLATE_SIZE = 1500;
   static uint64_t per_pcap_pkt_counts_[4];
-  static uint64_t per_pcap_max_cnt_;
-  static uint64_t per_pcap_min_cnt_;
+  static bool blocked_[4];
   static int total_pcaps_;
-  static std::mutex mtx_;
+  static std::shared_mutex mtx_;
 
   CommandResponse Init(const bess::pb::PCAPReaderArg &arg);
   void DeInit() override;

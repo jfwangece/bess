@@ -12,11 +12,9 @@ using bess::utils::TagPacketTimestamp;
 
 // static
 int PCAPReader::total_pcaps_ = 0;
+bool PCAPReader::blocked_[4] = {false, false, false, false};
 uint64_t PCAPReader::per_pcap_pkt_counts_[4] = {0,0,0,0};
-uint64_t PCAPReader::per_pcap_max_cnt_ = 0;
-uint64_t PCAPReader::per_pcap_min_cnt_ = 0;
-
-std::mutex PCAPReader::mtx_;
+std::shared_mutex PCAPReader::mtx_;
 
 namespace {
 const int kDefaultTagOffset = 64;
@@ -94,12 +92,14 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
   last_pkt_ts_ = 0;
 
   // Initialize the multi-core pcap packet counters
-  const std::lock_guard<std::mutex> lock(mtx_);
+  mtx_.lock();
   if (pcap_index_ == -1) {
     pcap_index_ = total_pcaps_;
     total_pcaps_ += 1;
   }
   per_pcap_pkt_counts_[pcap_index_] = 0;
+  blocked_[pcap_index_] = 0;
+  mtx_.unlock();
 
   return CommandSuccess();
 }
@@ -109,27 +109,7 @@ void PCAPReader::DeInit() {
 }
 
 bool PCAPReader::ShouldAllocPkts() {
-  bool should = true;
-
-  const std::lock_guard<std::mutex> lock(mtx_);
-  if (pcap_index_ == 0) {
-    per_pcap_max_cnt_ = per_pcap_pkt_counts_[0];
-    per_pcap_min_cnt_ = per_pcap_pkt_counts_[0];
-    for (int i = 1; i < total_pcaps_; i++) {
-      if (per_pcap_pkt_counts_[i] > per_pcap_max_cnt_) {
-        per_pcap_max_cnt_ = per_pcap_pkt_counts_[i];
-      }
-      if (per_pcap_pkt_counts_[i] < per_pcap_min_cnt_) {
-        per_pcap_min_cnt_ = per_pcap_pkt_counts_[i];
-      }
-    }
-  }
-
-  if (per_pcap_pkt_counts_[pcap_index_] == per_pcap_max_cnt_ &&
-      per_pcap_max_cnt_ > per_pcap_min_cnt_ + 10000) {
-    should = false;
-  }
-  return should;
+  return blocked_[pcap_index_];
 }
 
 int PCAPReader::RecvPackets(queue_t, bess::Packet** pkts, int cnt) {
@@ -241,8 +221,38 @@ int PCAPReader::RecvPackets(queue_t, bess::Packet** pkts, int cnt) {
   int recv_cnt = llring_sc_dequeue_burst(local_queue_,
                  reinterpret_cast<void **>(pkts), cnt);
   pkt_counter_ += recv_cnt;
-  const std::lock_guard<std::mutex> lock(mtx_);
-  per_pcap_pkt_counts_[pcap_index_] += recv_cnt;
+
+  if (pkt_counter_ > 5000) {
+    mtx_.lock();
+    per_pcap_pkt_counts_[pcap_index_] += pkt_counter_;
+    mtx_.unlock();
+    pkt_counter_ = 0;
+
+    if (pcap_index_ == 0) {
+      mtx_.lock_shared();
+      uint64_t per_pcap_max_cnt = per_pcap_pkt_counts_[0];
+      uint64_t per_pcap_min_cnt = per_pcap_pkt_counts_[0];
+      for (int i = 1; i < total_pcaps_; i++) {
+        if (per_pcap_pkt_counts_[i] > per_pcap_max_cnt) {
+          per_pcap_max_cnt = per_pcap_pkt_counts_[i];
+        }
+        if (per_pcap_pkt_counts_[i] < per_pcap_min_cnt) {
+          per_pcap_min_cnt = per_pcap_pkt_counts_[i];
+        }
+      }
+
+      if (per_pcap_max_cnt > per_pcap_min_cnt + 50000) {
+        for (int i = 1; i < total_pcaps_; i++) {
+          if (per_pcap_max_cnt == per_pcap_pkt_counts_[i]) {
+            blocked_[i] = true;
+          } else {
+            blocked_[i] = false;
+          }
+        }
+      }
+      mtx_.unlock_shared();
+    }
+  }
 
   return recv_cnt;
 }
