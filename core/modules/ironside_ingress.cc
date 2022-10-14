@@ -42,7 +42,14 @@ void IronsideIngress::DeInit() {
 }
 
 void IronsideIngress::UpdateEndpointLB() {
-  bess::ctrl::nfvctrl_worker_mu.lock();
+  uint64_t curr_ts = tsc_to_ns(rdtsc());
+  if (curr_ts - last_endpoint_update_ts_ < 10000000) {
+    return;
+  }
+
+  // Do it once
+  last_endpoint_update_ts_ = curr_ts;
+  bess::ctrl::nfvctrl_worker_mu.lock_shared();
 
   int endpoint_ncore = -1;
   endpoint_id_ = -1;
@@ -58,7 +65,7 @@ void IronsideIngress::UpdateEndpointLB() {
     }
   }
 
-  bess::ctrl::nfvctrl_worker_mu.unlock();
+  bess::ctrl::nfvctrl_worker_mu.unlock_shared();
 }
 
 void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {

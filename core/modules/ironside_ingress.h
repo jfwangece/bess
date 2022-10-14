@@ -35,6 +35,7 @@ class IronsideIngress final : public Module {
   // Normal core threshold.
   int ncore_thresh_;
   int endpoint_id_ = 0;
+  uint64_t last_endpoint_update_ts_ = 0;
 
   // Per-flow connection table
   // std::map<Flow, be32_t, FlowHash> flow_cache_;

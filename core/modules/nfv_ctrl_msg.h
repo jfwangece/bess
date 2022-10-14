@@ -28,7 +28,7 @@ namespace bess {
 namespace ctrl {
 
 // Used in measure, ironside_ingress
-extern std::mutex nfvctrl_worker_mu;
+extern std::shared_mutex nfvctrl_worker_mu;
 // Used in nfvctrl, nfv_core
 extern std::shared_mutex nfvctrl_bucket_mu;
 

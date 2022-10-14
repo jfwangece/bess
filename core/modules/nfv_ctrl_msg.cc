@@ -21,7 +21,7 @@ NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID] = {nullptr};
 
 PMDPort* pmd_port = nullptr;
 
-std::mutex nfvctrl_worker_mu;
+std::shared_mutex nfvctrl_worker_mu;
 std::shared_mutex nfvctrl_bucket_mu;
 
 // Long-term and short-term NF profiles

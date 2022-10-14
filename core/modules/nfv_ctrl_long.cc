@@ -455,7 +455,7 @@ void NFVCtrl::SendWorkerInfo() {
     Tcp* tcp = reinterpret_cast<Tcp *>(ip + 1);
 
     eth->src_addr = Ethernet::Address("ec:0d:9a:67:ff:68");
-    eth->dst_addr = Ethernet::Address("b4:96:91:b3:89:b4");
+    eth->dst_addr = Ethernet::Address("b8:ce:f6:cc:8c:14");
     ip->src = be32_t(0x0a0a0102);
     ip->dst = be32_t(0x0a0a0101);
     ip->length = be16_t(40);
