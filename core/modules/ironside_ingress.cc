@@ -68,7 +68,7 @@ void IronsideIngress::UpdateEndpointLB() {
       continue;
     }
 
-    if (pkt_cnts_[i] > endpoint_pkt_rate) {
+    if (pkt_cnts_[i] >= endpoint_pkt_rate) {
       endpoint_pkt_rate = pkt_cnts_[i];
       endpoint_id_ = i;
     }
