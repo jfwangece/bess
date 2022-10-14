@@ -7,7 +7,7 @@ pcie0 = $BESS_DEV!"81:00.0"
 offset0 = 0
 ips = ['10.10.1.{}'.format(x) for x in [2,3,4,5]]
 macs = ['b8:ce:f6:cc:96:e4', 'b8:ce:f6:d2:3a:c2', 'b8:ce:f6:d2:3b:12', 'b8:ce:f6:cc:8b:fc']
-workers=[{'endpoint': ips[i], 'mac': macs[i]} for i in range(len(ips))]
+workers=[{'ip': ips[i], 'mac': macs[i]} for i in range(len(ips))]
 
 PCAPFILE = $PCAP!"/local/bess/experiment_conf/20190117-130000.tcp.pcap"
 pcap_file = '{}'.format(PCAPFILE)
