@@ -317,19 +317,16 @@ uint32_t NFVCtrl::LongEpochProcess() {
   std::vector<double> per_bucket_pkt_rate;
   std::vector<double> per_bucket_flow_count;
 
+  double pps = 0;
   bess::utils::bucket_stats->bucket_table_lock.lock();
   for (int i = 0; i < RETA_SIZE; i++) {
     per_bucket_pkt_rate.push_back(bess::utils::bucket_stats->per_bucket_packet_counter[i] * to_rate_per_sec);
     per_bucket_flow_count.push_back(bess::utils::bucket_stats->per_bucket_flow_cache[i].size() * to_rate_per_sec);
+    pps += per_bucket_pkt_rate[i];
     bess::utils::bucket_stats->per_bucket_packet_counter[i] = 0;
     bess::utils::bucket_stats->per_bucket_flow_cache[i].clear();
   }
   bess::utils::bucket_stats->bucket_table_lock.unlock();
-
-  double pps = 0;
-  for (int i = 0; i < RETA_SIZE; i++) {
-    pps += per_bucket_pkt_rate[i];
-  }
   curr_packet_rate_ = (uint32_t)pps;
 
   std::map<uint16_t, uint16_t> moves = LongTermOptimization(per_bucket_pkt_rate, per_bucket_flow_count);
@@ -419,19 +416,17 @@ uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
   std::vector<double> per_bucket_pkt_rate;
   std::vector<double> per_bucket_flow_count;
 
+  double pps = 0;
   bess::utils::bucket_stats->bucket_table_lock.lock();
   for (int i = 0; i < RETA_SIZE; i++) {
     per_bucket_pkt_rate.push_back(bess::utils::bucket_stats->per_bucket_packet_counter[i]);
     per_bucket_flow_count.push_back(bess::utils::bucket_stats->per_bucket_flow_cache[i].size());
+    pps += per_bucket_pkt_rate[i];
     bess::utils::bucket_stats->per_bucket_packet_counter[i] = 0;
     bess::utils::bucket_stats->per_bucket_flow_cache[i].clear();
   }
   bess::utils::bucket_stats->bucket_table_lock.unlock();
 
-  double pps = 0;
-  for (int i = 0; i < RETA_SIZE; i++) {
-    pps += per_bucket_pkt_rate[i];
-  }
   pps *= to_rate_per_sec;
   curr_packet_rate_ *= (uint32_t)pps;
 
