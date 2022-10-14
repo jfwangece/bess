@@ -32,7 +32,7 @@ pinc0::PortInc(port=pmd_port0)
 
 for i in range(num_cores):
     pcap_port[i] = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
-    src[i] = PortInc(port=pcap_port)
+    src[i] = PortInc(port=pcap_port[i])
     queue[i] = Queue(size=pow(2,24))
     re[i] = Replayer(offset=tag_offset, dynamic_traffic_conf=playback_speed_conf)
     qout[i] = QueueOut(port=pmd_port0, qid=i)
