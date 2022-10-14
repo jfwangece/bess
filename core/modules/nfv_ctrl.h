@@ -121,7 +121,9 @@ class NFVCtrl final : public Module {
   std::vector<WorkerCore> cpu_cores_;
   uint16_t total_core_count_;
   uint16_t active_core_count_; // Updated during the algorithm
+
   rte_atomic16_t curr_active_core_count_; // Updated after the algorithm
+  uint32_t curr_packet_rate_; // Updated during/after the algorithm
 
   // The lock for maintaining a pool of software queues
   mutable std::mutex sw_q_mtx_;

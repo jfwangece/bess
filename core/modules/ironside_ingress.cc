@@ -31,6 +31,10 @@ CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
   if (arg.ncore_thresh() > 0) {
     ncore_thresh_ = arg.ncore_thresh();
   }
+  pkt_rate_thresh_ = 300000;
+  if (arg.pkt_rate_thresh() > 0) {
+    pkt_rate_thresh_ = (uint32_t)arg.pkt_rate_thresh();
+  }
 
   // Init
   flow_cache_.clear();
@@ -51,16 +55,24 @@ void IronsideIngress::UpdateEndpointLB() {
   last_endpoint_update_ts_ = curr_ts;
   bess::ctrl::nfvctrl_worker_mu.lock_shared();
 
-  int endpoint_ncore = -1;
+  // int endpoint_ncore = 0;
+  uint32_t endpoint_pkt_rate = 0;
   endpoint_id_ = -1;
   for (size_t i = 0; i < ips_.size(); i++) {
+    if (bess::ctrl::worker_packet_rate[i] > pkt_rate_thresh_) {
+      continue;
+    }
     if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
       // Skip overloaded workers
       continue;
     }
 
-    if (i == 0 || bess::ctrl::worker_ncore[i] > endpoint_ncore) {
-      endpoint_ncore = bess::ctrl::worker_ncore[i];
+    // if (i == 0 || bess::ctrl::worker_ncore[i] > endpoint_ncore) {
+    //   endpoint_ncore = bess::ctrl::worker_ncore[i];
+    //   endpoint_id_ = i;
+    // }
+    if (i == 0 || bess::ctrl::worker_packet_rate[i] > endpoint_pkt_rate) {
+      endpoint_pkt_rate = bess::ctrl::worker_packet_rate[i];
       endpoint_id_ = i;
     }
   }

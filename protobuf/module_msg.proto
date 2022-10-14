@@ -397,6 +397,7 @@ message IronsideIngressArg {
   }
   repeated EndhostAddr endpoints = 1; /// A list of workers in the cluster
   int32 ncore_thresh = 2; /// The normal core threshold for ToR-level scaling
+  int32 pkt_rate_thresh = 3;
 }
 
 message MemAnalyzerArg {

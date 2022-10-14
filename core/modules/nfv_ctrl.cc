@@ -8,7 +8,7 @@
 
 // The time interval for the long term optimization to run
 #define LONG_TERM_UPDATE_PERIOD_NS 500000000
-#define MIN_NIC_RSS_UPDATE_PERIOD_NS 5000000
+#define MIN_NIC_RSS_UPDATE_PERIOD_NS 10000000
 
 namespace {
 #pragma GCC diagnostic push

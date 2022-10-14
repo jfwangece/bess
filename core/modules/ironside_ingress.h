@@ -34,6 +34,7 @@ class IronsideIngress final : public Module {
 
   // Normal core threshold.
   int ncore_thresh_;
+  uint32_t pkt_rate_thresh_;
   int endpoint_id_ = 0;
   uint64_t last_endpoint_update_ts_ = 0;
 

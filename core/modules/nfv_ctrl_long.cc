@@ -326,6 +326,12 @@ uint32_t NFVCtrl::LongEpochProcess() {
   }
   bess::utils::bucket_stats->bucket_table_lock.unlock();
 
+  double pps = 0;
+  for (int i = 0; i < RETA_SIZE; i++) {
+    pps += per_bucket_pkt_rate[i];
+  }
+  curr_packet_rate_ = (uint32_t)pps;
+
   std::map<uint16_t, uint16_t> moves = LongTermOptimization(per_bucket_pkt_rate, per_bucket_flow_count);
 
   rte_atomic16_set(&curr_active_core_count_, active_core_count_);
@@ -407,6 +413,8 @@ std::map<uint16_t, uint16_t> NFVCtrl::OnDemandLongTermOptimization(uint16_t core
 }
 
 uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
+  uint64_t to_rate_per_sec = 1000000000ULL / (tsc_to_ns(rdtsc()) - last_long_epoch_end_ns_);
+
   // Per-bucket packet rate and flow count are to be used by the long-term op.
   std::vector<double> per_bucket_pkt_rate;
   std::vector<double> per_bucket_flow_count;
@@ -419,6 +427,13 @@ uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
     bess::utils::bucket_stats->per_bucket_flow_cache[i].clear();
   }
   bess::utils::bucket_stats->bucket_table_lock.unlock();
+
+  double pps = 0;
+  for (int i = 0; i < RETA_SIZE; i++) {
+    pps += per_bucket_pkt_rate[i];
+  }
+  pps *= to_rate_per_sec;
+  curr_packet_rate_ *= (uint32_t)pps;
 
   std::map<uint16_t, uint16_t> moves =
       OnDemandLongTermOptimization(core_id, per_bucket_pkt_rate, per_bucket_flow_count);
@@ -461,7 +476,7 @@ void NFVCtrl::SendWorkerInfo() {
     ip->length = be16_t(40);
     tcp->src_port = be16_t(uint16_t(worker_id_)); // whoami
     tcp->dst_port = be16_t(active_core_count_); // # of normal cores
-    tcp->seq_num = be32_t(612345);
+    tcp->seq_num = be32_t(curr_packet_rate_);
     tcp->flags = Tcp::Flag::kSyn;
 
     tcp->checksum = CalculateIpv4TcpChecksum(*ip, *tcp);

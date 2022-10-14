@@ -67,10 +67,12 @@ static bool IsWorkerInfo(bess::Packet *pkt) {
 
   int worker_id = tcp->src_port.value();
   int ncore = tcp->dst_port.value();
+  uint32_t rate = tcp->seq_num.value();
+
   bess::ctrl::nfvctrl_worker_mu.lock();
   bess::ctrl::worker_ncore[worker_id] = ncore;
+  bess::ctrl::worker_packet_rate[worker_id] = rate;
   bess::ctrl::nfvctrl_worker_mu.unlock();
-  // LOG(INFO) << "worker " << worker_id << ": " << ncore;
   return true;
 }
 

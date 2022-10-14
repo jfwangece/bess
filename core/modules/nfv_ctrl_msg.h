@@ -62,6 +62,7 @@ extern std::map<uint16_t, uint16_t> trans_buckets;
 /// ToR-layer core mapping (used in Ironside ingress)
 // The number of in-use normal cores at each worker in the cluster.
 extern int worker_ncore[DEFAULT_INVALID_WORKER_ID];
+extern uint32_t worker_packet_rate[DEFAULT_INVALID_WORKER_ID];
 
 // Note: only NFVCtrl can access data structures below
 

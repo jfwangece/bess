@@ -45,6 +45,8 @@ int core_liveness[DEFAULT_INVALID_CORE_ID] = {0}; // the number of long epochs i
 
 int worker_ncore[DEFAULT_INVALID_WORKER_ID] = {0}; // the number of in-use normal cores on a server
 
+uint32_t worker_packet_rate[DEFAULT_INVALID_WORKER_ID] = {0}; // the packet rate on a server
+
 // Global software queue / reserved core management functions
 
 // bess/core/main.cc calls this function to init when bessd starts
