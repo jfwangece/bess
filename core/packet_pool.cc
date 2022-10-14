@@ -58,6 +58,13 @@ void PacketPool::CreateDefaultPools(size_t capacity) {
     CHECK(default_pools_[sid])
         << "Packet pool allocation on node " << sid << " failed!";
   }
+
+  // Create pcap packet pool
+  // for (int i = 0; i < 2; i++) {
+  //   for (int j = 0; j < 4; j++) {
+  //     pcap_pools[i][j] = new BessPacketPool(capacity, sid);
+  //   }
+  // }
 }
 
 PacketPool::PacketPool(size_t capacity, int socket_id) {

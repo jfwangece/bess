@@ -109,7 +109,7 @@ void PCAPReader::DeInit() {
 }
 
 bool PCAPReader::ShouldAllocPkts() {
-  return blocked_[pcap_index_];
+  return !blocked_[pcap_index_];
 }
 
 int PCAPReader::RecvPackets(queue_t, bess::Packet** pkts, int cnt) {

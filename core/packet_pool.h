@@ -123,6 +123,8 @@ class DpdkPacketPool : public PacketPool {
   virtual bool IsPinned() override { return true; }
 };
 
+// PacketPool *PacketPool::pcap_pools[2][4];
+
 }  // namespace bess
 
 #endif  // BESS_PACKET_POOL_H_
