@@ -3,6 +3,11 @@
 # ACL -> LB -> Monitor
 #
 
+pcie0 = $BESS_DEV!"81:00.0"
+offset0 = 1
+traffic_mac = "b8:ce:f6:cc:8c:14"
+traffic_ip = "10.10.1.2"
+
 burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
@@ -14,9 +19,6 @@ ncore = int($BESS_NCORE!"5")
 
 short_profile = "/local/bess/nf_profiles/short_term.pro"
 long_profile = "/local/bess/nf_profiles/long_term_psize1050_slo100.pro"
-
-# By default, pick MLX NICs
-pcie0, offset0="41:00.0", 1
 
 # NFVCtrl runs on its own core
 nfvctrl_core = 15
@@ -88,7 +90,7 @@ for i in cores:
         # Default: Chain 4 w/ NFVMonitor
         pinc0[i] = NFVCore(core_id=i, port=port0, qid=i, short_epoch_period_ns=short_epoch_period)
         nfvmo[i] = NFVMonitor(core_id=i, short_epoch_period_ns=short_epoch_period)
-        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> IPRewrite(dst_ip="10.10.1.1") -> pout0[i]
+        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> IPRewrite(dst_mac=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
     elif exp_idx == 2:
         # Comparison: Chain 4 w/ QueueInc
         pinc0[i] = QueueInc(port=port0, qid=i)
@@ -105,7 +107,7 @@ for i in cores:
 for i in rcores:
     pinc0[i] = NFVRCore(core_id=i)
     pout0[i] = QueueOut(port=port0, qid=i)
-    pinc0[i] -> IPRewrite(dst_ip="10.10.1.1") -> pout0[i]
+    pinc0[i] -> IPRewrite(dst_mac=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
 # Burst
 for i in cores:

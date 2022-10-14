@@ -12,15 +12,19 @@ using bess::utils::UpdateChecksumWithIncrement;
 using bess::utils::UpdateChecksum16;
 
 CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
-  endpoints_.clear();
+  ips_.clear();
+  macs_.clear();
+
   for (const auto &host : arg.endpoints()) {
+    macs_.push_back(Ethernet::Address(host.mac()));
+
     be32_t addr;
-    auto host_addr = host.endpoint();
+    auto host_addr = host.ip();
     bool ret = bess::utils::ParseIpv4Address(host_addr, &addr);
     if (!ret) {
       return CommandFailure(EINVAL, "invalid IP address %s", host_addr.c_str());
     }
-    endpoints_.push_back(addr);
+    ips_.push_back(addr);
   }
 
   ncore_thresh_ = 16;
@@ -42,7 +46,7 @@ void IronsideIngress::UpdateEndpointLB() {
 
   int endpoint_ncore = -1;
   endpoint_id_ = -1;
-  for (size_t i = 0; i < endpoints_.size(); i++) {
+  for (size_t i = 0; i < ips_.size(); i++) {
     if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
       // Skip overloaded workers
       continue;
@@ -58,10 +62,6 @@ void IronsideIngress::UpdateEndpointLB() {
 }
 
 void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
-  using bess::utils::Ethernet;
-  using bess::utils::Ipv4;
-  using bess::utils::Tcp;
-
   UpdateEndpointLB();
 
   int cnt = batch->cnt();
@@ -92,13 +92,14 @@ void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       std::tie(it, std::ignore) = flow_cache_.emplace(
                                   std::piecewise_construct,
                                   std::make_tuple(flow_id), std::make_tuple());
-      it->second = endpoints_[endpoint_id_];
+      it->second = endpoint_id_;
     }
 
-    // Update IP dst, checksum, and TCP checksum
+    // Update Ether dst, IP dst, checksum, and TCP checksum
+    eth->dst_addr = macs_[it->second];
     be32_t before = ip->dst;
-    be32_t after = it->second;
-    ip->dst = it->second;
+    be32_t after = ips_[it->second];
+    ip->dst = after;
 
     uint32_t l3_increment =
       ChecksumIncrement32(before.raw_value(), after.raw_value());

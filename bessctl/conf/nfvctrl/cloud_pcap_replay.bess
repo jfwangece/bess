@@ -3,18 +3,21 @@
 #
 import scapy.all as scapy
 
-PCAPFILE = $PCAP!"/local/bess/experiment_conf/20190117-130000.tcp.pcap"
-playback_speed_conf = $PCAPCONF!"/local/bess/experiment_conf/pcap_dynamics_0.conf"
+pcie0 = $BESS_DEV!"81:00.0"
+offset0 = 0
+ips = ['10.10.1.{}'.format(x) for x in [2,3,4,5]]
+macs = ['b8:ce:f6:cc:96:e4', 'b8:ce:f6:d2:3a:c2', 'b8:ce:f6:d2:3b:12', 'b8:ce:f6:cc:8b:fc']
+workers=[{'endpoint': ips[i], 'mac': macs[i]} for i in range(len(ips))]
 
+PCAPFILE = $PCAP!"/local/bess/experiment_conf/20190117-130000.tcp.pcap"
+pcap_file = '{}'.format(PCAPFILE)
+playback_speed_conf = $PCAPCONF!"/local/bess/experiment_conf/pcap_dynamics_0.conf"
 playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
 playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
 playback_speed = float($BESS_SPEED!"1")
+tag_offset = 72
 burst_size=int($BESS_BURST!'32')
 ncore=int($BESS_NCORE!'4')
-tag_offset = 72
-pcie0, offset0="41:00.0", 0
-
-pcap_file = '{}'.format(PCAPFILE)
 
 pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
 src = PortInc(port=pcap_port)
@@ -31,7 +34,7 @@ else:
 pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
 pout0::PortOut(port=pmd_port0)
 pinc0::PortInc(port=pmd_port0)
-workers=[{'endpoint': '10.10.2.{}'.format(i)} for i in range(4)]
+
 ig::IronsideIngress(endpoints=workers, ncore_thresh=ncore)
 
 src -> queue -> replayer -> ig -> Timestamp(offset=tag_offset) -> pout0

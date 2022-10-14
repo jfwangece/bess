@@ -246,8 +246,10 @@ message IPLookupCommandClearArg {
 }
 
 message IPRewriteArg {
-  string src_ip = 1;    /// Source IP after IPRewrite
-  string dst_ip = 2;    /// Destination IP after IPRewrite
+  string src_eth = 1;
+  string dst_eth = 2;
+  string src_ip = 3;    /// Source IP after IPRewrite
+  string dst_ip = 4;    /// Destination IP after IPRewrite
 }
 
 message LossCounterArg {
@@ -390,7 +392,8 @@ message FlowStatsCommandGetSummaryResponse {
 
 message IronsideIngressArg {
   message EndhostAddr {
-    string endpoint = 1; /// A worker server's interface IP
+    string mac = 1; /// A worker's MAC addr
+    string ip = 2; /// A worker's interface IP
   }
   repeated EndhostAddr endpoints = 1; /// A list of workers in the cluster
   int32 ncore_thresh = 2; /// The normal core threshold for ToR-level scaling

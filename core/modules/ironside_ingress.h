@@ -9,6 +9,9 @@
 #include "../utils/flow.h"
 #include "../utils/ip.h"
 
+using bess::utils::Ethernet;
+using bess::utils::Ipv4;
+using bess::utils::Tcp;
 using bess::utils::be16_t;
 using bess::utils::be32_t;
 using bess::utils::Flow;
@@ -26,7 +29,8 @@ class IronsideIngress final : public Module {
 
  private:
   // Workers in the cluster.
-  std::vector<be32_t> endpoints_;
+  std::vector<Ethernet::Address> macs_;
+  std::vector<be32_t> ips_;
 
   // Normal core threshold.
   int ncore_thresh_;
@@ -36,7 +40,7 @@ class IronsideIngress final : public Module {
   // std::map<Flow, be32_t, FlowHash> flow_cache_;
 
   // Per-flow-aggregate connection table
-  std::map<uint64_t, be32_t> flow_cache_;
+  std::map<uint64_t, int> flow_cache_;
 };
 
 #endif  // BESS_MODULES_FLOW_IP_LOOKUP_H_
