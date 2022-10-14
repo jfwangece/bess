@@ -188,7 +188,7 @@ def run_cluster_exp():
         start_traffic(tip)
     print("exp: traffic started")
 
-    time.sleep(5)
+    time.sleep(30)
 
     parse_latency_result(traffic_ip[0])
     print("exp: done")
