@@ -428,7 +428,7 @@ uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
   bess::utils::bucket_stats->bucket_table_lock.unlock();
 
   pps *= to_rate_per_sec;
-  curr_packet_rate_ *= (uint32_t)pps;
+  curr_packet_rate_ = (uint32_t)pps;
 
   std::map<uint16_t, uint16_t> moves =
       OnDemandLongTermOptimization(core_id, per_bucket_pkt_rate, per_bucket_flow_count);

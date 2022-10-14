@@ -3,6 +3,7 @@
 # ACL -> LB -> Monitor
 #
 
+wid = int($BESS_WID!"0")
 pcie0 = $BESS_DEV!"81:00.0"
 offset0 = 1
 traffic_mac = "b8:ce:f6:cc:8c:14"
@@ -56,7 +57,7 @@ for i in range(lb_cnt / 20):
 # Module
 nfvctrl::NFVCtrl(core_addrs=core_addrs[:core_cnt],
     slo_ns=slo,
-    wid=0,
+    wid=wid,
     qid=total_core_cnt,
     long_epoch_period_ns=long_update_stats_period,
     nf_short_term_profile=short_profile,

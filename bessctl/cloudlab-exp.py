@@ -89,8 +89,8 @@ def start_traffic(tip):
     print(out)
     print("traffic {} starts".format(tip))
 
-def start_ironside_worker(wip):
-    cmds = ["run", "nfvctrl/cloud_chain4"]
+def start_ironside_worker(wip, wid):
+    cmds = ["run", "nfvctrl/cloud_chain4", "BESS_WID={}".format(wid)]
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
     print(out)
@@ -194,8 +194,8 @@ def run_cluster_exp():
 
     # Run all workers
     pids = []
-    for wip in worker_ip:
-        p = multiprocessing.Process(target=start_ironside_worker, args=(wip,))
+    for i, wip in enumerate(worker_ip):
+        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i))
         p.start()
         pids.append(p)
 
