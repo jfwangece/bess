@@ -258,6 +258,9 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
     LOG(ERROR) << "failed to allocate to_remove_queue_";
   }
 
+  std::string ingress_ip = "10.10.1.1";
+  bess::utils::ParseIpv4Address(ingress_ip, &ingress_ip_);
+
   // Run!
   rte_atomic16_set(&is_rebalancing_load_now_, 0);
   rte_atomic16_set(&mark_to_disable_, 0);

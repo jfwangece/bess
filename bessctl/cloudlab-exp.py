@@ -157,6 +157,25 @@ def setup_cpu_hugepage_for_all():
     print("exp: all hugepages ready")
     return
 
+def run_traffic():
+    pids = []
+    for tip in traffic_ip:
+        p = multiprocessing.Process(target=start_remote_bessd, args=(tip,))
+        p.start()
+        pids.append(p)
+    for p in pids:
+        p.join()
+
+    for tip in traffic_ip:
+        start_traffic(tip)
+    print("exp: traffic started")
+
+    time.sleep(30)
+
+    parse_latency_result(traffic_ip[0])
+    print("exp: done")
+    return
+
 def run_cluster_exp():
     # Start all bessd
     pids = []
@@ -204,6 +223,7 @@ def main():
     # setup_cpu_hugepage_for_all()
 
     ## Ready to go
+    # run_traffic()
     run_cluster_exp()
     return
 

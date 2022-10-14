@@ -3,7 +3,7 @@
 #
 import scapy.all as scapy
 
-num_cores = 3
+num_cores = 1
 pcie0 = $BESS_DEV!"81:00.0"
 offset0 = 0
 ips = ['10.10.1.{}'.format(x) for x in [2,3,4,5]]
@@ -19,6 +19,7 @@ playback_speed = float($BESS_SPEED!"1")
 tag_offset = 72
 burst_size=int($BESS_BURST!'32')
 ncore=int($BESS_NCORE!'4')
+pkt_rate=int($BESS_PKT_RATE!'300000')
 
 pcap_port = {}
 src = {}
@@ -35,7 +36,7 @@ for i in range(num_cores):
     src[i] = PortInc(port=pcap_port[i])
     queue[i] = Queue(size=pow(2,24))
     re[i] = Replayer(offset=tag_offset, dynamic_traffic_conf=playback_speed_conf)
-    ig[i] = IronsideIngress(endpoints=workers, ncore_thresh=ncore)
+    ig[i] = IronsideIngress(endpoints=workers, ncore_thresh=ncore, pkt_rate_thresh=pkt_rate)
 
     qout[i] = QueueOut(port=pmd_port0, qid=i)
     src[i] -> queue[i] -> re[i] -> ig[i] -> Timestamp(offset=tag_offset) -> qout[i]
