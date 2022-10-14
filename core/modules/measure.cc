@@ -57,14 +57,11 @@ static bool IsWorkerInfo(bess::Packet *pkt) {
     return false;
   }
   Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
-  if (ip->protocol != Ipv4::Proto::kTcp) {
-    return false;
+  if (ip->src.value != 12345 ||
+    ip->protocol != Ipv4::Proto::kTcp) {
+      return false;
   }
   Tcp* tcp = reinterpret_cast<Tcp *>(ip + 1);
-  if (tcp->seq_num.value() != 612345) {
-    return false;
-  }
-
   int worker_id = tcp->src_port.value();
   int ncore = tcp->dst_port.value();
   uint32_t rate = tcp->seq_num.value();
@@ -73,6 +70,7 @@ static bool IsWorkerInfo(bess::Packet *pkt) {
   bess::ctrl::worker_ncore[worker_id] = ncore;
   bess::ctrl::worker_packet_rate[worker_id] = rate;
   bess::ctrl::nfvctrl_worker_mu.unlock();
+  LOG(INFO) << rate;
   return true;
 }
 

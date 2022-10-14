@@ -471,8 +471,8 @@ void NFVCtrl::SendWorkerInfo() {
 
     eth->src_addr = Ethernet::Address("ec:0d:9a:67:ff:68");
     eth->dst_addr = Ethernet::Address("b8:ce:f6:cc:8c:14");
-    ip->src = be32_t(0x0a0a0102);
-    ip->dst = ingress_ip_;
+    ip->src = be32_t(12345);
+    ip->dst = monitor_dst_ip_;
     ip->length = be16_t(40);
     tcp->src_port = be16_t(uint16_t(worker_id_)); // whoami
     tcp->dst_port = be16_t(active_core_count_); // # of normal cores

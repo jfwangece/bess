@@ -259,7 +259,7 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   }
 
   std::string ingress_ip = "10.10.1.1";
-  bess::utils::ParseIpv4Address(ingress_ip, &ingress_ip_);
+  bess::utils::ParseIpv4Address(ingress_ip, &monitor_dst_ip_);
 
   // Run!
   rte_atomic16_set(&is_rebalancing_load_now_, 0);
