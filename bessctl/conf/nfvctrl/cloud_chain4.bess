@@ -15,13 +15,13 @@ slo = int($BESS_SLO!"200000")
 long_update_stats_period = int($BESS_LSTATS_PERIOD!"500000000")
 short_epoch_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
-ncore = int($BESS_NCORE!"5")
+ncore = int($BESS_NCORE!"10")
 
 short_profile = "/local/bess/nf_profiles/short_term.pro"
 long_profile = "/local/bess/nf_profiles/long_term_psize1050_slo100.pro"
 
 # NFVCtrl runs on its own core
-nfvctrl_core = 15
+nfvctrl_core = 40
 
 core_addrs = [
     {'l2_port': 0, 'l2_mac': '82:a3:ae:74:72:30'},
@@ -35,7 +35,7 @@ core_addrs = [
     {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
 ]
 core_cnt = ncore
-rcore_cnt = nfvctrl_core - (2 + ncore)
+rcore_cnt = nfvctrl_core - (1 + ncore)
 total_core_cnt = core_cnt + rcore_cnt
 cores = [i for i in range(core_cnt)]
 rcores = [core_cnt + i for i in range(rcore_cnt)]

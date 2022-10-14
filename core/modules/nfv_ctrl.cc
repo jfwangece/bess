@@ -41,25 +41,23 @@ const Commands NFVCtrl::cmds = {
      Command::THREAD_SAFE},
 };
 
-uint64_t NFVCtrl::RequestNSwQ(cpu_core_t core_id, int n) {
-  uint64_t bitmask = 0ULL;
+std::vector<int> NFVCtrl::RequestNSwQ(cpu_core_t core_id, int n) {
+  std::vector<int> assigned;
   if (core_id == DEFAULT_INVALID_CORE_ID) {
-    return bitmask;
+    return assigned;
   }
 
   // Only one NFVCore can call the following session at a time.
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
-  int assigned = 0;
   // Find a (idle) software queue
-  for (int i = 0; (i < DEFAULT_SWQ_COUNT) && (assigned < n); i++) {
+  for (int i = 0; (i < DEFAULT_SWQ_COUNT) && (int(assigned.size()) < n); i++) {
     if (bess::ctrl::sw_q_state[i]->up_core_id == DEFAULT_INVALID_CORE_ID) {
-      assigned += 1;
+      assigned.push_back(i);
       bess::ctrl::sw_q_state[i]->up_core_id = core_id;
-      bitmask |= 1ULL << i;
     }
   }
-  return bitmask;
+  return assigned;
 }
 
 int NFVCtrl::RequestSwQ(cpu_core_t core_id) {

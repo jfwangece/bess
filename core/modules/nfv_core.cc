@@ -104,16 +104,13 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   bess::ctrl::nfv_cores[core_id_] = this;
 
   // Begin with 0 software queue
-  sw_q_mask_ = bess::ctrl::NFVCtrlRequestNSwQ(core_id_, 8);
-  for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
-    uint64_t sw_q_idx = (1ULL << i) & sw_q_mask_;
-    if (sw_q_idx != 0) {
-      sw_q_.emplace_back (i);
-      sw_q_.back().sw_batch = reinterpret_cast<bess::PacketBatch *>
-          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
-    }
+  auto assigned = bess::ctrl::NFVCtrlRequestNSwQ(core_id_, 15);
+  for (int i : assigned) {
+    sw_q_.emplace_back (i);
+    sw_q_.back().sw_batch = reinterpret_cast<bess::PacketBatch *>
+        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   }
-  LOG(INFO) << "Core " << core_id_ << " has " << sw_q_.size() << " sw_q. q_mask: " << std::bitset<64> (sw_q_mask_);
+  LOG(INFO) << "Core " << core_id_ << " has " << sw_q_.size() << " sw_q.";
 
   // Init epoch thresholds and packet counters
   epoch_flow_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->first;

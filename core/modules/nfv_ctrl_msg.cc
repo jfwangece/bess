@@ -127,7 +127,7 @@ void NFVCtrlCheckAllComponents() {
 
 // Transfer the ownership of (at most) |n| software packet queues
 // to NFVCore (who calls this function)
-uint64_t NFVCtrlRequestNSwQ(cpu_core_t core_id, int n) {
+std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n) {
   if (nfv_cores[core_id] == nullptr) {
     LOG(ERROR) << "Core " << core_id << " is used but not created";
     // To register all normal CPU cores
@@ -143,7 +143,8 @@ uint64_t NFVCtrlRequestNSwQ(cpu_core_t core_id, int n) {
 
   if (nfv_ctrl == nullptr) {
     LOG(ERROR) << "NFVCtrl is used but not created";
-    return 0;
+    std::vector<int> assigned;
+    return assigned;
   }
 
   return nfv_ctrl->RequestNSwQ(core_id, n);

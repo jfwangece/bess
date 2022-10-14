@@ -5,14 +5,13 @@
 #include "../utils/cpu_core.h"
 
 #include <mutex>
+#include <vector>
 
 // Number of NFV workers in a cluster
 #define DEFAULT_INVALID_WORKER_ID 10
 
 // Number of software packet queues
-// Why 64? nfvctrl uses uint64_t to indicate the assignment of
-// software queues to NFVCore.
-#define DEFAULT_SWQ_COUNT 64
+#define DEFAULT_SWQ_COUNT 200
 
 // Default queue size
 #define DEFAULT_SWQ_SIZE 4096;
@@ -90,7 +89,7 @@ void NFVCtrlCheckAllComponents();
 // Request |n| software queues from the global software queue pool.
 // The return value is a bit-mask that records the assignment of
 // software queues: if (1 << i) is set, then sw_q[i] is assigned.
-uint64_t NFVCtrlRequestNSwQ(cpu_core_t core_id, int n);
+std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n);
 
 // Release software queues according to |q_mask|.
 // Note: a sw_q goes back to the pool only if core |core_id| owns it.

@@ -26,7 +26,7 @@ class NFVCtrl final : public Module {
 
   // Returns |n| (idle) software queue's index as a bitmask.
   // Once assigned, the software queue is uniquely accessed by NFVCore (the caller).
-  uint64_t RequestNSwQ(cpu_core_t core_id, int n);
+  std::vector<int> RequestNSwQ(cpu_core_t core_id, int n);
   // Returns the software queue's index.
   int RequestSwQ(cpu_core_t core_id);
 
