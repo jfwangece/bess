@@ -18,9 +18,9 @@ CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
   macs_.clear();
   pkt_cnts_.clear();
 
-  mode = 0;
+  mode_ = 0;
   if (arg.mode() > 0) {
-    mode = arg.mode();
+    mode_ = arg.mode();
   }
 
   for (const auto &host : arg.endpoints()) {
@@ -45,7 +45,7 @@ CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
     pkt_rate_thresh_ = (uint32_t)arg.pkt_rate_thresh();
   }
 
-  LOG(INFO) << "ncore thresh=" << ncore_thresh_ << "; rate thresh=" << pkt_rate_thresh_;
+  LOG(INFO) << "mode:" << mode_ << "ncore thresh=" << ncore_thresh_ << "; rate thresh=" << pkt_rate_thresh_;
   return CommandSuccess();
 }
 
@@ -63,7 +63,7 @@ void IronsideIngress::UpdateEndpointLB() {
   last_endpoint_update_ts_ = curr_ts;  
   endpoint_id_ = -1;
 
-  if (mode == 0) { // min core
+  if (mode_ == 0) { // min core
     int endpoint_ncore_cnt = 0;
 
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
@@ -81,7 +81,7 @@ void IronsideIngress::UpdateEndpointLB() {
       }
     }
     bess::ctrl::nfvctrl_worker_mu.unlock_shared();
-  } else if (mode == 1) { // min rate
+  } else if (mode_ == 1) { // min rate
     uint32_t endpoint_pkt_rate = 0;
 
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
@@ -99,7 +99,7 @@ void IronsideIngress::UpdateEndpointLB() {
       }
     }
     bess::ctrl::nfvctrl_worker_mu.unlock_shared();
-  } else if (mode == 2) { // max core
+  } else if (mode_ == 2) { // max core
     int endpoint_ncore_cnt = 0;
 
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
@@ -117,7 +117,7 @@ void IronsideIngress::UpdateEndpointLB() {
       }
     }
     bess::ctrl::nfvctrl_worker_mu.unlock_shared();
-  } else if (mode == 3) { // max rate
+  } else if (mode_ == 3) { // max rate
     uint32_t endpoint_pkt_rate = 0;
 
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
