@@ -6,8 +6,10 @@
 wid = int($BESS_WID!"0")
 pcie0 = $BESS_DEV!"81:00.0"
 offset0 = 1
+
+# the traffic generator's routing information
+traffic_ip = "10.10.1.1"
 traffic_mac = "b8:ce:f6:cc:8c:14"
-traffic_ip = "10.10.1.2"
 
 burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
@@ -22,7 +24,7 @@ short_profile = "/local/bess/nf_profiles/short_term.pro"
 long_profile = "/local/bess/nf_profiles/long_term_psize1050_slo100.pro"
 
 # NFVCtrl runs on its own core
-nfvctrl_core = 40
+nfvctrl_core = 30
 
 core_addrs = [
     {'l2_port': 0, 'l2_mac': '82:a3:ae:74:72:30'},

@@ -19,7 +19,7 @@ playback_speed = float($BESS_SPEED!"1")
 tag_offset = 72
 burst_size=int($BESS_BURST!'32')
 ncore=int($BESS_NCORE!'4')
-pkt_rate=int($BESS_PKT_RATE!'300000')
+pkt_rate=int($BESS_PKT_RATE!'1000000')
 
 pcap_port = {}
 src = {}

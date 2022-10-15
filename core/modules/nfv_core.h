@@ -99,6 +99,13 @@ class NFVCore final : public Module {
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg);
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
+  inline int GetNICQueueCount() const {
+    return rte_eth_rx_queue_count(((PMDPort*)port_)->get_dpdk_port_id(), qid_);
+  }
+  int GetSoftwareQueueCount() const {
+    return llring_count(local_queue_);
+  }
+
   // Check if a new short-term epoch has started.
   // If yes, check the remaining packet queue, and split traffic
   // if it will lead to SLO violations.
