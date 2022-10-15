@@ -128,11 +128,6 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   for (auto& sw_q_it : sw_q_) {
     sw_q_it.EnqueueBatch();
   }
-
-  uint32_t total_cnt = GetNICQueueCount() + GetSoftwareQueueCount();
-  if (false && total_cnt > large_queue_packet_thresh_) {
-    bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
-  }
 }
 
 void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
@@ -175,13 +170,6 @@ void NFVCore::SplitQToSwQ(llring* q) {
   uint32_t total_cnt = llring_count(q);
   if (total_cnt <= epoch_packet_thresh_) {
     return;
-  }
-  if (total_cnt > large_queue_packet_thresh_) {
-    num_epoch_with_large_queue_ += 1;
-    if (num_epoch_with_large_queue_ > 3) {
-      num_epoch_with_large_queue_ = 0;
-      bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
-    }
   }
 
   uint32_t burst, curr_cnt = 0;
@@ -302,6 +290,15 @@ void NFVCore::BestEffortEnqueue(bess::PacketBatch *batch, llring *q) {
 
 bool NFVCore::ShortEpochProcess() {
   using bess::utils::all_core_stats_chan;
+
+  uint32_t q_cnt = GetNICQueueCount() + GetSoftwareQueueCount();
+  if (q_cnt > large_queue_packet_thresh_) {
+    num_epoch_with_large_queue_ += 1;
+    if (num_epoch_with_large_queue_ > 3) {
+      num_epoch_with_large_queue_ = 0;
+      bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
+    }
+  }
 
   // At the end of one epoch, NFVCore requests software queues to
   // absorb the existing packet queue in the coming epoch.

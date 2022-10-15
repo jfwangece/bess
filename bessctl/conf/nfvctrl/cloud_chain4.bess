@@ -20,7 +20,7 @@ short_epoch_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
 ncore = int($BESS_NCORE!"10")
 
-queue_scale = 10
+queue_scale = 5
 short_profile = "/local/bess/nf_profiles/short_term.pro"
 long_profile = "/local/bess/nf_profiles/long_term_psize1050_slo100.pro"
 
@@ -110,8 +110,6 @@ nfvctrl.attach_task(wid=nfvctrl_core)
 for i in cores:
     bess.add_worker(wid=i, core=i + offset0)
     pinc0[i].attach_task(wid=i)
-    #bess.add_tc('pr%d' %(i), policy='priority', wid=i)
-    #pinc0[i].attach_task(parent='pr%d' %(i), priority=100)
 for i in rcores:
     bess.add_worker(wid=i, core=i + offset0)
     pinc0[i].attach_task(wid=i)
