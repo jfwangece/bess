@@ -10,7 +10,7 @@ ips = ['10.10.1.{}'.format(x) for x in [2,3,4,5]]
 macs = ['b8:ce:f6:cc:96:e4', 'b8:ce:f6:d2:3a:c2', 'b8:ce:f6:d2:3b:12', 'b8:ce:f6:cc:8b:fc']
 workers=[{'ip': ips[i], 'mac': macs[i]} for i in range(len(ips))]
 # 0: min core; 1: min rate; 2: max core; 3: max rate
-ig_mode = 0
+ig_mode = 1
 ncore=int($BESS_NCORE!'4')
 pkt_rate=int($BESS_PKT_RATE!'300000')
 
@@ -50,12 +50,16 @@ pinc0.set_burst(burst=burst_size)
 for i in range(num_cores):
     queue[i].set_burst(burst=burst_size)
 
-bess.add_worker(wid=1, core=1)
-pinc0.attach_task(wid=1)
+socket0_cores = [i for i in range(32)]
+socket1_cores = [32 + i for i in range(32)]
 
+# traffic inc
+bess.add_worker(wid=1, core=socket1_cores[1])
+pinc0.attach_task(wid=1)
+# traffic out
 for i in range(num_cores):
-    bess.add_worker(wid=2+2*i, core=2+2*i)
-    bess.add_worker(wid=2+2*i+1, core=2+2*i+1)
+    bess.add_worker(wid=2+2*i, core=socket1_cores[2+2*i])
+    bess.add_worker(wid=2+2*i+1, core=socket1_cores[2+2*i+1])
     src[i].attach_task(wid=2+2*i)
     queue[i].attach_task(wid=2+2*i+1)
 

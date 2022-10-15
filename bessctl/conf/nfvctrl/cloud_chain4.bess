@@ -20,7 +20,7 @@ short_epoch_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
 ncore = int($BESS_NCORE!"10")
 
-queue_scale = 4
+queue_scale = 10
 short_profile = "/local/bess/nf_profiles/short_term.pro"
 long_profile = "/local/bess/nf_profiles/long_term_psize1050_slo100.pro"
 
