@@ -37,6 +37,9 @@ struct llring* sw_q[DEFAULT_SWQ_COUNT] = {nullptr};
 
 SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr}; // sw_q can be assigned if |up_core_id| is invalid
 
+int ncore = 0;
+int rcore = 0;
+
 bool core_state[DEFAULT_INVALID_CORE_ID] = {false}; // core is in-use if true
 
 bool rcore_state[DEFAULT_INVALID_CORE_ID] = {false}; // rcore can be assigned if true

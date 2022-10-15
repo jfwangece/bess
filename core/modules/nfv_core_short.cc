@@ -130,7 +130,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   }
 
   uint32_t total_cnt = GetNICQueueCount() + GetSoftwareQueueCount();
-  if (total_cnt > epoch_packet_thresh_ * 4) {
+  if (total_cnt > large_queue_packet_thresh_) {
     bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
   }
 }
@@ -176,7 +176,7 @@ void NFVCore::SplitQToSwQ(llring* q) {
   if (total_cnt <= epoch_packet_thresh_) {
     return;
   }
-  if (total_cnt > epoch_packet_thresh_ * 4) {
+  if (total_cnt > large_queue_packet_thresh_) {
     bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
   }
 

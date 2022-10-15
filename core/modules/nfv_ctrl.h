@@ -118,7 +118,6 @@ class NFVCtrl final : public Module {
   bess::PacketBatch* local_batch_;
 
   // Normal cores and reserved cores
-  std::vector<WorkerCore> cpu_cores_;
   uint16_t total_core_count_;
   uint16_t active_core_count_; // Updated during the algorithm
 

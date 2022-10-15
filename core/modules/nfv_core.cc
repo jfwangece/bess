@@ -115,6 +115,8 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   // Init epoch thresholds and packet counters
   epoch_flow_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->first;
   epoch_packet_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second;
+  large_queue_packet_thresh_ = epoch_packet_thresh_ * 3 * bess::ctrl::rcore / bess::ctrl::ncore;
+  LOG(INFO) << "epoch thresh: pkt=" << epoch_packet_thresh_ << ", flow=" << epoch_flow_thresh_ << ", queue=" << large_queue_packet_thresh_;
 
   epoch_packet_arrival_ = 0;
   epoch_packet_processed_ = 0;

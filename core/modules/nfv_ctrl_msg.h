@@ -71,6 +71,9 @@ extern struct llring* system_dump_q_;
 extern struct llring* sw_q[DEFAULT_SWQ_COUNT];
 
 /// Worker-layer core mapping
+extern int ncore;
+extern int rcore;
+
 // States for maintaining software packet queues, normal and reserved cores.
 extern SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT];
 extern bool core_state[DEFAULT_INVALID_CORE_ID];

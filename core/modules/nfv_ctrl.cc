@@ -172,16 +172,13 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   }
 
   total_core_count_ = 0;
-  for (const auto& core_addr : arg.core_addrs()) {
-    cpu_cores_.push_back(
-      WorkerCore {
-        core_id: total_core_count_,
-        worker_port: core_addr.l2_port(),
-        nic_addr: core_addr.l2_mac()}
-    );
-    total_core_count_ += 1;
+  if (arg.ncore() > 0) {
+    total_core_count_ = arg.ncore();
+    bess::ctrl::ncore = arg.ncore();
   }
-  assert(total_core_count_ == cpu_cores_.size());
+  if (arg.rcore() > 0) {
+    bess::ctrl::rcore = arg.rcore();
+  }
 
   long_epoch_period_ns_ = LONG_TERM_UPDATE_PERIOD_NS;
   if (arg.long_epoch_period_ns() > 0) {

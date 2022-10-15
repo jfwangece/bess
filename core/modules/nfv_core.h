@@ -184,6 +184,7 @@ class NFVCore final : public Module {
   // Based on our design, it approximates the NF profile curve
   uint32_t epoch_packet_thresh_;
   uint32_t epoch_flow_thresh_;
+  uint32_t large_queue_packet_thresh_;
   uint32_t epoch_drop1_;
   uint32_t epoch_drop2_;
   uint32_t epoch_drop3_;
