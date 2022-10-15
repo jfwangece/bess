@@ -82,25 +82,25 @@ class NFVCtrl final : public Module {
 
  private:
   // Return the max packet rate under flow count |fc| given the input NF profile.
-  double GetMaxPktRateFromLongTermProfile(double fc);
+  uint64_t GetMaxPktRateFromLongTermProfile(uint64_t fc);
   // LongTermOptimzation adjusts the system for long term changes. It makes sure
   // that no cores are violating p50 SLO. It also reduces resource consumption by
   // packing flows tightly and freeing up CPU cores.
   std::map<uint16_t, uint16_t> LongTermOptimization(
-      const std::vector<double>& per_bucket_pkt_rate,
-      const std::vector<double>& per_bucket_flow_count);
+      const std::vector<uint64_t>& per_bucket_pkt_rate,
+      const std::vector<uint64_t>& per_bucket_flow_count);
 
   std::map<uint16_t, uint16_t> OnDemandLongTermOptimization(
       uint16_t core_id,
-      const std::vector<double>& per_bucket_pkt_rate,
-      const std::vector<double>& per_bucket_flow_count);
+      const std::vector<uint64_t>& per_bucket_pkt_rate,
+      const std::vector<uint64_t>& per_bucket_flow_count);
 
   // Apply first-fit to find the best core for the set of RSS buckets to be migrated
   std::map<uint16_t, uint16_t> FindMoves(
-      std::vector<double>& per_core_pkt_rate,
-      std::vector<double>& per_core_flow_count,
-      const std::vector<double>& per_bucket_pkt_rate,
-      const std::vector<double>& per_bucket_flow_count,
+      std::vector<uint64_t>& per_core_pkt_rate,
+      std::vector<uint64_t>& per_core_flow_count,
+      const std::vector<uint64_t>& per_bucket_pkt_rate,
+      const std::vector<uint64_t>& per_bucket_flow_count,
       std::vector<uint16_t>& to_move_cores);
 
   uint64_t long_epoch_period_ns_;

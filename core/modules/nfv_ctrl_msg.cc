@@ -25,7 +25,7 @@ std::shared_mutex nfvctrl_worker_mu;
 std::shared_mutex nfvctrl_bucket_mu;
 
 // Long-term and short-term NF profiles
-std::map<double, double> long_flow_count_pps_threshold;
+std::map<uint64_t, uint64_t> long_flow_count_pps_threshold;
 std::map<uint32_t, uint32_t> short_flow_count_pkt_threshold;
 std::map<uint16_t, uint16_t> trans_buckets;
 

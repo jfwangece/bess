@@ -55,7 +55,7 @@ extern NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID];
 extern PMDPort *pmd_port;
 
 // packet rate threshold given the flow count. Values are found using offline profiling
-extern std::map<double, double> long_flow_count_pps_threshold;
+extern std::map<uint64_t, uint64_t> long_flow_count_pps_threshold;
 extern std::map<uint32_t, uint32_t> short_flow_count_pkt_threshold;
 extern std::map<uint16_t, uint16_t> trans_buckets;
 

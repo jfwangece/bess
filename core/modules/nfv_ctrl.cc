@@ -200,8 +200,8 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   std::ifstream long_profile_file(long_profile_fname, std::ifstream::in);
   if (long_profile_file.is_open()) {
     while (!long_profile_file.eof()) {
-      double pps;
-      double flow_count;
+      uint64_t pps;
+      uint64_t flow_count;
       long_profile_file >> flow_count;
       long_profile_file >> pps;
       bess::ctrl::long_flow_count_pps_threshold[flow_count] = pps;

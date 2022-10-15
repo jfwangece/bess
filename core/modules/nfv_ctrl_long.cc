@@ -107,17 +107,17 @@ void NFVCtrl::InitPMD(PMDPort* port) {
   port_->UpdateRssFlow();
 }
 
-std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt_rate,
-                                                std::vector<double>& per_cpu_flow_count,
-                                                const std::vector<double>& per_bucket_pkt_rate,
-                                                const std::vector<double>& per_bucket_flow_count,
+std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<uint64_t>& per_cpu_pkt_rate,
+                                                std::vector<uint64_t>& per_cpu_flow_count,
+                                                const std::vector<uint64_t>& per_bucket_pkt_rate,
+                                                const std::vector<uint64_t>& per_bucket_flow_count,
                                                 std::vector<uint16_t>& to_move_buckets) {
   std::map<uint16_t, uint16_t> moves;
   std::vector<uint16_t> skipped_buckets;
 
   for (auto bucket : to_move_buckets) {
-    double bucket_pkt_rate = per_bucket_pkt_rate[bucket];
-    double bucket_flow_count = per_bucket_flow_count[bucket];
+    uint64_t bucket_pkt_rate = per_bucket_pkt_rate[bucket];
+    uint64_t bucket_flow_count = per_bucket_flow_count[bucket];
     bool found = false;
     for (uint16_t i = 0; i < total_core_count_; i++) {
       if (bess::ctrl::nfv_cores[i] &&
@@ -165,7 +165,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<double>& per_cpu_pkt
   return moves;
 }
 
-double NFVCtrl::GetMaxPktRateFromLongTermProfile(double fc) {
+uint64_t NFVCtrl::GetMaxPktRateFromLongTermProfile(uint64_t fc) {
   if (bess::ctrl::long_flow_count_pps_threshold.size() == 0) {
     return 1000000.0;
   }
@@ -179,12 +179,12 @@ double NFVCtrl::GetMaxPktRateFromLongTermProfile(double fc) {
 }
 
 std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
-    const std::vector<double>& per_bucket_pkt_rate,
-    const std::vector<double>& per_bucket_flow_count) {
+    const std::vector<uint64_t>& per_bucket_pkt_rate,
+    const std::vector<uint64_t>& per_bucket_flow_count) {
 
   active_core_count_ = 0;
-  std::vector<double> per_cpu_pkt_rate(total_core_count_);
-  std::vector<double> per_cpu_flow_count(total_core_count_);
+  std::vector<uint64_t> per_cpu_pkt_rate(total_core_count_);
+  std::vector<uint64_t> per_cpu_flow_count(total_core_count_);
 
   // Compute the aggregated packet rate for each core.
   // Note: |core_state|: a normal core is in-use;
@@ -248,7 +248,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
 
   // Find the CPU with minimum flow rate and (try to) delete it
   uint16_t min_rate_core = DEFAULT_INVALID_CORE_ID;
-  double min_rate = 0;
+  uint64_t min_rate = 0;
   for(uint16_t i = 0; i < total_core_count_; i++) {
     if (!bess::ctrl::core_state[i] ||
         bess::ctrl::core_liveness[i] <= 4) {
@@ -311,13 +311,12 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
 }
 
 uint32_t NFVCtrl::LongEpochProcess() {
-  uint64_t to_rate_per_sec = 1000000000ULL / (tsc_to_ns(rdtsc()) - last_long_epoch_end_ns_);
-
   // Per-bucket packet rate and flow count are to be used by the long-term op.
-  std::vector<double> per_bucket_pkt_rate;
-  std::vector<double> per_bucket_flow_count;
+  std::vector<uint64_t> per_bucket_pkt_rate;
+  std::vector<uint64_t> per_bucket_flow_count;
 
-  double pps = 0;
+  uint64_t pps = 0;
+  uint64_t to_rate_per_sec = 1000000000ULL / (tsc_to_ns(rdtsc()) - last_long_epoch_end_ns_);
   bess::utils::bucket_stats->bucket_table_lock.lock();
   for (int i = 0; i < RETA_SIZE; i++) {
     per_bucket_pkt_rate.push_back(bess::utils::bucket_stats->per_bucket_packet_counter[i] * to_rate_per_sec);
@@ -329,7 +328,8 @@ uint32_t NFVCtrl::LongEpochProcess() {
   bess::utils::bucket_stats->bucket_table_lock.unlock();
   curr_packet_rate_ = (uint32_t)pps;
 
-  std::map<uint16_t, uint16_t> moves = LongTermOptimization(per_bucket_pkt_rate, per_bucket_flow_count);
+  std::map<uint16_t, uint16_t> moves =
+    LongTermOptimization(per_bucket_pkt_rate, per_bucket_flow_count);
 
   rte_atomic16_set(&curr_active_core_count_, active_core_count_);
   SendWorkerInfo();
@@ -346,11 +346,11 @@ uint32_t NFVCtrl::LongEpochProcess() {
 }
 
 std::map<uint16_t, uint16_t> NFVCtrl::OnDemandLongTermOptimization(uint16_t core_id,
-      const std::vector<double>& per_bucket_pkt_rate,
-      const std::vector<double>& per_bucket_flow_count) {
+      const std::vector<uint64_t>& per_bucket_pkt_rate,
+      const std::vector<uint64_t>& per_bucket_flow_count) {
 
-  std::vector<double> per_cpu_pkt_rate(total_core_count_);
-  std::vector<double> per_cpu_flow_count(total_core_count_);
+  std::vector<uint64_t> per_cpu_pkt_rate(total_core_count_);
+  std::vector<uint64_t> per_cpu_flow_count(total_core_count_);
   for (uint16_t i = 0; i < total_core_count_; i++) {
     per_cpu_pkt_rate[i] = 0;
     if (core_bucket_mapping_[i].size() > 0) {
@@ -365,7 +365,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::OnDemandLongTermOptimization(uint16_t core
 
   // Add buckets to |to_move_buckets|.
   std::vector<uint16_t> to_move_buckets;
-  double target_pkt_rate = 0.5 * per_cpu_pkt_rate[core_id];
+  uint64_t target_pkt_rate = per_cpu_pkt_rate[core_id] / 2;
   while (per_cpu_pkt_rate[core_id] > target_pkt_rate &&
         core_bucket_mapping_[core_id].size() > 0) {
     uint16_t bucket = core_bucket_mapping_[core_id].back();
@@ -378,7 +378,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::OnDemandLongTermOptimization(uint16_t core
   }
 
   uint16_t mr_core = DEFAULT_INVALID_CORE_ID;
-  double min_rate = 0;
+  uint64_t min_rate = 0;
   for(uint16_t i = 0; i < total_core_count_; i++) {
     if (bess::ctrl::nfv_cores[i]) {
       if (mr_core == DEFAULT_INVALID_CORE_ID) {
@@ -410,13 +410,12 @@ std::map<uint16_t, uint16_t> NFVCtrl::OnDemandLongTermOptimization(uint16_t core
 }
 
 uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
-  uint64_t to_rate_per_sec = 1000000000ULL / (tsc_to_ns(rdtsc()) - last_long_epoch_end_ns_);
-
   // Per-bucket packet rate and flow count are to be used by the long-term op.
-  std::vector<double> per_bucket_pkt_rate;
-  std::vector<double> per_bucket_flow_count;
+  std::vector<uint64_t> per_bucket_pkt_rate;
+  std::vector<uint64_t> per_bucket_flow_count;
 
-  double pps = 0;
+  uint64_t to_rate_per_sec = 1000000000ULL / (tsc_to_ns(rdtsc()) - last_long_epoch_end_ns_);
+  uint64_t pps = 0;
   bess::utils::bucket_stats->bucket_table_lock.lock();
   for (int i = 0; i < RETA_SIZE; i++) {
     per_bucket_pkt_rate.push_back(bess::utils::bucket_stats->per_bucket_packet_counter[i]);
