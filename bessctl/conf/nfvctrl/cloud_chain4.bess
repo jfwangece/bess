@@ -20,6 +20,7 @@ short_epoch_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
 ncore = int($BESS_NCORE!"10")
 
+queue_scale = 4
 short_profile = "/local/bess/nf_profiles/short_term.pro"
 long_profile = "/local/bess/nf_profiles/long_term_psize1050_slo100.pro"
 
@@ -76,7 +77,7 @@ for i in cores:
         pinc0[i] -> nfvmo[i] -> pout0[i]
     elif exp_idx == 1:
         # Default: Chain 4 w/ NFVMonitor
-        pinc0[i] = NFVCore(core_id=i, port=port0, qid=i, short_epoch_period_ns=short_epoch_period)
+        pinc0[i] = NFVCore(core_id=i, port=port0, qid=i, short_epoch_period_ns=short_epoch_period, large_queue_scale=queue_scale)
         nfvmo[i] = NFVMonitor(core_id=i, short_epoch_period_ns=short_epoch_period)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
     elif exp_idx == 2:

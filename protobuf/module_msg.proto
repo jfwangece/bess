@@ -1020,6 +1020,7 @@ message NFVCoreArg {
   string port = 2; /// which NIC interface to use
   uint64 qid = 3; /// which NIC queue
   int32 short_epoch_period_ns = 4; /// The size of a short-term optimization epoch
+  int32 large_queue_scale = 5; /// Each normal core should at most use |scale| * avg_rcore RCores
 }
 
 message NFVRCoreArg {
