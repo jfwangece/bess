@@ -28,6 +28,8 @@ class IronsideIngress final : public Module {
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
  private:
+  int mode = 0;
+
   // Workers in the cluster.
   std::vector<Ethernet::Address> macs_;
   std::vector<be32_t> ips_;

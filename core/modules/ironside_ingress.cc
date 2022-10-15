@@ -18,6 +18,11 @@ CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
   macs_.clear();
   pkt_cnts_.clear();
 
+  mode = 0;
+  if (arg.mode() > 0) {
+    mode = arg.mode();
+  }
+
   for (const auto &host : arg.endpoints()) {
     macs_.push_back(Ethernet::Address(host.mac()));
 
@@ -58,39 +63,79 @@ void IronsideIngress::UpdateEndpointLB() {
   last_endpoint_update_ts_ = curr_ts;  
   endpoint_id_ = -1;
 
-  // uint32_t endpoint_pkt_rate = 0;
-  // bess::ctrl::nfvctrl_worker_mu.lock_shared();
-  // for (size_t i = 0; i < ips_.size(); i++) {
-  //   // Skip overloaded workers
-  //   if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
-  //     continue;
-  //   }
-  //   if (10 * pkt_cnts_[i] > pkt_rate_thresh_) {
-  //     continue;
-  //   }
-  //   if (i == 0 || pkt_cnts_[i] < endpoint_pkt_rate) {
-  //     endpoint_pkt_rate = pkt_cnts_[i];
-  //     endpoint_id_ = i;
-  //   }
-  // }
-  // bess::ctrl::nfvctrl_worker_mu.unlock_shared();
+  if (mode == 0) { // min core
+    int endpoint_ncore_cnt = 0;
 
-  int endpoint_ncore_cnt = 0;
-  bess::ctrl::nfvctrl_worker_mu.lock_shared();
-  for (size_t i = 0; i < ips_.size(); i++) {
-    // Skip overloaded workers
-    if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
-      continue;
+    bess::ctrl::nfvctrl_worker_mu.lock_shared();
+    for (size_t i = 0; i < ips_.size(); i++) {
+      // Skip overloaded workers
+      if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
+        continue;
+      }
+      if (10 * pkt_cnts_[i] > pkt_rate_thresh_) {
+        continue;
+      }
+      if (i == 0 || bess::ctrl::worker_ncore[i] < endpoint_ncore_cnt) {
+        endpoint_ncore_cnt = pkt_cnts_[i];
+        endpoint_id_ = i;
+      }
     }
-    if (10 * pkt_cnts_[i] > pkt_rate_thresh_) {
-      continue;
+    bess::ctrl::nfvctrl_worker_mu.unlock_shared();
+  } else if (mode == 1) { // min rate
+    uint32_t endpoint_pkt_rate = 0;
+
+    bess::ctrl::nfvctrl_worker_mu.lock_shared();
+    for (size_t i = 0; i < ips_.size(); i++) {
+      // Skip overloaded workers
+      if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
+        continue;
+      }
+      if (10 * pkt_cnts_[i] > pkt_rate_thresh_) {
+        continue;
+      }
+      if (i == 0 || pkt_cnts_[i] < endpoint_pkt_rate) {
+        endpoint_pkt_rate = pkt_cnts_[i];
+        endpoint_id_ = i;
+      }
     }
-    if (i == 0 || bess::ctrl::worker_ncore[i] > endpoint_ncore_cnt) {
-      endpoint_ncore_cnt = pkt_cnts_[i];
-      endpoint_id_ = i;
+    bess::ctrl::nfvctrl_worker_mu.unlock_shared();
+  } else if (mode == 2) { // max core
+    int endpoint_ncore_cnt = 0;
+
+    bess::ctrl::nfvctrl_worker_mu.lock_shared();
+    for (size_t i = 0; i < ips_.size(); i++) {
+      // Skip overloaded workers
+      if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
+        continue;
+      }
+      if (10 * pkt_cnts_[i] > pkt_rate_thresh_) {
+        continue;
+      }
+      if (i == 0 || bess::ctrl::worker_ncore[i] > endpoint_ncore_cnt) {
+        endpoint_ncore_cnt = pkt_cnts_[i];
+        endpoint_id_ = i;
+      }
     }
+    bess::ctrl::nfvctrl_worker_mu.unlock_shared();
+  } else if (mode == 3) { // max rate
+    uint32_t endpoint_pkt_rate = 0;
+
+    bess::ctrl::nfvctrl_worker_mu.lock_shared();
+    for (size_t i = 0; i < ips_.size(); i++) {
+      // Skip overloaded workers
+      if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
+        continue;
+      }
+      if (10 * pkt_cnts_[i] > pkt_rate_thresh_) {
+        continue;
+      }
+      if (i == 0 || pkt_cnts_[i] > endpoint_pkt_rate) {
+        endpoint_pkt_rate = pkt_cnts_[i];
+        endpoint_id_ = i;
+      }
+    }
+    bess::ctrl::nfvctrl_worker_mu.unlock_shared();
   }
-  bess::ctrl::nfvctrl_worker_mu.unlock_shared();
 
   // Reset
   for (size_t i = 0; i < pkt_cnts_.size(); i++) {
