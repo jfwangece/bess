@@ -12,6 +12,8 @@ using bess::utils::UpdateChecksumWithIncrement;
 using bess::utils::UpdateChecksum16;
 
 CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
+  // Init
+  flow_cache_.clear();
   ips_.clear();
   macs_.clear();
   pkt_cnts_.clear();
@@ -33,13 +35,12 @@ CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
   if (arg.ncore_thresh() > 0) {
     ncore_thresh_ = arg.ncore_thresh();
   }
-  pkt_rate_thresh_ = 300000;
+  pkt_rate_thresh_ = 500000;
   if (arg.pkt_rate_thresh() > 0) {
     pkt_rate_thresh_ = (uint32_t)arg.pkt_rate_thresh();
   }
 
-  // Init
-  flow_cache_.clear();
+  LOG(INFO) << "ncore thresh=" << ncore_thresh_ << "; rate thresh=" << pkt_rate_thresh_;
   return CommandSuccess();
 }
 
@@ -68,7 +69,7 @@ void IronsideIngress::UpdateEndpointLB() {
       continue;
     }
 
-    if (pkt_cnts_[i] >= endpoint_pkt_rate) {
+    if (i == 0 || pkt_cnts_[i] < endpoint_pkt_rate) {
       endpoint_pkt_rate = pkt_cnts_[i];
       endpoint_id_ = i;
     }
@@ -100,7 +101,7 @@ void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     // Calculate the flow aggregate ID
     // size_t hashed = rte_hash_crc(&ip->src, sizeof(be32_t), 0);
-    uint64_t flow_id = ip->dst.value() & 0x03FF;
+    uint64_t flow_id = ip->dst.value() & 0x0FFF;
 
     auto it = flow_cache_.find(flow_id);
     if (it == flow_cache_.end()) {
