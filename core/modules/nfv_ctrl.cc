@@ -306,11 +306,11 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
     // Default long-term op
     // Re-group RSS buckets to cores to adpat to long-term load changes
     uint32_t moves = LongEpochProcess();
-    last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
     if (moves > 0) {
       LOG(INFO) << "Long-term op: default, time = " << last_long_epoch_end_ns_;
     }
     rte_atomic16_set(&is_rebalancing_load_now_, 0);
+    last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
 
     // For graceful termination
     if (rte_atomic16_read(&mark_to_disable_) == 1) {

@@ -8,31 +8,24 @@ burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 slo = int($BESS_SLO!"200000")
-long_update_stats_period = int($BESS_LSTATS_PERIOD!"500000000")
+long_epoch_period = int($BESS_LSTATS_PERIOD!"500000000")
 short_epoch_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
+ncore = int($BESS_NCORE!"6")
 
 # By default, pick MLX NICs
 pcie0, offset0="af:00.0", 7 # XL710
 if nic != 0:
     pcie0, offset0="5e:00.0", 1 # MLX
 
+queue_scale = 2
+short_profile = "/home/uscnsl/jianfeng/bess_fork/nf_profiles/short_term.pro"
+long_profile = "/home/uscnsl/jianfeng/bess_fork/nf_profiles/long_term_psize1050_slo100.pro"
+
 # NFVCtrl runs on its own core
 nfvctrl_core = 15
-
-core_addrs = [
-    {'l2_port': 0, 'l2_mac': '82:a3:ae:74:72:30'},
-    {'l2_port': 1, 'l2_mac': 'a2:87:fd:f8:72:21'},
-    {'l2_port': 2, 'l2_mac': '2e:c7:8b:7b:8d:a8'},
-    {'l2_port': 3, 'l2_mac': '2a:9d:fd:13:15:01'},
-    {'l2_port': 4, 'l2_mac': '32:a5:0f:e0:04:0b'},
-    {'l2_port': 5, 'l2_mac': '06:8a:62:fb:51:51'},
-    {'l2_port': 6, 'l2_mac': 'ce:2e:14:c4:a0:cb'},
-    {'l2_port': 7, 'l2_mac': '6e:af:01:7a:93:6f'},
-    {'l2_port': 8, 'l2_mac': '00:af:01:7a:93:6f'},
-]
-core_cnt=6
-rcore_cnt=8
+core_cnt = ncore
+rcore_cnt = nfvctrl_core - (1 + ncore)
 total_core_cnt = core_cnt + rcore_cnt
 cores = [i for i in range(core_cnt)]
 rcores = [core_cnt + i for i in range(rcore_cnt)]
@@ -51,12 +44,10 @@ for i in range(lb_cnt / 20):
         nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
 
 # Module
-nfvctrl::NFVCtrl(core_addrs=core_addrs[:core_cnt],
+nfvctrl::NFVCtrl(wid=0,ncore=core_cnt, rcore=rcore_cnt, qid=total_core_cnt,
     slo_ns=slo,
-    wid=0,
-    qid=total_core_cnt,
-    long_epoch_period_ns=long_update_stats_period,
-    nf_long_term_profile="nf_profiles/long_term_psize1050_slo100.pro")
+    long_epoch_period_ns=long_epoch_period,
+    nf_short_term_profile=short_profile, nf_long_term_profile=long_profile)
 
 port0::PMDPort(pci=pcie0,
     num_inc_q=core_cnt,
@@ -85,7 +76,7 @@ for i in cores:
         pinc0[i] -> nfvmo[i] -> pout0[i]
     elif exp_idx == 1:
         # Default: Chain 4 w/ NFVMonitor
-        pinc0[i] = NFVCore(core_id=i, port=port0, qid=i, short_epoch_period_ns=short_epoch_period)
+        pinc0[i] = NFVCore(core_id=i, port=port0, qid=i, short_epoch_period_ns=short_epoch_period, large_queue_scale=queue_scale)
         nfvmo[i] = NFVMonitor(core_id=i, short_epoch_period_ns=short_epoch_period)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> pout0[i]
     elif exp_idx == 2:

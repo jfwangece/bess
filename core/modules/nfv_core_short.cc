@@ -291,7 +291,7 @@ void NFVCore::BestEffortEnqueue(bess::PacketBatch *batch, llring *q) {
 bool NFVCore::ShortEpochProcess() {
   using bess::utils::all_core_stats_chan;
 
-  uint32_t q_cnt = GetNICQueueCount() + GetSoftwareQueueCount();
+  uint32_t q_cnt = GetSoftwareQueueCount();
   if (q_cnt > large_queue_packet_thresh_) {
     num_epoch_with_large_queue_ += 1;
     if (num_epoch_with_large_queue_ > 3) {
