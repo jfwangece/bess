@@ -72,17 +72,19 @@ struct FlowState {
     rss = 0;
     ingress_packet_count = 0;
     egress_packet_count = 0;
-    queued_packet_count = 0;
     short_epoch_packet_count = 0;
+    queued_packet_count = 0;
+    enqueued_packet_count = 0;
     sw_q_state = nullptr;
   }
 
   Flow flow;
   uint32_t rss; // NIC's RSS-based hash for |flow|
   uint32_t ingress_packet_count; // packet counter at ingress
-  uint32_t short_epoch_packet_count; // short-term epoch packet counter
   uint32_t egress_packet_count; // packet counter at egress
+  uint32_t short_epoch_packet_count; // short-term epoch packet counter
   uint32_t queued_packet_count; // packet count in the system
+  uint32_t enqueued_packet_count; // packet count in the SplitAndEnqueue process
   SoftwareQueueState *sw_q_state; // |this| flow sent to software queue w/ valid |sw_q_state|
 };
 

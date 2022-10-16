@@ -166,12 +166,12 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
 }
 
 void NFVCore::SplitQToSwQ(llring* q) {
-  bess::PacketBatch batch;
   uint32_t total_cnt = llring_count(q);
   if (total_cnt <= epoch_packet_thresh_) {
     return;
   }
 
+  bess::PacketBatch batch;
   uint32_t curr_cnt = 0;
   while (curr_cnt < total_cnt) { // scan all packets only once
     batch.clear();
@@ -249,6 +249,15 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
       continue;
     }
 
+    if (state->enqueued_packet_count >= state->queued_packet_count) {
+      if (state->ingress_packet_count > state->egress_packet_count) {
+        state->egress_packet_count += 1;
+      }
+      bess::Packet::Free(pkt);
+      continue;
+    }
+
+    state->enqueued_packet_count += 1;
     local_batch_->add(pkt);
   }
 
@@ -347,10 +356,12 @@ bool NFVCore::ShortEpochProcess() {
         it.second->queued_packet_count = 0;
       }
       // Reset so that the flow can be recorded in the next short epoch
+      it.second->enqueued_packet_count = 0;
       it.second->short_epoch_packet_count = 0;
+
       total_pkt_cnt += it.second->queued_packet_count;
       if (it.second->sw_q_state != nullptr) {
-        // flows that have been assigned
+        // Skip flows that have been assigned to migrate to RCores
         continue;
       }
 
