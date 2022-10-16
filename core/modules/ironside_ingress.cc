@@ -45,7 +45,7 @@ CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
     pkt_rate_thresh_ = (uint32_t)arg.pkt_rate_thresh();
   }
 
-  LOG(INFO) << "mode:" << mode_ << "ncore thresh=" << ncore_thresh_ << "; rate thresh=" << pkt_rate_thresh_;
+  LOG(INFO) << "mode: " << mode_ << "ncore thresh=" << ncore_thresh_ << "; rate thresh=" << pkt_rate_thresh_;
   return CommandSuccess();
 }
 

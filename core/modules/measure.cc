@@ -70,7 +70,7 @@ static bool IsWorkerInfo(bess::Packet *pkt) {
   bess::ctrl::worker_ncore[worker_id] = ncore;
   bess::ctrl::worker_packet_rate[worker_id] = rate;
   bess::ctrl::nfvctrl_worker_mu.unlock();
-  // LOG(INFO) << worker_id << ", " << ncore << ", " << rate;
+  LOG(INFO) << worker_id << ", " << ncore << ", " << rate;
   return true;
 }
 

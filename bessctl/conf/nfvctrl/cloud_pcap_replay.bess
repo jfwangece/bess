@@ -24,7 +24,6 @@ playback_speed = float($BESS_SPEED!"1")
 tag_offset = 72
 burst_size=int($BESS_BURST!'32')
 
-
 pcap_port = {}
 src = {}
 queue = {}
