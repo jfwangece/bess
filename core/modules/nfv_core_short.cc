@@ -180,8 +180,8 @@ void NFVCore::SplitQToSwQ(llring* q) {
       LOG(INFO) << cnt;
     }
     batch.set_cnt(cnt);
-    // bess::Packet::Free(&batch);
-    SplitAndEnqueue(&batch);
+    bess::Packet::Free(&batch);
+    // SplitAndEnqueue(&batch);
     curr_cnt += cnt;
   }
   // Debug log
