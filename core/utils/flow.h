@@ -54,6 +54,12 @@ class alignas(16) Flow {
   bool operator<(const Flow &other) const {
     return memcmp(this, &other, sizeof(*this));
   }
+
+  struct EqualTo {
+  bool operator()(const Flow &lhs, const Flow &rhs) const {
+    return lhs == rhs;
+  }
+};
 };
 static_assert(sizeof(Flow) == 16, "Flow must be 16 bytes.");
 

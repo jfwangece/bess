@@ -222,12 +222,13 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   }
 
   // Busy pulling from the NIC queue
-  uint32_t cnt = 0, pull_rounds = 0;
+  int cnt = 0;
+  uint32_t pull_rounds = 0;
   while (pull_rounds++ < 10) {
     batch->clear();
     cnt = p->RecvPackets(qid, batch->pkts(), 32);
     batch->set_cnt(cnt);
-    if (cnt) {
+    if (cnt > 0) {
       // To append |per_flow_states_|
       // Update the number of packets / flows that have arrived:
       // Update |epoch_packet_arrival_| and |epoch_flow_cache_|
@@ -243,8 +244,9 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), burst);
   batch->set_cnt(cnt);
 
+  uint32_t total_pkts = (uint32_t)cnt;
   uint64_t total_bytes = 0;
-  for (uint32_t i = 0; i < cnt; i++) {
+  for (int i = 0; i < cnt; i++) {
     total_bytes += batch->pkts()[i]->total_len();
   }
 
@@ -252,7 +254,6 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     // Update the number of packets / flows processed:
     // |epoch_packet_processed_| and |per_flow_states_|
     UpdateStatsPreProcessBatch(batch);
-
     ProcessBatch(ctx, batch);
   }
 
@@ -263,16 +264,15 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
 
     ShortEpochProcess();
-    if (true) {
-      SplitQToSwQ(local_queue_);
-    }
+    SplitQToSwQ(local_queue_);
+
     curr_epoch_id_ += 1;
     last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
   }
 
   return {.block = false,
-          .packets = cnt,
-          .bits = (total_bytes + cnt * 24) * 8};
+          .packets = total_pkts,
+          .bits = (total_bytes + total_pkts * 24) * 8};
 }
 
 /* Get a batch from upstream */

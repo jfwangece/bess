@@ -7,6 +7,7 @@
 #include "../pb/module_msg.pb.h"
 #include "../port.h"
 #include "../utils/cpu_core.h"
+#include "../utils/cuckoo_map.h"
 #include "../utils/flow.h"
 #include "../utils/sys_measure.h"
 
@@ -142,6 +143,7 @@ class NFVCore final : public Module {
   CommandResponse CommandSetBurst(const bess::pb::NFVCoreCommandSetBurstArg &arg);
 
  private:
+
   // Return 0 if |local_queue_| is resized successfully.
   int Resize(uint32_t slots);
 
@@ -199,6 +201,8 @@ class NFVCore final : public Module {
   // If |num_epoch_with_large_queue_| is large, |this| core should call
   // nfvctrl->NotifyCtrlLoadBalanceNow();
   uint32_t num_epoch_with_large_queue_;
+
+  using HashTable = bess::utils::CuckooMap<Flow, FlowState*, FlowHash, Flow::EqualTo>;
 
   // For recording active flows in an epoch
   std::unordered_map<Flow, FlowState*, FlowHash> epoch_flow_cache_;
