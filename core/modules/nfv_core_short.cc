@@ -56,7 +56,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
 
     if (state->short_epoch_packet_count == 0) {
       // Update the per-epoch flow count
-      epoch_flow_cache_.emplace(flow, state);
+      epoch_flow_cache_.emplace(state);
     }
     state->short_epoch_packet_count += 1;
     state->ingress_packet_count += 1;
@@ -347,26 +347,27 @@ bool NFVCore::ShortEpochProcess() {
 
   uint32_t total_pkt_cnt = 0;
   uint32_t pkt_cnt = 0;
-  for (auto& it : epoch_flow_cache_) {
-    if (it.second != nullptr) {
-      if (it.second->ingress_packet_count >= it.second->egress_packet_count) {
-        it.second->queued_packet_count = it.second->ingress_packet_count - it.second->egress_packet_count;
+  for (auto it = epoch_flow_cache_.begin(); it != epoch_flow_cache_.end(); ++it) {
+    FlowState *state = *it;
+    if (state != nullptr) {
+      if (state->ingress_packet_count >= state->egress_packet_count) {
+        state->queued_packet_count = state->ingress_packet_count - state->egress_packet_count;
       } else {
-        // LOG(ERROR) << "short-term: error. ig=" << it.second->ingress_packet_count << ", eg=" << it.second->egress_packet_count;
-        it.second->queued_packet_count = 0;
+        // LOG(ERROR) << "short-term: error. ig=" << state->ingress_packet_count << ", eg=" << state->egress_packet_count;
+        state->queued_packet_count = 0;
       }
       // Reset so that the flow can be recorded in the next short epoch
-      it.second->enqueued_packet_count = 0;
-      it.second->short_epoch_packet_count = 0;
+      state->enqueued_packet_count = 0;
+      state->short_epoch_packet_count = 0;
 
-      total_pkt_cnt += it.second->queued_packet_count;
-      if (it.second->sw_q_state != nullptr) {
+      total_pkt_cnt += state->queued_packet_count;
+      if (state->sw_q_state != nullptr) {
         // Skip flows that have been assigned to migrate to RCores
         continue;
       }
 
-      unoffload_flows_.emplace(it.first, it.second);
-      pkt_cnt += it.second->queued_packet_count;
+      unoffload_flows_.emplace(state);
+      pkt_cnt += state->queued_packet_count;
     } else {
       LOG(FATAL) << "short-term: error (impossible non-flow packet)";
     }
@@ -374,39 +375,34 @@ bool NFVCore::ShortEpochProcess() {
 
   // Greedy assignment: first-fit
   uint32_t local_assigned = 0;
-  uint32_t local_offloaded = 0;
   uint32_t local_large_flow = 0;
-  auto flow_it = unoffload_flows_.begin();
-  while (flow_it != unoffload_flows_.end()) {
-    uint32_t task_size = flow_it->second->queued_packet_count;
+
+  for (auto it = unoffload_flows_.begin(); it != unoffload_flows_.end(); ++it) {
+    FlowState *state = *it;
+    uint32_t task_size = state->queued_packet_count;
+
     if (task_size <= epoch_packet_thresh_) {
       if (local_assigned + task_size < epoch_packet_thresh_) {
         local_assigned += task_size;
-        flow_it = unoffload_flows_.erase(flow_it);
       } else {
-        local_offloaded += task_size;
         bool assigned = false;
         for (auto& sw_q_it : sw_q_) {
           if (sw_q_it.QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
-            flow_it->second->sw_q_state = &sw_q_it;
+            state->sw_q_state = &sw_q_it;
             sw_q_it.assigned_packet_count += task_size;
-            flow_it = unoffload_flows_.erase(flow_it);
             assigned = true;
             break;
           }
         }
         if (!assigned) {
           // Existing software queues cannot hold this flow. Need more queues
-          // LOG(INFO) << "short-term: core" << core_id_ << " (no enough sw_q). Flow w/ " << low_it->second->queued_packet_count << " pkts";
-          flow_it->second->sw_q_state = &system_dump_q0_;
-          flow_it++;
+          state->sw_q_state = &system_dump_q0_;
         }
       }
     } else {
       // This flow cannot be handled by only 1 core.
       local_large_flow += task_size;
-      flow_it->second->sw_q_state = &system_dump_q1_;
-      flow_it++;
+      state->sw_q_state = &system_dump_q1_;
     }
   }
   // Debug log

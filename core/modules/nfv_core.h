@@ -11,6 +11,8 @@
 #include "../utils/flow.h"
 #include "../utils/sys_measure.h"
 
+#include <set>
+
 using bess::utils::Flow;
 using bess::utils::FlowHash;
 using bess::utils::FlowRoutingRule;
@@ -147,6 +149,7 @@ class NFVCore final : public Module {
   CommandResponse CommandSetBurst(const bess::pb::NFVCoreCommandSetBurstArg &arg);
 
  private:
+  using HashTable = bess::utils::CuckooMap<Flow, FlowState*, FlowHash, Flow::EqualTo>;
 
   // Return 0 if |local_queue_| is resized successfully.
   int Resize(uint32_t slots);
@@ -173,8 +176,6 @@ class NFVCore final : public Module {
   // Software queues borrowed from NFVCtrl
   uint64_t sw_q_mask_;
   std::vector<SoftwareQueueState> sw_q_;
-  std::unordered_map<Flow, int, FlowHash> flow_to_sw_q_;
-  std::unordered_map<Flow, FlowState*, FlowHash> unoffload_flows_;
 
   // Metadata field ID
   int flow_stats_attr_id_; // for maintaining per-flow stats
@@ -206,10 +207,11 @@ class NFVCore final : public Module {
   // nfvctrl->NotifyCtrlLoadBalanceNow();
   uint32_t num_epoch_with_large_queue_;
 
-  using HashTable = bess::utils::CuckooMap<Flow, FlowState*, FlowHash, Flow::EqualTo>;
-
   // For recording active flows in an epoch
-  std::unordered_map<Flow, FlowState*, FlowHash> epoch_flow_cache_;
+  std::set<FlowState*> epoch_flow_cache_;
+  // For each epoch, the set of flows that are not migrated to aux cores
+  std::set<FlowState*> unoffload_flows_;
+
   // For maintaining (per-core) FlowState structs
   std::unordered_map<Flow, FlowState*, FlowHash> per_flow_states_;
 
