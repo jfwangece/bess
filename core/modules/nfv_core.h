@@ -32,7 +32,9 @@ struct SoftwareQueueState {
     // The system's dump queue
     sw_q_id = DEFAULT_SWQ_COUNT + 1;
     sw_q = bess::ctrl::system_dump_q_;
-    idle_epoch_count = assigned_packet_count = processed_packet_count = 0;
+    idle_epoch_count = 0;
+    assigned_packet_count = 0;
+    processed_packet_count = 0;
   }
   SoftwareQueueState(int qid) : sw_q_id(qid) {
     // The system's software queue for offloading
