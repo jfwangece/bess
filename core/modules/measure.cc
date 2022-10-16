@@ -190,7 +190,7 @@ void Measure::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       if (now_ns >= pkt_time) {
         diff = now_ns - pkt_time;
         if (add_debug_tag_nfvcore) {
-          if (diff > 500000) {
+          if (diff >= 2000000) {
             PerPacketTag val;
             GetUint32(batch->pkts()[i], 90, &val.rcore_idle_epoch_count);
             GetUint32(batch->pkts()[i], 94, &val.sw_q_id);
