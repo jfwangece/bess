@@ -176,12 +176,10 @@ void NFVCore::SplitQToSwQ(llring* q) {
   while (curr_cnt < total_cnt) { // scan all packets only once
     batch.clear();
     int cnt = llring_sc_dequeue_burst(q, (void **)batch.pkts(), 32);
-    if (cnt < 0 || cnt > 32) {
-      LOG(INFO) << cnt;
-    }
     batch.set_cnt(cnt);
-    bess::Packet::Free(&batch);
-    // SplitAndEnqueue(&batch);
+
+    // bess::Packet::Free(&batch);
+    SplitAndEnqueue(&batch);
     curr_cnt += cnt;
   }
   // Debug log
@@ -203,7 +201,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
     bess::Packet *pkt = batch->pkts()[i];
     state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
     if (state == nullptr) {
-      LOG(ERROR) << "split&enq: error (invalid non-flow packet)";
+      LOG(FATAL) << "split&enq: error (invalid non-flow packet)";
       bess::Packet::Free(pkt);
       continue;
     }
@@ -289,6 +287,10 @@ bool NFVCore::ShortEpochProcess() {
 
   uint32_t q_cnt = GetSoftwareQueueCount();
   if (q_cnt > large_queue_packet_thresh_) {
+    // This |ncore| observes a large queue, and by default, it hopes that
+    // the following short-term optimization can handle it with aux cores.
+    // However, if it still sees a large queue in the next epoch, it tells
+    // that an on-demand load-balancing is needed immediately ...
     num_epoch_with_large_queue_ += 1;
     if (num_epoch_with_large_queue_ > 1) {
       num_epoch_with_large_queue_ = 0;
@@ -332,6 +334,8 @@ bool NFVCore::ShortEpochProcess() {
   }
 
   // Update |unoffload_flows_|
+  unoffload_flows_.clear();
+
   uint32_t total_pkt_cnt = 0;
   uint32_t pkt_cnt = 0;
   for (auto& it : epoch_flow_cache_) {
@@ -349,10 +353,11 @@ bool NFVCore::ShortEpochProcess() {
         // flows that have been assigned
         continue;
       }
+
       unoffload_flows_.emplace(it.first, it.second);
       pkt_cnt += it.second->queued_packet_count;
     } else {
-      LOG(ERROR) << "short-term: error (impossible non-flow packet)";
+      LOG(FATAL) << "short-term: error (impossible non-flow packet)";
     }
   }
 
@@ -421,9 +426,6 @@ bool NFVCore::ShortEpochProcess() {
     }
     sw_q_it.processed_packet_count = 0;
   }
-
-  // Handle super-bursty flows by splitting a chain into several cores
-  unoffload_flows_.clear();
 
   // Clear
   CoreStats* stats_ptr = nullptr;
