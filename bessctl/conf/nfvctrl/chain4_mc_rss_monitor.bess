@@ -18,7 +18,7 @@ pcie0, offset0="af:00.0", 7 # XL710
 if nic != 0:
     pcie0, offset0="5e:00.0", 1 # MLX
 
-queue_scale = 2
+queue_scale = 1
 short_profile = "/home/uscnsl/jianfeng/bess_fork/nf_profiles/short_term.pro"
 long_profile = "/home/uscnsl/jianfeng/bess_fork/nf_profiles/long_term_psize1050_slo100.pro"
 

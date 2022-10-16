@@ -20,12 +20,12 @@ short_epoch_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
 ncore = int($BESS_NCORE!"10")
 
-queue_scale = 5
+queue_scale = 1
 short_profile = "/local/bess/nf_profiles/short_term.pro"
 long_profile = "/local/bess/nf_profiles/long_term_psize1050_slo100.pro"
 
 # NFVCtrl runs on its own core
-nfvctrl_core = 30
+nfvctrl_core = 31
 core_cnt = ncore
 rcore_cnt = nfvctrl_core - (1 + ncore)
 total_core_cnt = core_cnt + rcore_cnt
