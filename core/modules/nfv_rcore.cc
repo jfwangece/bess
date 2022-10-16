@@ -1,9 +1,19 @@
 #include "nfv_rcore.h"
 
+#include "../drivers/pmd.h"
+#include "../port.h"
+
 const Commands NFVRCore::cmds = {
   {"set_burst", "NFVRCoreCommandSetBurstArg", MODULE_CMD_FUNC(&NFVRCore::CommandSetBurst),
      Command::THREAD_SAFE},
 };
+
+namespace {
+uint64_t get_hw_timestamp_nic(bess::Packet *pkt) {
+  uint64_t nic_cycle = reinterpret_cast<rte_mbuf*>(pkt)->timestamp;
+  return nic_tsc_to_ns(nic_cycle);
+}
+}
 
 // NFVRCore member functions
 CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
@@ -114,13 +124,29 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   }
   batch->set_cnt(cnt);
 
+  uint64_t curr_nic_ts_ns = nic_tsc_to_ns(nic_rdtsc());
   uint64_t total_bytes = 0;
+  uint64_t max_pkt_delay = 0;
   for (uint32_t i = 0; i < cnt; i++) {
-    rte_prefetch0(batch->pkts()[i]->head_data());
-    total_bytes += batch->pkts()[i]->total_len();
+    bess::Packet *pkt = batch->pkts()[i];
+
+    uint64_t pkt_ts_ns = get_hw_timestamp_nic(pkt);
+    if (curr_nic_ts_ns > pkt_ts_ns) {
+      uint64_t pkt_delay = curr_nic_ts_ns - pkt_ts_ns;
+      if (pkt_delay < max_pkt_delay) {
+        max_pkt_delay = pkt_delay;
+      }
+    }
+
+    rte_prefetch0(pkt->head_data());
+    total_bytes += pkt->total_len();
   }
 
-  RunNextModule(ctx, batch);
+  if (max_pkt_delay > 1000000) {
+    bess::Packet::Free(batch);
+  } else {
+    RunNextModule(ctx, batch);
+  }
 
   return {.block = false,
           .packets = cnt,
