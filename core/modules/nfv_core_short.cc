@@ -96,7 +96,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
         continue;
       }
 
-      // Add debugging packet tags
+      // Add debugg per-packet tags for sw enqueue
       if (add_debug_tag_nfvcore) {
         uint32_t val;
         val = q_state->idle_epoch_count >= 0 ? q_state->idle_epoch_count : 1000000;
@@ -114,6 +114,17 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       }
       q_state->sw_batch->add(pkt);
       continue;
+    }
+
+    // Add debug per-packet tags for normal enqueue
+    if (add_debug_tag_nfvcore) {
+      uint32_t val;
+      val = core_id_;
+      TagUint32(pkt, 90, val);
+      val = 1234;
+      TagUint32(pkt, 94, val);
+      val = llring_count(local_queue_);
+      TagUint32(pkt, 98, val);
     }
 
     local_batch_->add(pkt);
