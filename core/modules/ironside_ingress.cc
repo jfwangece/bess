@@ -68,11 +68,12 @@ void IronsideIngress::UpdateEndpointLB() {
 
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
     for (size_t i = 0; i < ips_.size(); i++) {
+      pkt_cnts_[i] *= 10;
       // Skip overloaded workers
       if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
         continue;
       }
-      if (10 * pkt_cnts_[i] > pkt_rate_thresh_) {
+      if (pkt_cnts_[i] > pkt_rate_thresh_) {
         continue;
       }
       if (i == 0 || bess::ctrl::worker_ncore[i] < endpoint_ncore_cnt) {
@@ -86,11 +87,12 @@ void IronsideIngress::UpdateEndpointLB() {
 
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
     for (size_t i = 0; i < ips_.size(); i++) {
+      pkt_cnts_[i] *= 10;
       // Skip overloaded workers
       if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
         continue;
       }
-      if (10 * pkt_cnts_[i] > pkt_rate_thresh_) {
+      if (pkt_cnts_[i] > pkt_rate_thresh_) {
         continue;
       }
       if (i == 0 || pkt_cnts_[i] < endpoint_pkt_rate) {
@@ -104,11 +106,12 @@ void IronsideIngress::UpdateEndpointLB() {
 
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
     for (size_t i = 0; i < ips_.size(); i++) {
+      pkt_cnts_[i] *= 10;
       // Skip overloaded workers
       if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
         continue;
       }
-      if (10 * pkt_cnts_[i] > pkt_rate_thresh_) {
+      if (pkt_cnts_[i] > pkt_rate_thresh_) {
         continue;
       }
       if (i == 0 || bess::ctrl::worker_ncore[i] > endpoint_ncore_cnt) {
@@ -122,11 +125,12 @@ void IronsideIngress::UpdateEndpointLB() {
 
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
     for (size_t i = 0; i < ips_.size(); i++) {
+      pkt_cnts_[i] *= 10;
       // Skip overloaded workers
       if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
         continue;
       }
-      if (10 * pkt_cnts_[i] > pkt_rate_thresh_) {
+      if (pkt_cnts_[i] > pkt_rate_thresh_) {
         continue;
       }
       if (i == 0 || pkt_cnts_[i] > endpoint_pkt_rate) {

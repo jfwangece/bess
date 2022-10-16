@@ -452,7 +452,7 @@ uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
 
 void NFVCtrl::SendWorkerInfo() {
   const queue_t qid = ACCESS_ONCE(qid_);
-  int pktcnt = 3;
+  int pktcnt = 2;
 
   local_batch_->clear();
   for (int i = 0; i < pktcnt; i++) {
