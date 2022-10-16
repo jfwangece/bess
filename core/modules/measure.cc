@@ -57,9 +57,8 @@ static bool IsWorkerInfo(bess::Packet *pkt) {
     return false;
   }
   Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
-  if (ip->src.value() != 12345 ||
-    ip->protocol != Ipv4::Proto::kTcp) {
-      return false;
+  if (ip->src.value() != 12345 || ip->protocol != Ipv4::Proto::kTcp) {
+    return false;
   }
   Tcp* tcp = reinterpret_cast<Tcp *>(ip + 1);
   int worker_id = tcp->src_port.value();
