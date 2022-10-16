@@ -76,7 +76,7 @@ void IronsideIngress::UpdateEndpointLB() {
       if (pkt_cnts_[i] > pkt_rate_thresh_) {
         continue;
       }
-      if (i == 0 || bess::ctrl::worker_ncore[i] < endpoint_ncore_cnt) {
+      if (bess::ctrl::worker_ncore[i] < endpoint_ncore_cnt) {
         endpoint_ncore_cnt = bess::ctrl::worker_ncore[i];
         endpoint_id_ = i;
       }
@@ -95,7 +95,7 @@ void IronsideIngress::UpdateEndpointLB() {
       if (pkt_cnts_[i] > pkt_rate_thresh_) {
         continue;
       }
-      if (i == 0 || pkt_cnts_[i] < endpoint_pkt_rate) {
+      if (pkt_cnts_[i] < endpoint_pkt_rate) {
         endpoint_pkt_rate = pkt_cnts_[i];
         endpoint_id_ = i;
       }
@@ -114,7 +114,7 @@ void IronsideIngress::UpdateEndpointLB() {
       if (pkt_cnts_[i] > pkt_rate_thresh_) {
         continue;
       }
-      if (i == 0 || bess::ctrl::worker_ncore[i] > endpoint_ncore_cnt) {
+      if (endpoint_ncore_cnt == 0 || bess::ctrl::worker_ncore[i] > endpoint_ncore_cnt) {
         endpoint_ncore_cnt = bess::ctrl::worker_ncore[i];
         endpoint_id_ = i;
       }
@@ -133,7 +133,7 @@ void IronsideIngress::UpdateEndpointLB() {
       if (pkt_cnts_[i] > pkt_rate_thresh_) {
         continue;
       }
-      if (i == 0 || pkt_cnts_[i] > endpoint_pkt_rate) {
+      if (endpoint_pkt_rate == 0 || pkt_cnts_[i] > endpoint_pkt_rate) {
         endpoint_pkt_rate = pkt_cnts_[i];
         endpoint_id_ = i;
       }
