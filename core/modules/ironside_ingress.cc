@@ -64,7 +64,7 @@ void IronsideIngress::UpdateEndpointLB() {
   endpoint_id_ = -1;
 
   if (mode_ == 0) { // min core
-    int endpoint_ncore_cnt = 0;
+    int endpoint_ncore_cnt = 100;
 
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
     for (size_t i = 0; i < ips_.size(); i++) {
@@ -76,13 +76,13 @@ void IronsideIngress::UpdateEndpointLB() {
         continue;
       }
       if (i == 0 || bess::ctrl::worker_ncore[i] < endpoint_ncore_cnt) {
-        endpoint_ncore_cnt = pkt_cnts_[i];
+        endpoint_ncore_cnt = bess::ctrl::worker_ncore[i];
         endpoint_id_ = i;
       }
     }
     bess::ctrl::nfvctrl_worker_mu.unlock_shared();
   } else if (mode_ == 1) { // min rate
-    uint32_t endpoint_pkt_rate = 0;
+    uint32_t endpoint_pkt_rate = 1000000;
 
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
     for (size_t i = 0; i < ips_.size(); i++) {
@@ -112,7 +112,7 @@ void IronsideIngress::UpdateEndpointLB() {
         continue;
       }
       if (i == 0 || bess::ctrl::worker_ncore[i] > endpoint_ncore_cnt) {
-        endpoint_ncore_cnt = pkt_cnts_[i];
+        endpoint_ncore_cnt = bess::ctrl::worker_ncore[i];
         endpoint_id_ = i;
       }
     }
