@@ -38,14 +38,14 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     }
 
     // Update per-core flow states
-    auto state_it = per_flow_states_.find(flow);
-    if (state_it == per_flow_states_.end()) {
+    auto state_it = per_flow_states_.Find(flow);
+    if (state_it == nullptr) {
       state = new FlowState();
       state->flow = flow;
       state->rss = bess::utils::bucket_stats->RSSHashToID(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
       state->ingress_packet_count = 0;
       state->egress_packet_count = 0;
-      per_flow_states_.emplace(flow, state);
+      per_flow_states_.Insert(flow, state);
     } else {
       state = state_it->second;
     }

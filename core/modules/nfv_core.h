@@ -213,7 +213,7 @@ class NFVCore final : public Module {
   std::set<FlowState*> unoffload_flows_;
 
   // For maintaining (per-core) FlowState structs
-  std::unordered_map<Flow, FlowState*, FlowHash> per_flow_states_;
+  HashTable per_flow_states_;
 
   // If true, |this| normal core stops pulling packets from its NIC queue
   rte_atomic16_t disabled_;

@@ -126,7 +126,8 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   epoch_packet_queued_ = 0;
   num_epoch_with_large_queue_ = 0;
   epoch_flow_cache_.clear();
-  per_flow_states_.clear();
+  unoffload_flows_.clear();
+  per_flow_states_.Clear(); // CuckooMap
 
   // Run!
   rte_atomic16_set(&mark_to_disable_, 0);
@@ -170,14 +171,14 @@ void NFVCore::DeInit() {
 }
 
 CommandResponse NFVCore::CommandClear(const bess::pb::EmptyArg &) {
-  for (auto& it : per_flow_states_) {
-    if (it.second != nullptr) {
-      free(it.second);
-      it.second = nullptr;
+  for (auto it = per_flow_states_.begin(); it != per_flow_states_.end(); ++it) {
+    if (it->second != nullptr) {
+      free(it->second);
+      it->second = nullptr;
     }
   }
 
-  per_flow_states_.clear();
+  per_flow_states_.Clear();
   return CommandSuccess();
 }
 
