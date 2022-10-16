@@ -83,7 +83,7 @@ def start_remote_bessd(ip):
     return
 
 def start_traffic(tip):
-    cmds = ["run", "nfvctrl/cloud_pcap_replay"]
+    cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_IG=3"]
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     print(out)
@@ -217,7 +217,7 @@ def main():
     ## Pre-install
     # reset_grub_for_all()
     # install_mlnx_for_all()
-    # install_bess_for_all()
+    install_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()
