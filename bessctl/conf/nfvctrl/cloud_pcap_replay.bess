@@ -9,6 +9,7 @@ offset0 = 0
 ips = ['10.10.1.{}'.format(x) for x in [2,3,4,5]]
 macs = ['b8:ce:f6:cc:96:e4', 'b8:ce:f6:d2:3a:c2', 'b8:ce:f6:d2:3b:12', 'b8:ce:f6:cc:8b:fc']
 workers=[{'ip': ips[i], 'mac': macs[i]} for i in range(len(ips))]
+
 # 0: min core; 1: min rate; 2: max core; 3: max rate
 ig_mode = int($BESS_IG!'0')
 ncore=int($BESS_NCORE!'4')

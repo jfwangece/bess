@@ -182,7 +182,7 @@ void NFVCore::SplitQToSwQ(llring* q) {
     batch.clear();
     int cnt = llring_sc_dequeue_burst(q, (void **)batch.pkts(), burst);
     batch.set_cnt(cnt);
-    // bess::Packet::Free(&batch);
+    bess::Packet::Free(&batch);
     SplitAndEnqueue(&batch);
     curr_cnt += cnt;
   }
