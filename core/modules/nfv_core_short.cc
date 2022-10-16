@@ -290,7 +290,7 @@ bool NFVCore::ShortEpochProcess() {
   uint32_t q_cnt = GetSoftwareQueueCount();
   if (q_cnt > large_queue_packet_thresh_) {
     num_epoch_with_large_queue_ += 1;
-    if (num_epoch_with_large_queue_ > 3) {
+    if (num_epoch_with_large_queue_ > 1) {
       num_epoch_with_large_queue_ = 0;
       bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
     }
