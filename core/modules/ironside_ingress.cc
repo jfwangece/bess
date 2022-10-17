@@ -45,7 +45,7 @@ CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
     pkt_rate_thresh_ = (uint32_t)arg.pkt_rate_thresh();
   }
 
-  LOG(INFO) << "mode: " << mode_ << "ncore thresh=" << ncore_thresh_ << "; rate thresh=" << pkt_rate_thresh_;
+  LOG(INFO) << "mode: " << mode_ << "; ncore thresh=" << ncore_thresh_ << "; rate thresh=" << pkt_rate_thresh_;
   return CommandSuccess();
 }
 
@@ -58,9 +58,9 @@ void IronsideIngress::UpdateEndpointLB() {
   if (curr_ts - last_endpoint_update_ts_ < 100000000) {
     return;
   }
+  last_endpoint_update_ts_ = curr_ts;
 
   // Do it once
-  last_endpoint_update_ts_ = curr_ts;  
   endpoint_id_ = -1;
 
   if (mode_ == 0) { // min core
@@ -133,7 +133,7 @@ void IronsideIngress::UpdateEndpointLB() {
       if (pkt_cnts_[i] > pkt_rate_thresh_) {
         continue;
       }
-      if (endpoint_pkt_rate == 0 || pkt_cnts_[i] > endpoint_pkt_rate) {
+      if (pkt_cnts_[i] >= endpoint_pkt_rate) {
         endpoint_pkt_rate = pkt_cnts_[i];
         endpoint_id_ = i;
       }
