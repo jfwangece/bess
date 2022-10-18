@@ -11,18 +11,18 @@ offset0 = 1
 traffic_ip = "10.10.1.1"
 traffic_mac = "b8:ce:f6:cc:8c:14"
 
+slo = int($BESS_SLO!"200000")
+short_profile = $BESS_SPROFILE!"/local/bess/nf_profiles/short_term.pro"
+long_profile = $BESS_LPROFILE!"/local/bess/nf_profiles/long_term_psize1050_slo100.pro"
+
 burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
-slo = int($BESS_SLO!"200000")
 long_epoch_period = int($BESS_LSTATS_PERIOD!"500000000")
 short_epoch_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
 ncore = int($BESS_NCORE!"10")
-
 queue_scale = 1
-short_profile = "/local/bess/nf_profiles/short_term.pro"
-long_profile = "/local/bess/nf_profiles/long_term_psize1050_slo100.pro"
 
 # NFVCtrl runs on its own core
 nfvctrl_core = 31

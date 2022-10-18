@@ -19,6 +19,11 @@ traffic_ip = ["130.127.134.78"]
 worker_ip = ["130.127.134.91", "130.127.134.76", "130.127.134.97", "130.127.134.73"]
 all_ip = traffic_ip + worker_ip
 
+def send_remote_file(ip, local_path, target_path):
+    remote_cmd = ['scp', local_path, 'uscnsl@{}:{}'.format(ip, target_path), '>/dev/null', '2>&1', '\n']
+    os.system(' '.join(remote_cmd))
+    return
+
 def run_remote_command(ip, cmd):
     remote_cmd = ['ssh', 'uscnsl@{}'.format(ip), '"{}"'.format(cmd), '>/dev/null', '2>&1', '\n']
     os.system(' '.join(remote_cmd))
@@ -51,15 +56,17 @@ def install_mlnx(ip):
     run_remote_command(ip, cmd)
     return
 
-def install_bess(ip):
+def install_bess(recompile, ip):
     print("Install BESS daemon for {}".format(ip))
 
-    cmd = "sudo apt install -y htop git"
-    run_remote_command(ip, cmd)
-    cmd = "git clone https://github.com/jwangee/FaaS-Setup.git"
-    run_remote_command(ip, cmd)
-    cmd = "cd ./FaaS-Setup && git pull && ./ironside-install.sh"
-    run_remote_command(ip, cmd)
+    if recompile:
+        cmd = "sudo apt install -y htop git && git clone https://github.com/jwangee/FaaS-Setup.git"
+        run_remote_command(ip, cmd)
+        cmd = "cd ./FaaS-Setup && git pull && ./ironside-install.sh"
+        run_remote_command(ip, cmd)
+    else:
+        cmd = "cd /local/bess && git pull"
+        run_remote_command(ip, cmd)
     return
 
 def setup_cpu_memory(ip):
@@ -89,8 +96,12 @@ def start_traffic(tip):
     print(out)
     print("traffic {} starts".format(tip))
 
-def start_ironside_worker(wip, wid):
-    cmds = ["run", "nfvctrl/cloud_chain4", "BESS_WID={}".format(wid)]
+def start_ironside_worker(wip, worker_id, slo, short, long):
+    remote_short = "/local/bess/short.prof"
+    remote_long = "/local/bess/long.prof"
+    send_remote_file(wip, short, remote_short)
+    send_remote_file(wip, long, remote_long)
+    cmds = ["run", "nfvctrl/cloud_chain4", "BESS_WID={}, BESS_SLO={}, BESS_SPROFILE={}, BESS_LPROFILE={}".format(worker_id, slo, remote_short, remote_long)]
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
     print(out)
@@ -100,7 +111,14 @@ def parse_latency_result(tip):
     cmds = ['command', 'module', 'measure0', 'get_summary', 'MeasureCommandGetSummaryArg', '{"latency_percentiles": [50.0, 90.0, 95.0, 98.0, 99.0]}']
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
-    print(out + "\n")
+    # print(out + "\n")
+    percentiles = []
+    lines = out.split('\n')
+    for line in lines:
+        # percentile_values_ns: 187300
+        if 'percentile_values_ns' in line:
+            percentiles.append(float(line.split(':')[1].strip()) / 1000.0)
+    return percentiles
 
 def parse_cpu_time_result(wip):
     cmds = ['command', 'module', 'nfv_core0', 'get_core_time', 'EmptyArg']
@@ -144,14 +162,26 @@ def install_bess_for_all():
     # install ironside bessd
     pids = []
     for ip in all_ip:
-        p = multiprocessing.Process(target=install_bess, args=(ip,))
+        p = multiprocessing.Process(target=install_bess, args=(True, ip,))
         p.start()
         pids.append(p)
 
     for p in pids:
         p.join()
-
     print("Done installing ironside")
+    return
+
+def fetch_bess_for_all():
+    # install ironside bessd
+    pids = []
+    for ip in all_ip:
+        p = multiprocessing.Process(target=install_bess, args=(False, ip,))
+        p.start()
+        pids.append(p)
+
+    for p in pids:
+        p.join()
+    print("Done fetching ironside configures")
     return
 
 def setup_cpu_hugepage_for_all():
@@ -182,11 +212,13 @@ def run_traffic():
 
     time.sleep(30)
 
-    parse_latency_result(traffic_ip[0])
-    print("exp: done")
-    return
+    delay = parse_latency_result(traffic_ip[0])
+    print("delay (in us): {}".format(delay))
 
-def run_cluster_exp():
+    print("exp: done")
+    return delay
+
+def run_cluster_exp(slo, short_profile, long_profile):
     # Start all bessd
     pids = []
     for tip in traffic_ip:
@@ -205,7 +237,7 @@ def run_cluster_exp():
     # Run all workers
     pids = []
     for i, wip in enumerate(worker_ip):
-        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i))
+        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
         p.start()
         pids.append(p)
 
@@ -219,12 +251,14 @@ def run_cluster_exp():
 
     time.sleep(30)
 
-    parse_latency_result(traffic_ip[0])
+    delay = parse_latency_result(traffic_ip[0])
     core_usage = []
     for i, wip in enumerate(worker_ip):
-        core_usage.append(parse_cpu_time_result(wip))
-    print("core usage: {}".format(core_usage))
-    print("core usage sum: {}".format(sum(core_usage)))
+        core_usage.append(parse_cpu_time_result(wip) / 1000)
+
+    print("delay (in us): {}".format(delay))
+    print("core usage (in us): {}".format(core_usage))
+    print("core usage sum (in us): {}".format(sum(core_usage) * 3))
 
     print("exp: done")
     return
@@ -233,14 +267,20 @@ def main():
     ## Pre-install
     # reset_grub_for_all()
     # install_mlnx_for_all()
-    install_bess_for_all()
+    # install_bess_for_all()
+    # fetch_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()
 
-    ## Ready to go
+    ## Ready to produce traffic
     # run_traffic()
-    run_cluster_exp()
+
+    ## Ready to run end-to-end exp
+    slo = 200000
+    short_prof = "./nf_profiles/short_term.pro"
+    long_prof = "./nf_profiles/long_term_psize1050_slo100.pro"
+    run_cluster_exp(slo, short_prof, long_prof)
     return
 
 if __name__ == "__main__":
