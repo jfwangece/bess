@@ -260,7 +260,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
 
     delay = parse_latency_result(traffic_ip[0])
     core_usage = []
-    for i, wip in enumerate(worker_ip):
+    for i, wip in enumerate(selected_worker_ips):
         core_usage.append(parse_cpu_time_result(wip) * 3 / 1000)
 
     print("delay (in us): {}".format(delay))
@@ -288,10 +288,16 @@ def main():
     # short_prof = "./nf_profiles/short_term_slo200.pro"
     # long_prof = "./nf_profiles/long_term_slo200.pro"
 
-    worker_cnt = 2
-    slo = 300000
-    short_prof = "./nf_profiles/short_term_slo300.pro"
-    long_prof = "./nf_profiles/long_term_slo300.pro"
+    # worker_cnt = 2
+    # slo = 300000
+    # short_prof = "./nf_profiles/short_term_slo300.pro"
+    # long_prof = "./nf_profiles/long_term_slo300.pro"
+    # run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+
+    worker_cnt = 3
+    slo = 400000
+    short_prof = "./nf_profiles/short_term_slo400.pro"
+    long_prof = "./nf_profiles/long_term_slo400.pro"
     run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
     # slo = 500000
