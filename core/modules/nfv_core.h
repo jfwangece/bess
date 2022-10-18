@@ -105,13 +105,16 @@ class NFVCore final : public Module {
 
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg);
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
+  CommandResponse CommandGetCoreTime(const bess::pb::EmptyArg &);
 
   inline int GetNICQueueCount() const {
     return rte_eth_rx_queue_count(((PMDPort*)port_)->get_dpdk_port_id(), qid_);
   }
-  int GetSoftwareQueueCount() const {
+  inline int GetSoftwareQueueCount() const {
     return llring_count(local_queue_);
   }
+
+  uint64_t GetSumCoreTime();
 
   // Check if a new short-term epoch has started.
   // If yes, check the remaining packet queue, and split traffic
@@ -182,10 +185,15 @@ class NFVCore final : public Module {
 
   // Time-related
   uint64_t curr_ts_ns_;
+  // Short epoch: last timestamp, period, and current ID
   uint64_t last_short_epoch_end_ns_;
   uint64_t short_epoch_period_ns_;
-  // The current epoch ID
   uint32_t curr_epoch_id_;
+
+  // Core-related
+  std::mutex core_time_mu_;
+  uint32_t curr_rcore_ = 0;
+  uint64_t sum_core_time_ns_ = 0;
 
   // Per-core admission control to avoid latency SLO violations
   // Based on our design, it approximates the NF profile curve

@@ -1023,6 +1023,10 @@ message NFVCoreArg {
   int32 large_queue_scale = 5; /// Each normal core should at most use |scale| * avg_rcore RCores
 }
 
+message NFVCoreCommandGetCoreTimeResponse {
+  uint64 core_time = 1; /// CPU core time in core * ns
+}
+
 message NFVRCoreArg {
   int32 core_id = 1; /// The target CPU core's ID
 }

@@ -121,6 +121,9 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   }
   LOG(INFO) << "epoch thresh: pkt=" << epoch_packet_thresh_ << ", flow=" << epoch_flow_thresh_ << ", queue=" << large_queue_packet_thresh_;
 
+  curr_rcore_ = 0;
+  sum_core_time_ns_ = 0;
+
   epoch_packet_arrival_ = 0;
   epoch_packet_processed_ = 0;
   epoch_packet_queued_ = 0;
@@ -168,6 +171,19 @@ void NFVCore::DeInit() {
     }
   }
   sw_q_.clear();
+}
+
+CommandResponse NFVCore::CommandGetCoreTime(const bess::pb::EmptyArg &) {
+  uint64_t sum = 0;
+  for (uint32_t i = 0; i < DEFAULT_INVALID_CORE_ID; i++) {
+    if (bess::ctrl::nfv_cores[i] != nullptr) {
+      sum += bess::ctrl::nfv_cores[i]->GetSumCoreTime();
+    }
+  }
+
+  bess::pb::NFVCoreCommandGetCoreTimeResponse r;
+  r.set_core_time(sum);
+  return CommandSuccess(r);
 }
 
 CommandResponse NFVCore::CommandClear(const bess::pb::EmptyArg &) {
@@ -264,11 +280,22 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
       bess::ctrl::nfv_monitors[core_id_]->update_traffic_stats(curr_epoch_id_);
     }
 
+    bool is_active = 0;
+    if (epoch_packet_arrival_ > 0) {
+      is_active = 1;
+    }
+
     ShortEpochProcess();
     SplitQToSwQ(local_queue_);
 
     curr_epoch_id_ += 1;
-    last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
+    uint64_t now = tsc_to_ns(rdtsc());
+    // Update CPU core usage
+    if (is_active) {
+      const std::lock_guard<std::mutex> lock(core_time_mu_);
+      sum_core_time_ns_ = (1 + curr_rcore_) * (now - last_short_epoch_end_ns_);
+    }
+    last_short_epoch_end_ns_ = now;
   }
 
   return {.block = false,
@@ -279,6 +306,11 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 /* Get a batch from upstream */
 void NFVCore::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   RunNextModule(ctx, batch);
+}
+
+uint64_t NFVCore::GetSumCoreTime() {
+  const std::lock_guard<std::mutex> lock(core_time_mu_);
+  return sum_core_time_ns_;
 }
 
 ADD_MODULE(NFVCore, "nfv_core", "It handles traffic burstiness at a normal core")

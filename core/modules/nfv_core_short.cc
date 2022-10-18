@@ -430,6 +430,8 @@ bool NFVCore::ShortEpochProcess() {
         ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, sw_q_it.sw_q_id);
         if (ret != 0) {
           LOG(ERROR) << "S error: " << ret << "; core: " << core_id_ << "; q: " << sw_q_it.sw_q_id;
+        } else {
+          curr_rcore_ += 1;
         }
         sw_q_it.idle_epoch_count = 0;
       }
@@ -438,6 +440,8 @@ bool NFVCore::ShortEpochProcess() {
         ret = bess::ctrl::NFVCtrlNotifyRCoreToRest(core_id_, sw_q_it.sw_q_id);
         if (ret != 0) {
           LOG(ERROR) << "E error: " << ret << "; core: " << core_id_ << "; q: " << sw_q_it.sw_q_id;
+        } else {
+          curr_rcore_ -= 1;
         }
         sw_q_it.idle_epoch_count = -1;
       }
