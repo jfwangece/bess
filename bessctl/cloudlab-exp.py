@@ -101,10 +101,12 @@ def start_ironside_worker(wip, worker_id, slo, short, long):
     remote_long = "/local/bess/long.prof"
     send_remote_file(wip, short, remote_short)
     send_remote_file(wip, long, remote_long)
-    cmds = ["run", "nfvctrl/cloud_chain4", "BESS_WID={}, BESS_SLO={}, BESS_SPROFILE={}, BESS_LPROFILE={}".format(worker_id, slo, remote_short, remote_long)]
+    print("ironside worker {} gets short-term and long-term profiles".format(worker_id))
+
+    cmds = ["run", "nfvctrl/cloud_chain4", "BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}'".format(worker_id, slo, remote_short, remote_long)]
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
-    print(out)
+    # print(out)
     print("ironside worker {} starts".format(wip))
 
 def parse_latency_result(tip):
@@ -254,11 +256,11 @@ def run_cluster_exp(slo, short_profile, long_profile):
     delay = parse_latency_result(traffic_ip[0])
     core_usage = []
     for i, wip in enumerate(worker_ip):
-        core_usage.append(parse_cpu_time_result(wip) / 1000)
+        core_usage.append(parse_cpu_time_result(wip) * 3 / 1000)
 
     print("delay (in us): {}".format(delay))
     print("core usage (in us): {}".format(core_usage))
-    print("core usage sum (in us): {}".format(sum(core_usage) * 3))
+    print("core usage sum (in us): {}".format(sum(core_usage)))
 
     print("exp: done")
     return
