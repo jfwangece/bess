@@ -89,8 +89,8 @@ def start_remote_bessd(ip):
     run_remote_command(ip, bessd_cmd)
     return
 
-def start_traffic(tip):
-    cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_IG=1"]
+def start_traffic(tip, num_worker, mode):
+    cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     print(out)
@@ -220,7 +220,11 @@ def run_traffic():
     print("exp: done")
     return delay
 
-def run_cluster_exp(slo, short_profile, long_profile):
+def run_cluster_exp(num_worker, slo, short_profile, long_profile):
+    selected_worker_ips = []
+    for i in range(num_worker):
+        selected_worker_ips.append(worker_ip[i])
+
     # Start all bessd
     pids = []
     for tip in traffic_ip:
@@ -238,7 +242,7 @@ def run_cluster_exp(slo, short_profile, long_profile):
 
     # Run all workers
     pids = []
-    for i, wip in enumerate(worker_ip):
+    for i, wip in enumerate(selected_worker_ips):
         p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
         p.start()
         pids.append(p)
@@ -247,8 +251,9 @@ def run_cluster_exp(slo, short_profile, long_profile):
         p.join()
     print("exp: all workers started")
 
+    # mode: 0 min core; 1 min traffic;
     for tip in traffic_ip:
-        start_traffic(tip)
+        start_traffic(tip, num_worker, 1)
     print("exp: traffic started")
 
     time.sleep(30)
@@ -279,10 +284,25 @@ def main():
     # run_traffic()
 
     ## Ready to run end-to-end exp
-    slo = 200000
-    short_prof = "./nf_profiles/short_term.pro"
-    long_prof = "./nf_profiles/long_term_psize1050_slo100.pro"
-    run_cluster_exp(slo, short_prof, long_prof)
+    # slo = 200000
+    # short_prof = "./nf_profiles/short_term_slo200.pro"
+    # long_prof = "./nf_profiles/long_term_slo200.pro"
+
+    worker_cnt = 2
+    slo = 300000
+    short_prof = "./nf_profiles/short_term_slo300.pro"
+    long_prof = "./nf_profiles/long_term_slo300.pro"
+    run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+
+    # slo = 500000
+    # short_prof = "./nf_profiles/short_term_slo500.pro"
+    # long_prof = "./nf_profiles/long_term_slo500.pro"
+    # run_cluster_exp(slo, short_prof, long_prof)
+
+    # slo = 600000
+    # short_prof = "./nf_profiles/short_term_slo600.pro"
+    # long_prof = "./nf_profiles/long_term_slo600.pro"
+    # run_cluster_exp(slo, short_prof, long_prof)
     return
 
 if __name__ == "__main__":
