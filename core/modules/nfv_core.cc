@@ -12,6 +12,8 @@ const Commands NFVCore::cmds = {
      Command::THREAD_UNSAFE},
     {"set_burst", "NFVCoreCommandSetBurstArg", MODULE_CMD_FUNC(&NFVCore::CommandSetBurst),
      Command::THREAD_SAFE},
+    {"get_core_time", "EmptyArg", MODULE_CMD_FUNC(&NFVCore::CommandGetCoreTime),
+     Command::THREAD_SAFE},
 };
 
 // NFVCore member functions
