@@ -83,7 +83,7 @@ def start_remote_bessd(ip):
     return
 
 def start_traffic(tip):
-    cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_IG=3"]
+    cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_IG=1"]
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     print(out)
@@ -101,6 +101,16 @@ def parse_latency_result(tip):
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     print(out + "\n")
+
+def parse_cpu_time_result(wip):
+    cmds = ['command', 'module', 'nfv_core0', 'get_core_time', 'EmptyArg']
+    p = run_remote_besscmd(wip, cmds)
+    out, err = p.communicate()
+    lines = out.split('\n')
+    for line in lines:
+        if 'core_time' in line:
+            return int(line.split(':')[2].strip())
+    return 0
 
 def reset_grub_for_all():
     # install mlnx ofed
@@ -210,6 +220,12 @@ def run_cluster_exp():
     time.sleep(30)
 
     parse_latency_result(traffic_ip[0])
+    core_usage = []
+    for i, wip in enumerate(worker_ip):
+        core_usage.append(parse_cpu_time_result(wip))
+    print("core usage: {}".format(core_usage))
+    print("core usage sum: {}".format(sum(core_usage)))
+
     print("exp: done")
     return
 

@@ -282,9 +282,9 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
       bess::ctrl::nfv_monitors[core_id_]->update_traffic_stats(curr_epoch_id_);
     }
 
-    bool is_active = 0;
+    bool is_active = false;
     if (epoch_packet_arrival_ > 0) {
-      is_active = 1;
+      is_active = true;
     }
 
     ShortEpochProcess();
@@ -295,7 +295,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     // Update CPU core usage
     if (is_active) {
       const std::lock_guard<std::mutex> lock(core_time_mu_);
-      sum_core_time_ns_ = (1 + curr_rcore_) * (now - last_short_epoch_end_ns_);
+      sum_core_time_ns_ += (1 + curr_rcore_) * (now - last_short_epoch_end_ns_);
     }
     last_short_epoch_end_ns_ = now;
   }
