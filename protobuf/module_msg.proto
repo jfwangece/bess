@@ -401,6 +401,10 @@ message IronsideIngressArg {
   int32 pkt_rate_thresh = 4;
 }
 
+message MetronIngressArg {
+  int32 mode = 1;
+}
+
 message MemAnalyzerArg {
   bool hack_mode = 1;
   oneof type {

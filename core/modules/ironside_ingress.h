@@ -1,5 +1,5 @@
-#ifndef BESS_MODULES_FLOW_IP_LOOKUP_H_
-#define BESS_MODULES_FLOW_IP_LOOKUP_H_
+#ifndef BESS_MODULES_IRONSIDE_INGRESS_H_
+#define BESS_MODULES_IRONSIDE_INGRESS_H_
 
 #include <map>
 #include <vector>
@@ -48,4 +48,4 @@ class IronsideIngress final : public Module {
   std::map<uint64_t, int> flow_cache_;
 };
 
-#endif  // BESS_MODULES_FLOW_IP_LOOKUP_H_
+#endif  // BESS_MODULES_IRONSIDE_INGRESS_H_
