@@ -274,7 +274,7 @@ def main():
     ## Pre-install
     # reset_grub_for_all()
     # install_mlnx_for_all()
-    # install_bess_for_all()
+    install_bess_for_all()
     # fetch_bess_for_all()
 
     ## Config
@@ -284,9 +284,11 @@ def main():
     # run_traffic()
 
     ## Ready to run end-to-end exp
-    # slo = 200000
-    # short_prof = "./nf_profiles/short_term_slo200.pro"
-    # long_prof = "./nf_profiles/long_term_slo200.pro"
+    worker_cnt = 4
+    slo = 200000
+    short_prof = "./nf_profiles/short_term_slo200.pro"
+    long_prof = "./nf_profiles/long_term_slo200.pro"
+    run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
     # worker_cnt = 2
     # slo = 300000
@@ -294,11 +296,11 @@ def main():
     # long_prof = "./nf_profiles/long_term_slo300.pro"
     # run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
-    worker_cnt = 3
-    slo = 400000
-    short_prof = "./nf_profiles/short_term_slo400.pro"
-    long_prof = "./nf_profiles/long_term_slo400.pro"
-    run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+    # worker_cnt = 3
+    # slo = 400000
+    # short_prof = "./nf_profiles/short_term_slo400.pro"
+    # long_prof = "./nf_profiles/long_term_slo400.pro"
+    # run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
     # slo = 500000
     # short_prof = "./nf_profiles/short_term_slo500.pro"

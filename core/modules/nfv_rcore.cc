@@ -118,7 +118,7 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   // 3) then, |sw_q_| != nullptr; start the NF chain
   const int burst = ACCESS_ONCE(burst_);
-  uint32_t cnt = llring_sc_dequeue_burst(sw_q_, (void **)batch->pkts(), burst);
+  uint32_t cnt = llring_mc_dequeue_burst(sw_q_, (void **)batch->pkts(), burst);
   if (cnt == 0) {
     return {.block = false, .packets = 0, .bits = 0};
   }
@@ -142,11 +142,7 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     total_bytes += pkt->total_len();
   }
 
-  if (max_pkt_delay > 1000000) {
-    bess::Packet::Free(batch);
-  } else {
-    RunNextModule(ctx, batch);
-  }
+  RunNextModule(ctx, batch);
 
   return {.block = false,
           .packets = cnt,

@@ -59,7 +59,9 @@ void NFVCtrlMsgInit() {
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     sw_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
 
-    int ret = llring_init(sw_q[i], sw_qsize, 1, 1);
+    // single-producer: each sw_q can only be held by one ncore;
+    // however, more than 1 rcores can access a sw_q.
+    int ret = llring_init(sw_q[i], sw_qsize, 1, 0);
     if (ret) {
       std::free(sw_q[i]);
       LOG(ERROR) << "llring_init failed on software queue " << i;
@@ -80,7 +82,7 @@ void NFVCtrlMsgInit() {
   bytes = llring_bytes_with_slots(dump_qsize);
   system_dump_q_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
   if (system_dump_q_) {
-    llring_init(system_dump_q_, dump_qsize, 0, 1);
+    llring_init(system_dump_q_, dump_qsize, 0, 0);
   } else {
     std::free(system_dump_q_);
     LOG(ERROR) << "failed to allocate system_dump_q_";

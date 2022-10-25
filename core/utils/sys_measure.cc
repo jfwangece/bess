@@ -10,7 +10,7 @@ LockLessQueue<CoreStats*> *volatile all_core_stats_chan[20];
 // Default SLO = 1 ms
 uint32_t slo_ns = 1000000;
 // Default no packet tags for debugging
-bool add_debug_tag_nfvcore = true;
+bool add_debug_tag_nfvcore = false;
 bool add_debug_tag_nfvrcore = false;
 
 void SysMeasureInit() {
