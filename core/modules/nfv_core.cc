@@ -65,6 +65,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
       return CommandFailure(ENODEV, "Port %s not found", port_name);
     }
     port_ = it->second;
+    port_id_ = ((PMDPort*)port_)->get_dpdk_port_id();
 
     tid = RegisterTask((void *)(uintptr_t)qid_);
     if (tid == INVALID_TASK_ID) {
@@ -240,6 +241,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
   }
 
+  bool nic_busy = rte_eth_rx_descriptor_status(port_id_, qid, large_queue_packet_thresh_) != RTE_ETH_RX_DESC_AVAIL;
+
   // Busy pulling from the NIC queue
   int cnt = 0;
   uint32_t pull_rounds = 0;
@@ -273,7 +276,11 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     // Update the number of packets / flows processed:
     // |epoch_packet_processed_| and |per_flow_states_|
     UpdateStatsPreProcessBatch(batch);
-    ProcessBatch(ctx, batch);
+    if (nic_busy) {
+      bess::Packet::Free(batch);
+    } else {
+      ProcessBatch(ctx, batch);
+    }
   }
 
   if (epoch_advanced) {

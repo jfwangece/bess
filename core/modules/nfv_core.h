@@ -108,7 +108,7 @@ class NFVCore final : public Module {
   CommandResponse CommandGetCoreTime(const bess::pb::EmptyArg &);
 
   inline int GetNICQueueCount() const {
-    return rte_eth_rx_queue_count(((PMDPort*)port_)->get_dpdk_port_id(), qid_);
+    return rte_eth_rx_queue_count(port_id_, qid_);
   }
   inline int GetSoftwareQueueCount() const {
     return llring_count(local_queue_);
@@ -162,6 +162,7 @@ class NFVCore final : public Module {
 
   // NIC queue (port, qid)
   Port *port_;
+  uint16_t port_id_;
   queue_t qid_;
 
   // Software queue that holds packets

@@ -13,10 +13,10 @@ INIT_SERVER = False
 # traffic_ip = ["128.110.219.154"]
 # worker_ip = ["128.110.219.147", "128.110.219.145", "128.110.219.148", "128.110.219.131"]
 
-# Cluster 2
+# Cluster 2 (r6525)
 dev = "81:00.0"
-traffic_ip = ["130.127.134.78"]
-worker_ip = ["130.127.134.91", "130.127.134.76", "130.127.134.97", "130.127.134.73"]
+traffic_ip = ["130.127.134.99"]
+worker_ip = ["130.127.134.97", "130.127.134.90", "130.127.134.72", "130.127.134.100"]
 all_ip = traffic_ip + worker_ip
 
 def send_remote_file(ip, local_path, target_path):
@@ -114,13 +114,15 @@ def parse_latency_result(tip):
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     # print(out + "\n")
-    percentiles = []
+    fields = []
     lines = out.split('\n')
     for line in lines:
         # percentile_values_ns: 187300
+        if 'packets' in line:
+            fields.append(int(line.split(':')[1].strip()))
         if 'percentile_values_ns' in line:
-            percentiles.append(float(line.split(':')[1].strip()) / 1000.0)
-    return percentiles
+            fields.append(float(line.split(':')[1].strip()) / 1000.0)
+    return fields
 
 def parse_cpu_time_result(wip):
     cmds = ['command', 'module', 'nfv_core0', 'get_core_time', 'EmptyArg']
@@ -251,30 +253,36 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
         p.join()
     print("exp: all workers started")
 
-    # mode: 0 min core; 1 min traffic;
+    # mode: 0 min core; 1 min traffic; 2 max core; 3 max traffic
+    ig_mode = 1
     for tip in traffic_ip:
-        start_traffic(tip, num_worker, 1)
+        start_traffic(tip, num_worker, ig_mode)
     print("exp: traffic started")
 
     time.sleep(30)
 
-    delay = parse_latency_result(traffic_ip[0])
+    measure_results = parse_latency_result(traffic_ip[0])
+    total_packets = measure_results[0]
+    delay = measure_results[1:]
     core_usage = []
     for i, wip in enumerate(selected_worker_ips):
         core_usage.append(parse_cpu_time_result(wip) * 3 / 1000)
 
-    print("delay (in us): {}".format(delay))
+    print("- Ironside rack-scale exp result -")
+    print("total {} Ironside workers".format(num_worker))
+    print("ingress mode: {}".format(ig_mode))
+    print("total packets: {}".format(total_packets))
+    print("pkt delay (in us): {}".format(delay))
     print("core usage (in us): {}".format(core_usage))
     print("core usage sum (in us): {}".format(sum(core_usage)))
-
-    print("exp: done")
+    print("- Ironside rack-scale exp end -")
     return
 
 def main():
     ## Pre-install
     # reset_grub_for_all()
     # install_mlnx_for_all()
-    install_bess_for_all()
+    # install_bess_for_all()
     # fetch_bess_for_all()
 
     ## Config
