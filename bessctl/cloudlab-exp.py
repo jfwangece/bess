@@ -29,6 +29,11 @@ def run_remote_command(ip, cmd):
     os.system(' '.join(remote_cmd))
     return
 
+def run_remote_command_with_output(ip, cmd):
+    remote_cmd = ['ssh', 'uscnsl@{}'.format(ip), '"{}"'.format(cmd), '\n']
+    os.system(' '.join(remote_cmd))
+    return
+
 def run_remote_besscmd(ip, cmds):
     cmds_str = u' '.join(cmds)
     remote_cmds = ['./bessctl/bessctl.py', ip, cmds_str, '\n']
@@ -36,6 +41,11 @@ def run_remote_besscmd(ip, cmds):
                         stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return p
 
+
+def get_mac_from_server(ip):
+    cmd = "ifconfig | grep 10.10 -A 2 | grep eth"
+    run_remote_command_with_output(ip, cmd)
+    return
 
 def reset_grub(ip):
     print("Reset grub conf for {}".format(ip))
@@ -133,6 +143,13 @@ def parse_cpu_time_result(wip):
         if 'core_time' in line:
             return int(line.split(':')[2].strip())
     return 0
+
+def get_macs_for_all():
+    ips = traffic_ip + worker_ip
+    for ip in ips:
+        get_mac_from_server(ip)
+    print("Done getting MACs")
+    return
 
 def reset_grub_for_all():
     # install mlnx ofed
@@ -282,6 +299,8 @@ def main():
     ## Pre-install
     # reset_grub_for_all()
     # install_mlnx_for_all()
+    get_macs_for_all()
+    return
     # install_bess_for_all()
     # fetch_bess_for_all()
 

@@ -9,7 +9,7 @@ offset0 = 1
 
 # the traffic generator's routing information
 traffic_ip = "10.10.1.1"
-traffic_mac = "b8:ce:f6:cc:8c:14"
+traffic_mac = "b8:ce:f6:d2:3b:1a"
 
 slo = int($BESS_SLO!"200000")
 short_profile = $BESS_SPROFILE!"/local/bess/nf_profiles/short_term.pro"
