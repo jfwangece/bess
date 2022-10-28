@@ -241,7 +241,9 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
   }
 
-  bool nic_busy = rte_eth_rx_descriptor_status(port_id_, qid, large_queue_packet_thresh_) != RTE_ETH_RX_DESC_AVAIL;
+  int status = rte_eth_rx_descriptor_status(port_id_, qid, large_queue_packet_thresh_);
+  LOG(INFO) << status;
+  bool nic_busy = status != RTE_ETH_RX_DESC_AVAIL;
 
   // Busy pulling from the NIC queue
   int cnt = 0;
