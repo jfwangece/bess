@@ -241,9 +241,9 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
   }
 
-  int status = rte_eth_rx_descriptor_status(port_id_, qid, large_queue_packet_thresh_);
-  LOG(INFO) << status;
-  bool nic_busy = status != RTE_ETH_RX_DESC_AVAIL;
+  // status: -95 (not supported)
+  // int status = rte_eth_rx_descriptor_status(port_id_, qid, large_queue_packet_thresh_);
+  // bool nic_busy = status != RTE_ETH_RX_DESC_AVAIL;
 
   // Busy pulling from the NIC queue
   int cnt = 0;
@@ -278,11 +278,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     // Update the number of packets / flows processed:
     // |epoch_packet_processed_| and |per_flow_states_|
     UpdateStatsPreProcessBatch(batch);
-    if (nic_busy) {
-      bess::Packet::Free(batch);
-    } else {
-      ProcessBatch(ctx, batch);
-    }
+    ProcessBatch(ctx, batch);
   }
 
   if (epoch_advanced) {
