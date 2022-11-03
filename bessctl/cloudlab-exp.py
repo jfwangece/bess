@@ -301,7 +301,7 @@ def main():
     # reset_grub_for_all()
     # install_mlnx_for_all()
     # get_macs_for_all()
-    # install_bess_for_all()
+    install_bess_for_all()
     # fetch_bess_for_all()
 
     ## Config

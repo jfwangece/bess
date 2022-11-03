@@ -282,10 +282,11 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     UpdateStatsPreProcessBatch(batch);
 
     if (large_queue) {
-      int sent_pkts = p->SendPackets(qid, batch->pkts(), batch->cnt());
-      if (sent_pkts < batch->cnt()) {
-        bess::Packet::Free(batch->pkts() + sent_pkts, batch->cnt() - sent_pkts);
-      }
+      // int sent_pkts = p->SendPackets(qid, batch->pkts(), batch->cnt());
+      // if (sent_pkts < batch->cnt()) {
+      //   bess::Packet::Free(batch->pkts() + sent_pkts, batch->cnt() - sent_pkts);
+      // }
+      bess::Packet::Free(batch->pkts(), batch->cnt());
     } else {
       ProcessBatch(ctx, batch);
     }
