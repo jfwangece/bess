@@ -271,7 +271,8 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     print("exp: all workers started")
 
     # mode: 0 min core; 1 min traffic; 2 max core; 3 max traffic
-    ig_mode = 1
+    ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
+    ig_mode = 3
     for tip in traffic_ip:
         start_traffic(tip, num_worker, ig_mode)
     print("exp: traffic started")
@@ -287,7 +288,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
 
     print("- Ironside rack-scale exp result -")
     print("total {} Ironside workers".format(num_worker))
-    print("ingress mode: {}".format(ig_mode))
+    print("ingress mode: {} '{}'".format(ig_mode, ig_mode_text[ig_mode]))
     print("total packets: {}".format(total_packets))
     print("pkt delay (in us): {}".format(delay))
     print("core usage (in us): {}".format(core_usage))
@@ -299,8 +300,7 @@ def main():
     ## Pre-install
     # reset_grub_for_all()
     # install_mlnx_for_all()
-    get_macs_for_all()
-    return
+    # get_macs_for_all()
     # install_bess_for_all()
     # fetch_bess_for_all()
 

@@ -263,6 +263,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
   }
 
+  bool large_queue = bool(llring_count(local_queue_) > large_queue_packet_thresh_);
+
   // Process one batch
   batch->clear();
   cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), burst);
@@ -278,7 +280,15 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     // Update the number of packets / flows processed:
     // |epoch_packet_processed_| and |per_flow_states_|
     UpdateStatsPreProcessBatch(batch);
-    ProcessBatch(ctx, batch);
+
+    if (large_queue) {
+      int sent_pkts = p->SendPackets(qid, batch->pkts(), batch->cnt());
+      if (sent_pkts < batch->cnt()) {
+        bess::Packet::Free(batch->pkts() + sent_pkts, batch->cnt() - sent_pkts);
+      }
+    } else {
+      ProcessBatch(ctx, batch);
+    }
   }
 
   if (epoch_advanced) {

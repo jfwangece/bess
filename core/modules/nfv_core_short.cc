@@ -305,7 +305,7 @@ void NFVCore::BestEffortEnqueue(bess::PacketBatch *batch, llring *q) {
 bool NFVCore::ShortEpochProcess() {
   using bess::utils::all_core_stats_chan;
 
-  uint32_t q_cnt = GetSoftwareQueueCount();
+  uint32_t q_cnt = llring_count(local_queue_);
   if (q_cnt > large_queue_packet_thresh_) {
     // This |ncore| observes a large queue, and by default, it hopes that
     // the following short-term optimization can handle it with aux cores.
