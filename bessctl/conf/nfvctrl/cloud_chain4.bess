@@ -25,7 +25,7 @@ ncore = int($BESS_NCORE!"10")
 queue_scale = 1
 
 # NFVCtrl runs on its own core
-nfvctrl_core = 36
+nfvctrl_core = 31
 core_cnt = ncore
 rcore_cnt = nfvctrl_core - (1 + ncore)
 total_core_cnt = core_cnt + rcore_cnt

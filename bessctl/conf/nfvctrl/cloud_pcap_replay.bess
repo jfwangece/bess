@@ -15,7 +15,7 @@ workers=[{'ip': ips[i], 'mac': macs[i]} for i in range(num_workers)]
 # 0: min core; 1: min rate; 2: max core; 3: max rate
 ig_mode = int($BESS_IG!'0')
 ncore=int($BESS_NCORE!'4')
-pkt_rate=int($BESS_PKT_RATE!'300000')
+pkt_rate=int($BESS_PKT_RATE!'250000')
 
 PCAPFILE = $PCAP!"/local/bess/experiment_conf/20190117-130000.tcp.pcap"
 pcap_file = '{}'.format(PCAPFILE)
