@@ -124,9 +124,11 @@ void IronsideIngress::UpdateEndpointLB() {
     endpoint_id_ = -1;
     uint32_t endpoint_pkt_rate = 0;
 
+    LOG(INFO) << pkt_cnts_[0] << ", " << pkt_cnts_[1] << ", " << pkt_cnts_[2] << ", " << pkt_cnts_[3];
+
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
     for (size_t i = 0; i < ips_.size(); i++) {
-      pkt_cnts_[i] *= 10;
+      pkt_cnts_[i] = pkt_cnts_[i] * 10;
       // Skip overloaded workers
       if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
         continue;
@@ -143,7 +145,6 @@ void IronsideIngress::UpdateEndpointLB() {
   }
 
   // Reset
-  LOG(INFO) << pkt_cnts_[0] << ", " << pkt_cnts_[1] << ", " << pkt_cnts_[2] << ", " << pkt_cnts_[3];
   for (size_t i = 0; i < pkt_cnts_.size(); i++) {
     pkt_cnts_[i] = 0;
   }
@@ -177,10 +178,7 @@ void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         continue;
       }
       // This is a new flow.
-      std::tie(it, std::ignore) = flow_cache_.emplace(
-                                  std::piecewise_construct,
-                                  std::make_tuple(flow_id), std::make_tuple());
-      it->second = endpoint_id_;
+      std::tie(it, std::ignore) = flow_cache_.emplace(flow_id, endpoint_id_);
     }
 
     pkt_cnts_[it->second] += 1;
