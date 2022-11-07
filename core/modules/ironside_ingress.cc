@@ -124,8 +124,6 @@ void IronsideIngress::UpdateEndpointLB() {
     endpoint_id_ = -1;
     uint32_t endpoint_pkt_rate = 0;
 
-    LOG(INFO) << pkt_cnts_[0] << ", " << pkt_cnts_[1] << ", " << pkt_cnts_[2] << ", " << pkt_cnts_[3];
-
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
     for (size_t i = 0; i < ips_.size(); i++) {
       pkt_cnts_[i] = pkt_cnts_[i] * 10;
@@ -140,6 +138,7 @@ void IronsideIngress::UpdateEndpointLB() {
     }
     bess::ctrl::nfvctrl_worker_mu.unlock_shared();
   }
+  //LOG(INFO) << pkt_cnts_[0] << ", " << pkt_cnts_[1] << ", " << pkt_cnts_[2] << ", " << pkt_cnts_[3];
 
   // Reset
   for (size_t i = 0; i < pkt_cnts_.size(); i++) {
