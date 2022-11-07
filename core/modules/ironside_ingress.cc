@@ -121,6 +121,7 @@ void IronsideIngress::UpdateEndpointLB() {
     }
     bess::ctrl::nfvctrl_worker_mu.unlock_shared();
   } else if (mode_ == 3) { // max rate
+    endpoint_id_ = -1;
     uint32_t endpoint_pkt_rate = 0;
 
     bess::ctrl::nfvctrl_worker_mu.lock_shared();
@@ -142,6 +143,7 @@ void IronsideIngress::UpdateEndpointLB() {
   }
 
   // Reset
+  LOG(INFO) << pkt_cnts_[0] << ", " << pkt_cnts_[4];
   for (size_t i = 0; i < pkt_cnts_.size(); i++) {
     pkt_cnts_[i] = 0;
   }
