@@ -143,7 +143,7 @@ void IronsideIngress::UpdateEndpointLB() {
   }
 
   // Reset
-  LOG(INFO) << pkt_cnts_[0] << ", " << pkt_cnts_[4];
+  LOG(INFO) << pkt_cnts_[0] << ", " << pkt_cnts_[1] << ", " << pkt_cnts_[2] << ", " << pkt_cnts_[3];
   for (size_t i = 0; i < pkt_cnts_.size(); i++) {
     pkt_cnts_[i] = 0;
   }
