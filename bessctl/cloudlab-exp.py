@@ -277,7 +277,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
         start_traffic(tip, num_worker, ig_mode)
     print("exp: traffic started")
 
-    time.sleep(30)
+    time.sleep(29)
 
     measure_results = parse_latency_result(traffic_ip[0])
     total_packets = measure_results[0]
