@@ -130,9 +130,6 @@ void IronsideIngress::UpdateEndpointLB() {
     for (size_t i = 0; i < ips_.size(); i++) {
       pkt_cnts_[i] = pkt_cnts_[i] * 10;
       // Skip overloaded workers
-      if (bess::ctrl::worker_ncore[i] > ncore_thresh_) {
-        continue;
-      }
       if (pkt_cnts_[i] > pkt_rate_thresh_) {
         continue;
       }
@@ -169,7 +166,7 @@ void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     // Calculate the flow aggregate ID
     // size_t hashed = rte_hash_crc(&ip->src, sizeof(be32_t), 0);
-    uint64_t flow_id = ip->dst.value() & 0x0FFF;
+    uint64_t flow_id = (ip->src.value() & 0x0fff000) + (ip->dst.value() & 0x0fff);
 
     auto it = flow_cache_.find(flow_id);
     if (it == flow_cache_.end()) {
