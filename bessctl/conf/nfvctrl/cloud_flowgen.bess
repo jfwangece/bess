@@ -3,12 +3,40 @@
 #
 import scapy.all as scapy
 
+num_cores = 1
+pcie0 = $BESS_DEV!"81:00.0"
+
+offset0 = 0
+ips = ['10.10.1.{}'.format(x) for x in [2,3,4,5]]
+macs = ['b8:ce:f6:d2:3b:12', 'b8:ce:f6:cc:a2:ec', 'b8:ce:f6:cc:8e:d4', 'b8:ce:f6:cc:8e:dc']
+workers=[{'ip': ips[i], 'mac': macs[i]} for i in range(num_workers)]
+
+PACKET_OVERHEAD = 24
+tag_offset = 72
+burst_size=32
+
+# Packet size, rate, and flow count determine the traffic input
+pkt_size=int($BESS_PKT_SIZE!'1000')
+pkt_rate=int($BESS_PKT_RATE!'10000000')
+num_flows=int($BESS_FLOW!'1000')
+flow_time=int($BESS_FLOW_TIME!'10') # in Seconds
+traffic_pattern=int($BESS_TRAFFIC_DIST!'1')
+
+if traffic_pattern == 0:
+    arrival_dist = "uniform"
+    duration_dist = "uniform"
+elif traffic_pattern == 1:
+    arrival_dist = "exponential"
+    duration_dist = "pareto"
+else:
+    print("Incorrect traffic pattern")
+
 # Each flowgen has its own unique set of flows
 def get_pkt_template(core_id):
     src_ether = 'ec:0d:9a:67:ff:68'
-    dst_ether = '0a:14:69:37:5f:f2'
     src_ip = '204.57.%d.1' %(core_id)
-    dst_ip = '68.128.%d.1' %(core_id)
+    dst_ether = workers[0]["mac"]
+    dst_ip = workers[0]["ip"]
     src_port = 10001
     dst_port = 8080
     # Create a "template" packet to use for generated flows.
@@ -23,35 +51,7 @@ def get_pkt_template(core_id):
     print("Packet size = %d bytes" %(len(pkt_data)))
     return pkt_data
 
-num_cores = 1
-pcie0 = $BESS_DEV!"81:00.0"
-num_workers = int($BESS_NUM_WORKER!"4")
-
-offset0 = 0
-ips = ['10.10.1.{}'.format(x) for x in [2,3,4,5]]
-macs = ['b8:ce:f6:d2:3b:12', 'b8:ce:f6:cc:a2:ec', 'b8:ce:f6:cc:8e:d4', 'b8:ce:f6:cc:8e:dc']
-workers=[{'ip': ips[i], 'mac': macs[i]} for i in range(num_workers)]
-
-PACKET_OVERHEAD = 24
-tag_offset = 72
-burst_size=32
-
-pkt_size=int($BESS_PKT_SIZE!'1000')
-num_flows=int($BESS_FLOW!'1000')
-traffic_pattern=int($BESS_TRAFFIC_DIST!'1')
-flow_time=int($BESS_FLOW_TIME!'10') # in Seconds
-pkt_rate=int($BESS_PKT_RATE!'10000000')
-
-if traffic_pattern == 0:
-    arrival_dist = "uniform"
-    duration_dist = "uniform"
-elif traffic_pattern == 1:
-    arrival_dist = "exponential"
-    duration_dist = "pareto"
-else:
-    print("Incorrect traffic pattern")
-
-pkt_data = get_pkt_template()
+pkt_data = get_pkt_template(0)
 print("active flows={}".format(num_flows / flow_time))
 
 src = {}

@@ -21,6 +21,7 @@ all_ip = traffic_ip + worker_ip
 
 # Places to edit MACs
 # * in cloud_pcap_relay.pcap: edit macs
+# * in nfv_ctrl_long.cc: edit traffic dst mac
 macs = ["b8:ce:f6:d2:3a:ba", "b8:ce:f6:b0:35:e2", "b8:ce:f6:d2:3a:c2", "b8:ce:f6:cc:8e:cc", "b8:ce:f6:cc:a2:e4"]
 
 def send_remote_file(ip, local_path, target_path):
@@ -109,6 +110,13 @@ def start_traffic(tip, num_worker, mode):
     out, err = p.communicate()
     print(out)
     print("traffic {} starts".format(tip))
+
+def start_flowgen(tip, flow, rate):
+    cmds = ["run", "nfvctrl/cloud_flowgen BESS_FLOW={}, BESS_RATE={}".format(flow, rate)]
+    p = run_remote_besscmd(tip, cmds)
+    out, err = p.communicate()
+    print(out)
+    print("flowgen {} starts".format(tip))
 
 def start_ironside_worker(wip, worker_id, slo, short, long):
     remote_short = "/local/bess/short.prof"
@@ -211,6 +219,16 @@ def fetch_bess_for_all():
     print("Done fetching ironside configures")
     return
 
+def fetch_traffic_trace():
+    # transmit all traffic traces used in the evaluation
+    trace1 = "./experiment_conf/20190117-130000.tcp.pcap"
+    dst1 = "uscnsl@{}:/local/bess/experiment_conf".format(traffic_ip[0])
+    local_cmd = ["scp", trace1, dst1]
+    os.system(' '.join(local_cmd))
+
+    print("Done fetching traffic traces")
+    return
+
 def setup_cpu_hugepage_for_all():
     # hugepage all servers
     pids = []
@@ -244,6 +262,65 @@ def run_traffic():
 
     print("exp: done")
     return delay
+
+def run_worker_exp(slo):
+    selected_worker_ips = [worker_ip[0]]
+
+    # Start all bessd
+    pids = []
+    for tip in traffic_ip:
+        p = multiprocessing.Process(target=start_remote_bessd, args=(tip,))
+        p.start()
+        pids.append(p)
+    for wip in worker_ip:
+        p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
+        p.start()
+        pids.append(p)
+
+    for p in pids:
+        p.join()
+    print("exp: all bessd started")
+
+    # Run all workers
+    short_profile = "./nf_profiles/short_term_base.pro"
+    long_profile = "./nf_profiles/long_term_base.pro"
+    pids = []
+    for i, wip in enumerate(selected_worker_ips):
+        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
+        p.start()
+        pids.append(p)
+
+    for p in pids:
+        p.join()
+    print("exp: all workers started")
+
+    flow = 1000
+    pkt_rate = 300000
+    for tip in traffic_ip:
+        start_flowgen(tip, flow, pkt_rate)
+    print("exp: traffic started")
+
+    time.sleep(29)
+
+    measure_results = parse_latency_result(traffic_ip[0])
+    if len(measure_results) == 0:
+        print("- Ironside rack-scale exp: no result - ")
+        return
+
+    total_packets = measure_results[0]
+    delay = measure_results[1:]
+    core_usage = []
+    for i, wip in enumerate(selected_worker_ips):
+        core_usage.append(parse_cpu_time_result(wip) * 3 / 1000)
+
+    print("- Ironside worker-scale exp result -")
+    print("flowgen: flows={}, rate={}".format(flow, pkt_rate))
+    print("total packets: {}".format(total_packets))
+    print("pkt delay (in us): {}".format(delay))
+    print("core usage (in us): {}".format(core_usage))
+    print("core usage sum (in us): {}".format(sum(core_usage)))
+    print("- Ironside worker-scale exp end -")
+    return
 
 def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     selected_worker_ips = []
@@ -286,6 +363,10 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     time.sleep(29)
 
     measure_results = parse_latency_result(traffic_ip[0])
+    if len(measure_results) == 0:
+        print("- Ironside rack-scale exp: no result - ")
+        return
+
     total_packets = measure_results[0]
     delay = measure_results[1:]
     core_usage = []
@@ -306,22 +387,27 @@ def main():
     ## Pre-install
     # reset_grub_for_all()
     # install_mlnx_for_all()
-    get_macs_for_all()
+    # get_macs_for_all()
     install_bess_for_all()
     # fetch_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()
+    # fetch_traffic_trace()
 
     ## Ready to produce traffic
     # run_traffic()
 
+    ## Ready to profile an NF chain
+    run_worker_exp(200)
+    return
+
     ## Ready to run end-to-end exp
-    # worker_cnt = 4
-    # slo = 200000
-    # short_prof = "./nf_profiles/short_term_slo200.pro"
-    # long_prof = "./nf_profiles/long_term_slo200.pro"
-    # run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+    worker_cnt = 4
+    slo = 200000
+    short_prof = "./nf_profiles/short_term_slo200.pro"
+    long_prof = "./nf_profiles/long_term_slo200.pro"
+    run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
     # worker_cnt = 2
     # slo = 300000
