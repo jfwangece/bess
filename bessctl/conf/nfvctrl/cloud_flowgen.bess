@@ -1,0 +1,97 @@
+#
+# The traffic generator that uses FlowGen.
+#
+import scapy.all as scapy
+
+# Each flowgen has its own unique set of flows
+def get_pkt_template(core_id):
+    src_ether = 'ec:0d:9a:67:ff:68'
+    dst_ether = '0a:14:69:37:5f:f2'
+    src_ip = '204.57.%d.1' %(core_id)
+    dst_ip = '68.128.%d.1' %(core_id)
+    src_port = 10001
+    dst_port = 8080
+    # Create a "template" packet to use for generated flows.
+    # All packets in flow will follow this formula; flowgen
+    # changes dst IP to generate new connections.
+    eth = scapy.Ether(src=src_ether, dst=dst_ether)
+    ip = scapy.IP(src=src_ip, dst=dst_ip)
+    tcp = scapy.TCP(sport=src_port, dport=dst_port)
+    payload = ('FaaS-NFV is cool.' + '0123456789' * 200)[:pkt_size-len(eth/ip/tcp)-PACKET_OVERHEAD]
+    pkt = eth/ip/tcp/payload
+    pkt_data = bytes(pkt)
+    print("Packet size = %d bytes" %(len(pkt_data)))
+    return pkt_data
+
+num_cores = 1
+pcie0 = $BESS_DEV!"81:00.0"
+num_workers = int($BESS_NUM_WORKER!"4")
+
+offset0 = 0
+ips = ['10.10.1.{}'.format(x) for x in [2,3,4,5]]
+macs = ['b8:ce:f6:d2:3b:12', 'b8:ce:f6:cc:a2:ec', 'b8:ce:f6:cc:8e:d4', 'b8:ce:f6:cc:8e:dc']
+workers=[{'ip': ips[i], 'mac': macs[i]} for i in range(num_workers)]
+
+PACKET_OVERHEAD = 24
+tag_offset = 72
+burst_size=32
+
+pkt_size=int($BESS_PKT_SIZE!'1000')
+num_flows=int($BESS_FLOW!'1000')
+traffic_pattern=int($BESS_TRAFFIC_DIST!'1')
+flow_time=int($BESS_FLOW_TIME!'10') # in Seconds
+pkt_rate=int($BESS_PKT_RATE!'10000000')
+
+if traffic_pattern == 0:
+    arrival_dist = "uniform"
+    duration_dist = "uniform"
+elif traffic_pattern == 1:
+    arrival_dist = "exponential"
+    duration_dist = "pareto"
+else:
+    print("Incorrect traffic pattern")
+
+pkt_data = get_pkt_template()
+print("active flows={}".format(num_flows / flow_time))
+
+src = {}
+queue = {}
+qout = {}
+
+# traffic inc
+pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
+pinc0::PortInc(port=pmd_port0)
+pinc0 -> Measure(offset=tag_offset) -> Sink()
+
+# traffic out
+src[0] = FlowGen(template = pkt_data, \
+    pps = base_pkt_rate / num_cores, \
+    flow_rate = num_flows / flow_time / num_cores, \
+    flow_duration = flow_time, \
+    arrival = arrival_dist, duration = duration_dist, \
+    quick_rampup = True, \
+    ip_src_range = 1000, ip_dst_range = 1000, \
+    ignore_synfin=False)
+queue[0] = Queue(size=pow(2,20))
+qout[0] = QueueOut(port=pmd_port0, qid=0)
+src[0] -> queue[0] -> Timestamp(offset=tag_offset) -> qout[0]
+
+pinc0.set_burst(burst=burst_size)
+for i in range(num_cores):
+    queue[i].set_burst(burst=burst_size)
+
+socket0_cores = [i for i in range(32)]
+socket1_cores = [32 + i for i in range(32)]
+
+# traffic inc
+bess.add_worker(wid=1, core=socket1_cores[1])
+pinc0.attach_task(wid=1)
+
+# traffic out
+for i in range(num_cores):
+    bess.add_worker(wid=2+2*i, core=socket1_cores[2+2*i])
+    bess.add_worker(wid=2+2*i+1, core=socket1_cores[2+2*i+1])
+    src[i].attach_task(wid=2+2*i)
+    queue[i].attach_task(wid=2+2*i+1)
+
+bess.resume_all()

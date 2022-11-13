@@ -15,9 +15,13 @@ INIT_SERVER = False
 
 # Cluster 2 (r6525)
 dev = "81:00.0"
-traffic_ip = ["130.127.134.99"]
-worker_ip = ["130.127.134.97", "130.127.134.90", "130.127.134.72", "130.127.134.100"]
+traffic_ip = ["130.127.134.101"]
+worker_ip = ["130.127.134.83", "130.127.134.76", "130.127.134.96", "130.127.134.87"]
 all_ip = traffic_ip + worker_ip
+
+# Places to edit MACs
+# * in cloud_pcap_relay.pcap: edit macs
+macs = ["b8:ce:f6:d2:3a:ba", "b8:ce:f6:b0:35:e2", "b8:ce:f6:d2:3a:c2", "b8:ce:f6:cc:8e:cc", "b8:ce:f6:cc:a2:e4"]
 
 def send_remote_file(ip, local_path, target_path):
     remote_cmd = ['scp', local_path, 'uscnsl@{}:{}'.format(ip, target_path), '>/dev/null', '2>&1', '\n']
@@ -113,7 +117,8 @@ def start_ironside_worker(wip, worker_id, slo, short, long):
     send_remote_file(wip, long, remote_long)
     print("ironside worker {} gets short-term and long-term profiles".format(worker_id))
 
-    cmds = ["run", "nfvctrl/cloud_chain4", "BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}'".format(worker_id, slo, remote_short, remote_long)]
+    cmds = ["run", "nfvctrl/cloud_chain4",
+            "TRAFFIC_MAC='{}', BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}'".format(macs[0], worker_id, slo, remote_short, remote_long)]
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
     # print(out)
@@ -145,6 +150,7 @@ def parse_cpu_time_result(wip):
     return 0
 
 def get_macs_for_all():
+    # Run remote commands one at a time.
     ips = traffic_ip + worker_ip
     for ip in ips:
         get_mac_from_server(ip)
@@ -300,7 +306,7 @@ def main():
     ## Pre-install
     # reset_grub_for_all()
     # install_mlnx_for_all()
-    # get_macs_for_all()
+    get_macs_for_all()
     install_bess_for_all()
     # fetch_bess_for_all()
 
@@ -311,11 +317,11 @@ def main():
     # run_traffic()
 
     ## Ready to run end-to-end exp
-    worker_cnt = 4
-    slo = 200000
-    short_prof = "./nf_profiles/short_term_slo200.pro"
-    long_prof = "./nf_profiles/long_term_slo200.pro"
-    run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+    # worker_cnt = 4
+    # slo = 200000
+    # short_prof = "./nf_profiles/short_term_slo200.pro"
+    # long_prof = "./nf_profiles/long_term_slo200.pro"
+    # run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
     # worker_cnt = 2
     # slo = 300000

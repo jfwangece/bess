@@ -8,9 +8,9 @@ pcie0 = $BESS_DEV!"81:00.0"
 num_workers = int($BESS_NUM_WORKER!"4")
 
 offset0 = 0
-ips = ['10.10.1.{}'.format(x) for x in [2,3,4,5]]
-macs = ['b8:ce:f6:d2:3b:12', 'b8:ce:f6:cc:a2:ec', 'b8:ce:f6:cc:8e:d4', 'b8:ce:f6:cc:8e:dc']
-workers=[{'ip': ips[i], 'mac': macs[i]} for i in range(num_workers)]
+ips = ["10.10.1.{}".format(x) for x in [2,3,4,5]]
+macs = ["b8:ce:f6:b0:35:e2", "b8:ce:f6:d2:3a:c2", "b8:ce:f6:cc:8e:cc", "b8:ce:f6:cc:a2:e4"]
+workers=[{"ip": ips[i], "mac": macs[i]} for i in range(num_workers)]
 
 # 0: min core; 1: min rate; 2: max core; 3: max rate
 ig_mode = int($BESS_IG!'0')
