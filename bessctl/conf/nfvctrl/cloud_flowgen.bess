@@ -18,7 +18,7 @@ burst_size=32
 
 # Packet size, rate, and flow count determine the traffic input
 pkt_size=int($BESS_PKT_SIZE!'1000')
-pkt_rate=int($BESS_PKT_RATE!'10000000')
+total_pkt_rate=int($BESS_PKT_RATE!'10000000')
 num_flows=int($BESS_FLOW!'1000')
 flow_time=int($BESS_FLOW_TIME!'10') # in Seconds
 traffic_pattern=int($BESS_TRAFFIC_DIST!'1')
@@ -66,7 +66,7 @@ pinc0 -> Measure(offset=tag_offset) -> Sink()
 
 # traffic out
 src[0] = FlowGen(template = pkt_data, \
-    pps = base_pkt_rate / num_cores, \
+    pps = total_pkt_rate / num_cores, \
     flow_rate = num_flows / flow_time / num_cores, \
     flow_duration = flow_time, \
     arrival = arrival_dist, duration = duration_dist, \
