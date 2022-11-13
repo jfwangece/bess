@@ -4,6 +4,7 @@
 import scapy.all as scapy
 
 num_cores = 1
+num_workers = 1
 pcie0 = $BESS_DEV!"81:00.0"
 
 offset0 = 0
