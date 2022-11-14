@@ -330,7 +330,12 @@ def run_long_term_profile(slo):
             nf_profile[(f, r)] = delay
 
     print("NF profile:")
-    for key, val in nf_profile.items():
+    keys = sorted(nf_profile.keys(), key = lambda x: x[0] * 1000000 + x[1] / 1000)
+    for key in keys:
+        if key not in nf_profile:
+            continue
+
+        val = nf_profile[key]
         f, r = key[0], key[1]
         d1, d2 = val[0], val[1]
         print("* f:{} r:{} - {} {}".format(f, r, d1, d2))
