@@ -298,7 +298,7 @@ def profile_once(slo, flow, pkt_rate):
         start_flowgen(tip, total_flow, total_pkt_rate)
     print("exp: traffic started")
 
-    time.sleep(20)
+    time.sleep(15)
 
     measure_results = parse_latency_result(traffic_ip[0])
     if len(measure_results) == 0:
@@ -344,23 +344,23 @@ def run_long_term_profile(slo, flow_range, rate_range):
                 # early break for saving time (|slo| is in ns)
                 break
 
-    fp = open("./long_{}_p50.pro".format(slo/1000), "w+")
+    fp1 = open("./long_{}_p50.pro".format(slo/1000), "w+")
     keys = sorted(nf_profile_p50.keys())
     for key in keys:
         if key not in nf_profile_p50:
             continue
         val = nf_profile_p50[key]
-        f.write("{} {}\n".format(key ,val))
-    fp.close()
+        fp1.write("{} {}\n".format(key ,val))
+    fp1.close()
 
-    fp = open("./long_{}_p90.pro".format(slo/1000), "w+")
+    fp2 = open("./long_{}_p90.pro".format(slo/1000), "w+")
     keys = sorted(nf_profile_p90.keys())
     for key in keys:
         if key not in nf_profile_p90:
             continue
         val = nf_profile_p90[key]
-        f.write("{} {}\n".format(key ,val))
-    fp.close()
+        fp2.write("{} {}\n".format(key ,val))
+    fp2.close()
 
     end_time = time.time()
     diff = int(end_time - start_time)
@@ -505,15 +505,15 @@ def main():
     # run_traffic()
 
     ## Ready to profile an NF chain
-    slo = 100000
-    flow_range = range(500, 4000, 500)
-    rate_range = range(1100000, 1800000, 50000)
-    run_long_term_profile(slo, flow_range, rate_range)
-
-    # slo = 200000
+    # slo = 100000
     # flow_range = range(500, 4000, 500)
     # rate_range = range(1100000, 1800000, 50000)
     # run_long_term_profile(slo, flow_range, rate_range)
+
+    slo = 200000
+    flow_range = range(500, 4000, 500)
+    rate_range = range(1100000, 1800000, 20000)
+    run_long_term_profile(slo, flow_range, rate_range)
 
     # slo = 300000
     # flow_range = range(500, 4000, 500)
