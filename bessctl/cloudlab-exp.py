@@ -322,22 +322,49 @@ def profile_once(slo, flow, pkt_rate):
     print("- Ironside worker-scale profile end -")
     return (delay[0], delay[1])
 
-def run_long_term_profile(slo):
-    nf_profile = {}
-    for f in range(3000, 4000, 1000):
-        for r in range(500000, 2100000, 500000):
-            delay = profile_once(slo, f, r)
-            nf_profile[(f, r)] = delay
+# Profile an NF chain's single-core performance in a cross-machine setting.
+# The input determines the target latency SLO and traffic input metrics.
+# |flow_range|: a list of active flow counts to profile.
+# |rate_range|: a list of packet rates to profile.
+def run_long_term_profile(slo, flow_range, rate_range):
+    start_time = time.time()
 
-    print("NF profile:")
-    keys = sorted(nf_profile.keys(), key = lambda x: x[0] * 1000000 + x[1] / 1000)
+    nf_profile_p50 = {}
+    nf_profile_p90 = {}
+    for f in sorted(flow_range):
+        for r in sorted(rate_range):
+            delay = profile_once(slo, f, r)
+            if len(delay) == 0:
+                continue
+            if delay[1] * 1000 <= slo:
+                nf_profile_p90[f] = r
+            if delay[0] * 1000 <= slo:
+                nf_profile_p50[f] = r
+            else:
+                # early break for saving time (|slo| is in ns)
+                break
+
+    fp = open("./long_{}_p50.pro".format(slo/1000), "w+")
+    keys = sorted(nf_profile_p50.keys())
     for key in keys:
-        if key not in nf_profile:
+        if key not in nf_profile_p50:
             continue
-        val = nf_profile[key]
-        f, r = key[0], key[1]
-        d1, d2 = val[0], val[1]
-        print("* f:{} r:{} - {} {}".format(f, r, d1, d2))
+        val = nf_profile_p50[key]
+        f.write("{} {}\n".format(key ,val))
+    fp.close()
+
+    fp = open("./long_{}_p90.pro".format(slo/1000), "w+")
+    keys = sorted(nf_profile_p90.keys())
+    for key in keys:
+        if key not in nf_profile_p90:
+            continue
+        val = nf_profile_p90[key]
+        f.write("{} {}\n".format(key ,val))
+    fp.close()
+
+    end_time = time.time()
+    diff = int(end_time - start_time)
+    print("Total profiling time: {} minutes, {} seconds".format(diff / 60, diff % 60))
     return
 
 def run_worker_exp(slo):
@@ -478,8 +505,40 @@ def main():
     # run_traffic()
 
     ## Ready to profile an NF chain
-    slo = 200000
-    run_long_term_profile(slo)
+    slo = 100000
+    flow_range = range(500, 4000, 500)
+    rate_range = range(1100000, 1800000, 50000)
+    run_long_term_profile(slo, flow_range, rate_range)
+
+    # slo = 200000
+    # flow_range = range(500, 4000, 500)
+    # rate_range = range(1100000, 1800000, 50000)
+    # run_long_term_profile(slo, flow_range, rate_range)
+
+    # slo = 300000
+    # flow_range = range(500, 4000, 500)
+    # rate_range = range(1100000, 1800000, 50000)
+    # run_long_term_profile(slo, flow_range, rate_range)
+
+    # slo = 400000
+    # flow_range = range(500, 4000, 500)
+    # rate_range = range(1100000, 1800000, 50000)
+    # run_long_term_profile(slo, flow_range, rate_range)
+
+    # slo = 500000
+    # flow_range = range(500, 4000, 500)
+    # rate_range = range(1100000, 1800000, 50000)
+    # run_long_term_profile(slo, flow_range, rate_range)
+
+    # slo = 600000
+    # flow_range = range(500, 4000, 500)
+    # rate_range = range(1100000, 2000000, 50000)
+    # run_long_term_profile(slo, flow_range, rate_range)
+
+    # slo = 800000
+    # flow_range = range(500, 4000, 500)
+    # rate_range = range(1100000, 2000000, 50000)
+    # run_long_term_profile(slo, flow_range, rate_range)
     return
 
     ## Ready to run end-to-end exp
