@@ -334,7 +334,6 @@ def run_long_term_profile(slo):
     for key in keys:
         if key not in nf_profile:
             continue
-
         val = nf_profile[key]
         f, r = key[0], key[1]
         d1, d2 = val[0], val[1]
