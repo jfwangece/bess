@@ -323,10 +323,17 @@ def profile_once(slo, flow, pkt_rate):
     return (delay[0], delay[1])
 
 def run_long_term_profile(slo):
-    for f in range(500, 4000, 1000):
-        for r in range(500000, 1000000, 200000):
+    nf_profile = {}
+    for f in range(3000, 4000, 1000):
+        for r in range(500000, 2100000, 500000):
             delay = profile_once(slo, f, r)
-            print("flow: {}, rate={}, delay={}".format(f, r, delay))
+            nf_profile[(f, r)] = delay
+
+    print("NF profile:")
+    for key, val in nf_profile.items():
+        f, r = key[0], key[1]
+        d1, d2 = val[0], val[1]
+        print("* f:{} r:{} - {} {}".format(f, r, d1, d2))
     return
 
 def run_worker_exp(slo):

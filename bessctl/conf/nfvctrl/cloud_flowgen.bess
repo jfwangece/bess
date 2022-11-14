@@ -73,6 +73,7 @@ src[0] = FlowGen(template = pkt_data, \
     arrival = arrival_dist, duration = duration_dist, \
     quick_rampup = True, \
     ip_src_range = 1000, ip_dst_range = 1000, \
+    port_src_range = 10. port_dst_range = 100, \
     ignore_synfin=False)
 queue[0] = Queue(size=pow(2,20))
 qout[0] = QueueOut(port=pmd_port0, qid=0)
