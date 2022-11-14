@@ -17,7 +17,7 @@ tag_offset = 72
 burst_size=32
 
 # Packet size, rate, and flow count determine the traffic input
-pkt_size=int($BESS_PKT_SIZE!'1000')
+pkt_size=int($BESS_PKT_SIZE!'500')
 total_pkt_rate=int($BESS_PKT_RATE!'10000000')
 num_flows=int($BESS_FLOW!'1000')
 flow_time=int($BESS_FLOW_TIME!'10') # in Seconds
@@ -53,7 +53,8 @@ def get_pkt_template(core_id):
     return pkt_data
 
 pkt_data = get_pkt_template(0)
-print("active flows={}".format(num_flows / flow_time))
+print("BESS: flow arrival rate={}".format(num_flows / flow_time))
+print("BESS: packet arrival rate={}".format(total_pkt_rate))
 
 src = {}
 queue = {}

@@ -112,7 +112,7 @@ def start_traffic(tip, num_worker, mode):
     print("traffic {} starts".format(tip))
 
 def start_flowgen(tip, flow, rate):
-    cmds = ["run", "nfvctrl/cloud_flowgen BESS_FLOW={}, BESS_RATE={}".format(flow, rate)]
+    cmds = ["run", "nfvctrl/cloud_flowgen BESS_FLOW={}, BESS_PKT_RATE={}".format(flow, rate)]
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     print(out)
@@ -263,6 +263,72 @@ def run_traffic():
     print("exp: done")
     return delay
 
+## Profile helper
+def profile_once(slo, flow, pkt_rate):
+    selected_worker_ips = [worker_ip[0]]
+    # Start all bessd
+    pids = []
+    for tip in traffic_ip:
+        p = multiprocessing.Process(target=start_remote_bessd, args=(tip,))
+        p.start()
+        pids.append(p)
+    for wip in worker_ip:
+        p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
+        p.start()
+        pids.append(p)
+    for p in pids:
+        p.join()
+    print("exp: all bessd started")
+
+    # Run all workers
+    short_profile = "./nf_profiles/short_term_base.pro"
+    long_profile = "./nf_profiles/long_term_base.pro"
+    pids = []
+    for i, wip in enumerate(selected_worker_ips):
+        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
+        p.start()
+        pids.append(p)
+    for p in pids:
+        p.join()
+    print("exp: all workers started")
+
+    total_flow = flow
+    total_pkt_rate = pkt_rate
+    for tip in traffic_ip:
+        start_flowgen(tip, total_flow, total_pkt_rate)
+    print("exp: traffic started")
+
+    time.sleep(20)
+
+    measure_results = parse_latency_result(traffic_ip[0])
+    if len(measure_results) == 0:
+        print("- Ironside rack-scale exp: no result - ")
+        return
+
+    total_packets = measure_results[0]
+    delay = measure_results[1:]
+    core_usage = []
+    for i, wip in enumerate(selected_worker_ips):
+        core_usage.append(parse_cpu_time_result(wip) / 1000)
+    avg_core_usage = sum(core_usage) / 1000000.0 / 30
+
+    print("- Ironside worker-scale profile result -")
+    print("flowgen: flows={}, rate={}".format(flow, pkt_rate))
+    print("total packets: {}".format(total_packets))
+    print("pkt delay (in us): {}".format(delay))
+    print("core usage (in us): {}".format(core_usage))
+    print("core usage sum (in us): {}".format(sum(core_usage)))
+    print("avg core usage: {}".format(avg_core_usage))
+    print("- Ironside worker-scale profile end -")
+    return (delay[0], delay[1])
+
+def run_long_term_profile(slo):
+    for f in range(500, 4000, 1000):
+        for r in range(500000, 1000000, 200000):
+            delay = profile_once(slo, f, r)
+            print("flow: {}, rate={}, delay={}".format(f, r, delay))
+    return
+
 def run_worker_exp(slo):
     selected_worker_ips = [worker_ip[0]]
 
@@ -295,7 +361,7 @@ def run_worker_exp(slo):
     print("exp: all workers started")
 
     flow = 1000
-    pkt_rate = 300000
+    pkt_rate = 100000
     for tip in traffic_ip:
         start_flowgen(tip, flow, pkt_rate)
     print("exp: traffic started")
@@ -311,7 +377,8 @@ def run_worker_exp(slo):
     delay = measure_results[1:]
     core_usage = []
     for i, wip in enumerate(selected_worker_ips):
-        core_usage.append(parse_cpu_time_result(wip) * 3 / 1000)
+        core_usage.append(parse_cpu_time_result(wip) / 1000)
+    avg_core_usage = sum(core_usage) / 1000000.0 / 30
 
     print("- Ironside worker-scale exp result -")
     print("flowgen: flows={}, rate={}".format(flow, pkt_rate))
@@ -319,8 +386,9 @@ def run_worker_exp(slo):
     print("pkt delay (in us): {}".format(delay))
     print("core usage (in us): {}".format(core_usage))
     print("core usage sum (in us): {}".format(sum(core_usage)))
+    print("avg core usage: {}".format(avg_core_usage))
     print("- Ironside worker-scale exp end -")
-    return
+    return (delay[0], delay[1])
 
 def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     selected_worker_ips = []
@@ -399,7 +467,8 @@ def main():
     # run_traffic()
 
     ## Ready to profile an NF chain
-    run_worker_exp(200)
+    slo = 200000
+    run_long_term_profile(slo)
     return
 
     ## Ready to run end-to-end exp
