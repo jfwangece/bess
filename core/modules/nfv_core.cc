@@ -301,7 +301,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
 
     bool is_active = false;
-    if (epoch_packet_arrival_ > 0) {
+    if (epoch_packet_arrival_ > 50) {
       is_active = true;
     }
 
