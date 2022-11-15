@@ -478,6 +478,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     core_usage = []
     for i, wip in enumerate(selected_worker_ips):
         core_usage.append(parse_cpu_time_result(wip) * 3 / 1000)
+    avg_cores = sum(core_usage) / 1000000.0 / 30.0
 
     print("- Ironside rack-scale exp result -")
     print("total {} Ironside workers".format(num_worker))
@@ -486,7 +487,58 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     print("pkt delay (in us): {}".format(delay))
     print("core usage (in us): {}".format(core_usage))
     print("core usage sum (in us): {}".format(sum(core_usage)))
+    print("avg core usage (in cores): {}".format(avg_cores))
     print("- Ironside rack-scale exp end -")
+    return (delay[-1], avg_cores)
+
+def run_ablation_server_mapper():
+    worker_cnt = 4
+    results = []
+
+    # Exp: 200-us
+    slo = 200000
+    # Ironside
+    short_prof = "./nf_profiles/short_term_slo200.pro"
+    long_prof = "./nf_profiles/long_200_p50.pro"
+    r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+
+    # Static-safe
+    short_prof = "./nf_profiles/short_term_slo200.pro"
+    long_prof = "./nf_profiles/long_200_p50_safe.pro"
+    r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+
+    # Static-unsafe
+    short_prof = "./nf_profiles/short_term_slo200.pro"
+    long_prof = "./nf_profiles/long_200_p50_unsafe.pro"
+    r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+    results.append([slo, r1, r2, r3])
+
+    print(results)
+    return
+
+def run_ablation_core_mapper():
+    worker_cnt = 4
+    results = []
+
+    # Exp: 200-us
+    slo = 200000
+    # Ironside
+    short_prof = "./nf_profiles/short_term_slo200.pro"
+    long_prof = "./nf_profiles/long_200_p50.pro"
+    r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+
+    # Static-safe
+    short_prof = "./nf_profiles/short_term_slo200.pro"
+    long_prof = "./nf_profiles/long_200_p50.pro"
+    r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+
+    # Static-unsafe
+    short_prof = "./nf_profiles/short_term_slo200.pro"
+    long_prof = "./nf_profiles/long_200_p50.pro"
+    r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+    results.append([slo, r1, r2, r3])
+
+    print(results)
     return
 
 def main():
@@ -525,10 +577,10 @@ def main():
     # rate_range = range(1100000, 1800000, 50000)
     # run_long_term_profile(slo, flow_range, rate_range)
 
-    slo = 500000
-    flow_range = range(500, 4000, 500)
-    rate_range = range(1100000, 1800000, 50000)
-    run_long_term_profile(slo, flow_range, rate_range)
+    # slo = 500000
+    # flow_range = range(500, 4000, 500)
+    # rate_range = range(1100000, 1800000, 50000)
+    # run_long_term_profile(slo, flow_range, rate_range)
 
     # slo = 600000
     # flow_range = range(500, 4000, 500)
@@ -539,14 +591,14 @@ def main():
     # flow_range = range(500, 4000, 500)
     # rate_range = range(1100000, 2000000, 50000)
     # run_long_term_profile(slo, flow_range, rate_range)
-    return
+    # return
 
     ## Ready to run end-to-end exp
-    worker_cnt = 4
-    slo = 200000
-    short_prof = "./nf_profiles/short_term_slo200.pro"
-    long_prof = "./nf_profiles/long_term_slo200.pro"
-    run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+    # worker_cnt = 4
+    # slo = 200000
+    # short_prof = "./nf_profiles/short_term_slo200.pro"
+    # long_prof = "./nf_profiles/long_200_p50.pro"
+    # run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
     # worker_cnt = 2
     # slo = 300000
@@ -569,6 +621,12 @@ def main():
     # short_prof = "./nf_profiles/short_term_slo600.pro"
     # long_prof = "./nf_profiles/long_term_slo600.pro"
     # run_cluster_exp(slo, short_prof, long_prof)
+
+    # Ablation: the server mapper
+    run_ablation_server_mapper()
+
+    # Ablation: the core mapper
+    # run_ablation_core_mapper()
     return
 
 if __name__ == "__main__":
