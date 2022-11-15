@@ -436,7 +436,7 @@ bool NFVCore::ShortEpochProcess() {
         sw_q_it.idle_epoch_count = 0;
       }
     } else { // |idle_epoch_count| >= 0; active
-      if (sw_q_it.idle_epoch_count == 100) { // idle for a while
+      if (sw_q_it.idle_epoch_count >= max_idle_epoch_count_) { // idle for a while
         ret = bess::ctrl::NFVCtrlNotifyRCoreToRest(core_id_, sw_q_it.sw_q_id);
         if (ret != 0) {
           LOG(ERROR) << "E error: " << ret << "; core: " << core_id_ << "; q: " << sw_q_it.sw_q_id;

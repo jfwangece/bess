@@ -86,12 +86,14 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   }
   core_.core_id = core_id_;
 
-  // Configure the short-term optimization epoch size
-  short_epoch_period_ns_ = 1000000000;
+  // Configure the short-term optimization epoch size (default: 1000 us)
+  short_epoch_period_ns_ = 1000000;
+  max_idle_epoch_count_ = 100;
   if (arg.short_epoch_period_ns() > 0) {
     short_epoch_period_ns_ = (uint64_t)arg.short_epoch_period_ns();
+    max_idle_epoch_count_ = 5000000 / arg.short_epoch_period_ns();
   }
-  LOG(INFO) << "Core " << core_id_ << ": short-term epoch " << short_epoch_period_ns_ << " ns";
+  LOG(INFO) << "Core " << core_id_ << ": short-term epoch = " << short_epoch_period_ns_ << " ns, max idle epochs = " << max_idle_epoch_count_;
 
   curr_ts_ns_ = tsc_to_ns(rdtsc());
   last_short_epoch_end_ns_ = curr_ts_ns_;

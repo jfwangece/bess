@@ -190,6 +190,7 @@ class NFVCore final : public Module {
   uint64_t last_short_epoch_end_ns_;
   uint64_t short_epoch_period_ns_;
   uint32_t curr_epoch_id_;
+  int max_idle_epoch_count_;
 
   // Core-related
   std::mutex core_time_mu_;

@@ -290,8 +290,7 @@ def profile_once(slo, flow, pkt_rate):
     long_profile = "./nf_profiles/long_term_base.pro"
     pids = []
     for i, wip in enumerate(selected_worker_ips):
-        # p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
-        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
+        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
         p.start()
         pids.append(p)
     for p in pids:
@@ -458,6 +457,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     pids = []
     for i, wip in enumerate(selected_worker_ips):
         p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
+        # p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
         p.start()
         pids.append(p)
 
@@ -501,7 +501,7 @@ def run_ablation_server_mapper():
     worker_cnt = 4
     results = []
     # all_slo = [200000, 300000, 400000, 500000]
-    all_slo = [200000, 300000, 500000]
+    all_slo = [200000]
 
     for slo in all_slo:
         slo_us = slo/1000
@@ -510,12 +510,17 @@ def run_ablation_server_mapper():
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
-        # Static-safe
+        # Static-safe: higher cpu usage
+        # It uses more dedicated cores, and less on-demand cores.
         short_prof = "./nf_profiles/short_term_slo{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
-        # Static-unsafe
+        # Static-unsafe: higher cpu usage?
+        # Suppose the core mapepr is able to handle the excessive load on a
+        # dedicated core. Then, the latency should be okay. However, more
+        # packet migrations are required, which requires a slightly higher
+        # CPU core usage.
         short_prof = "./nf_profiles/short_term_slo{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
