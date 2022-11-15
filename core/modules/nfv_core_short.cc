@@ -407,7 +407,7 @@ bool NFVCore::ShortEpochProcess() {
     uint32_t task_size = state->queued_packet_count;
 
     if (task_size <= local_pkt_thresh) {
-      if (local_pkt_assigned + task_size < epoch_packet_thresh_) {
+      if (local_pkt_assigned + task_size < local_pkt_thresh) {
         local_pkt_assigned += task_size;
       } else {
         bool assigned = false;
