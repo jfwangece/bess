@@ -111,6 +111,19 @@ void NFVCtrl::InitPMD(PMDPort* port) {
   port_->UpdateRssFlow();
 }
 
+uint64_t GetMaxPktRateFromLongTermProfile(uint64_t fc) {
+  if (bess::ctrl::long_flow_count_pps_threshold.size() == 0) {
+    return 1000000;
+  }
+
+  for (auto& it : bess::ctrl::long_flow_count_pps_threshold) {
+    if (it.first > fc) {
+      return it.second;
+    }
+  }
+  return (--bess::ctrl::long_flow_count_pps_threshold.end())->second;
+}
+
 std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<uint64_t>& per_cpu_pkt_rate,
                                                 std::vector<uint64_t>& per_cpu_flow_count,
                                                 const std::vector<uint64_t>& per_bucket_pkt_rate,
@@ -167,19 +180,6 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<uint64_t>& per_cpu_p
     LOG(INFO) << "No idle ncore found for " << skip << " buckets; active ncores: " << active_core_count_;
   }
   return moves;
-}
-
-uint64_t NFVCtrl::GetMaxPktRateFromLongTermProfile(uint64_t fc) {
-  if (bess::ctrl::long_flow_count_pps_threshold.size() == 0) {
-    return 1000000.0;
-  }
-
-  for (auto& it : bess::ctrl::long_flow_count_pps_threshold) {
-    if (it.first > fc) {
-      return it.second;
-    }
-  }
-  return (--bess::ctrl::long_flow_count_pps_threshold.end())->second;
 }
 
 std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(

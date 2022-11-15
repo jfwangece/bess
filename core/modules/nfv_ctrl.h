@@ -82,7 +82,8 @@ class NFVCtrl final : public Module {
 
  private:
   // Return the max packet rate under flow count |fc| given the input NF profile.
-  uint64_t GetMaxPktRateFromLongTermProfile(uint64_t fc);
+  // uint64_t GetMaxPktRateFromLongTermProfile(uint64_t fc);
+
   // LongTermOptimzation adjusts the system for long term changes. It makes sure
   // that no cores are violating p50 SLO. It also reduces resource consumption by
   // packing flows tightly and freeing up CPU cores.

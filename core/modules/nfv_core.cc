@@ -118,13 +118,12 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   LOG(INFO) << "Core " << core_id_ << " has " << sw_q_.size() << " sw_q.";
 
   // Init epoch thresholds and packet counters
-  epoch_flow_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->first;
-  epoch_packet_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second;
+  epoch_packet_thresh_ = bess::ctrl::short_flow_count_pkt_threshold.begin()->second;
   large_queue_packet_thresh_ = epoch_packet_thresh_ * 3 * bess::ctrl::rcore / bess::ctrl::ncore;
   if (arg.large_queue_scale() > 0) {
     large_queue_packet_thresh_ = epoch_packet_thresh_ * arg.large_queue_scale() * bess::ctrl::rcore / bess::ctrl::ncore / 2;
   }
-  LOG(INFO) << "epoch thresh: pkt=" << epoch_packet_thresh_ << ", flow=" << epoch_flow_thresh_ << ", queue=" << large_queue_packet_thresh_;
+  LOG(INFO) << "epoch thresh: pkt=" << epoch_packet_thresh_ << ", queue=" << large_queue_packet_thresh_;
 
   curr_rcore_ = 0;
   sum_core_time_ns_ = 0;

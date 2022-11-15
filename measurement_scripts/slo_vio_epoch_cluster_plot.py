@@ -85,7 +85,6 @@ def generate_slo_vio_signal_plot(core_snapshots, title=None):
         non_slo_vio_nodes += non_slo
 
     short_profile = get_short_term_profile(slo_vio_nodes)
-    # node_groups = [('x', 'blue', 1, slo_vio_nodes), ('.', 'purple', 1, non_slo_vio_nodes)]
     node_groups = [('x', 'blue', 1, short_profile)]
 
     cluster_plot(node_groups, "blue: SLO-vio epoch; purple: non SLO-vio epoch")
