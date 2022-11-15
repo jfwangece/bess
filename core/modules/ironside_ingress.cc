@@ -135,7 +135,9 @@ void IronsideIngress::UpdateEndpointLB() {
     }
     bess::ctrl::nfvctrl_worker_mu.unlock_shared();
   }
-  //LOG(INFO) << pkt_cnts_[0] << ", " << pkt_cnts_[1] << ", " << pkt_cnts_[2] << ", " << pkt_cnts_[3];
+
+  // Debug log
+  LOG(INFO) << endpoint_id_ << ", " << pkt_cnts_[0] << ", " << pkt_cnts_[1] << ", " << pkt_cnts_[2] << ", " << pkt_cnts_[3];
 
   // Reset
   for (size_t i = 0; i < pkt_cnts_.size(); i++) {
