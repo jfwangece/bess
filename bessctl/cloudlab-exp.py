@@ -519,24 +519,27 @@ def run_ablation_server_mapper():
 def run_ablation_core_mapper():
     worker_cnt = 4
     results = []
+    # all_slo = [200000, 300000, 400000, 500000]
+    all_slo = [200000, 300000, 500000]
 
-    # Exp: 200-us
-    slo = 200000
-    # Ironside
-    short_prof = "./nf_profiles/short_term_slo200.pro"
-    long_prof = "./nf_profiles/long_200_p50.pro"
-    r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+    for slo in all_slo:
+        slo_us = slo/1000
+        # Ironside
+        short_prof = "./nf_profiles/short_term_slo{}.pro".format(slo_us)
+        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
-    # Static-safe
-    short_prof = "./nf_profiles/short_term_slo200.pro"
-    long_prof = "./nf_profiles/long_200_p50.pro"
-    r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        # Static-safe
+        short_prof = "./nf_profiles/short_term_slo{}.pro".format(slo_us)
+        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
-    # Static-unsafe
-    short_prof = "./nf_profiles/short_term_slo200.pro"
-    long_prof = "./nf_profiles/long_200_p50.pro"
-    r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
-    results.append([slo, r1, r2, r3])
+        # Static-unsafe
+        short_prof = "./nf_profiles/short_term_slo{}.pro".format(slo_us)
+        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+
+        results.append([slo, r1, r2, r3])
 
     print(results)
     return
