@@ -118,15 +118,20 @@ def start_flowgen(tip, flow, rate):
     print(out)
     print("flowgen {} starts".format(tip))
 
-def start_ironside_worker(wip, worker_id, slo, short, long):
+def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     remote_short = "/local/bess/short.prof"
     remote_long = "/local/bess/long.prof"
     send_remote_file(wip, short, remote_short)
     send_remote_file(wip, long, remote_long)
     print("ironside worker {} gets short-term and long-term profiles".format(worker_id))
 
-    cmds = ["run", "nfvctrl/cloud_chain4",
-            "TRAFFIC_MAC='{}', BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}'".format(macs[0], worker_id, slo, remote_short, remote_long)]
+    cmds = ["run", "nfvctrl/cloud_chain4"]
+    if exp_id == 0:
+        extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}'".format(macs[0], worker_id, slo, remote_short, remote_long)
+        cmds.append(extra_cmd)
+    else:
+        extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}', BESS_EXP_ID={}".format(macs[0], worker_id, slo, remote_short, remote_long, exp_id)
+        cmds.append(extra_cmd)
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
     # print(out)
@@ -285,7 +290,8 @@ def profile_once(slo, flow, pkt_rate):
     long_profile = "./nf_profiles/long_term_base.pro"
     pids = []
     for i, wip in enumerate(selected_worker_ips):
-        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
+        # p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
+        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
         p.start()
         pids.append(p)
     for p in pids:
@@ -494,31 +500,6 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
 def run_ablation_server_mapper():
     worker_cnt = 4
     results = []
-
-    # Exp: 200-us
-    slo = 200000
-    # Ironside
-    short_prof = "./nf_profiles/short_term_slo200.pro"
-    long_prof = "./nf_profiles/long_200_p50.pro"
-    r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
-
-    # Static-safe
-    short_prof = "./nf_profiles/short_term_slo200.pro"
-    long_prof = "./nf_profiles/long_200_p50_safe.pro"
-    r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
-
-    # Static-unsafe
-    short_prof = "./nf_profiles/short_term_slo200.pro"
-    long_prof = "./nf_profiles/long_200_p50_unsafe.pro"
-    r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
-    results.append([slo, r1, r2, r3])
-
-    print(results)
-    return
-
-def run_ablation_core_mapper():
-    worker_cnt = 4
-    results = []
     # all_slo = [200000, 300000, 400000, 500000]
     all_slo = [200000, 300000, 500000]
 
@@ -542,6 +523,9 @@ def run_ablation_core_mapper():
         results.append([slo, r1, r2, r3])
 
     print(results)
+    return
+
+def run_ablation_core_mapper():
     return
 
 def main():

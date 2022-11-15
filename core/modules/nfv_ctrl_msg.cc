@@ -24,6 +24,9 @@ PMDPort* pmd_port = nullptr;
 std::shared_mutex nfvctrl_worker_mu;
 std::shared_mutex nfvctrl_bucket_mu;
 
+// Default: 0 (no exp)
+int exp_id = 0;
+
 // Long-term and short-term NF profiles
 std::map<uint64_t, uint64_t> long_flow_count_pps_threshold;
 std::map<uint32_t, uint32_t> short_flow_count_pkt_threshold;

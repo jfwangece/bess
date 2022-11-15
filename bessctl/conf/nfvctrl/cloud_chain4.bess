@@ -5,6 +5,8 @@
 
 wid = int($BESS_WID!"0")
 pcie0 = $BESS_DEV!"81:00.0"
+experiment_index = int($BESS_EXP_ID!"0")
+pipeline_index = int($BESS_PIPELINE_ID!"1")
 offset0 = 1
 
 # the traffic generator's routing information
@@ -20,7 +22,6 @@ acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 long_epoch_period = int($BESS_LSTATS_PERIOD!"500000000")
 short_epoch_period = int(slo / 2)
-exp_idx = int($BESS_EXP!"1")
 ncore = int($BESS_NCORE!"10")
 queue_scale = 1
 
@@ -49,7 +50,8 @@ for i in range(lb_cnt / 20):
 nfvctrl::NFVCtrl(wid=wid,ncore=core_cnt, rcore=rcore_cnt, qid=total_core_cnt,
                 slo_ns=slo,
                 long_epoch_period_ns=long_epoch_period,
-                nf_short_term_profile=short_profile, nf_long_term_profile=long_profile)
+                nf_short_term_profile=short_profile, nf_long_term_profile=long_profile,
+                exp_id=experiment_index)
 
 port0::PMDPort(pci=pcie0,
     num_inc_q=core_cnt,
@@ -71,21 +73,21 @@ for i in cores:
     lb[i] = FlowLB(endpoints=nat_hosts)
     monitor[i] = FlowCounter()
 
-    if exp_idx == 0:
+    if pipeline_index == 0:
         pinc0[i] = NFVCore(core_id=i, port=port0, qid=i, short_epoch_period_ns=short_epoch_period)
         nfvmo[i] = NFVMonitor(core_id=i, short_epoch_period_ns=short_epoch_period)
         pinc0[i] -> nfvmo[i] -> pout0[i]
-    elif exp_idx == 1:
+    elif pipeline_index == 1:
         # Default: Chain 4 w/ NFVMonitor
         pinc0[i] = NFVCore(core_id=i, port=port0, qid=i, short_epoch_period_ns=short_epoch_period, large_queue_scale=queue_scale)
         nfvmo[i] = NFVMonitor(core_id=i, short_epoch_period_ns=short_epoch_period)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
-    elif exp_idx == 2:
+    elif pipeline_index == 2:
         # Comparison: Chain 4 w/ QueueInc
         pinc0[i] = QueueInc(port=port0, qid=i)
         nfvmo[i] = NFVMonitor(core_id=i, short_epoch_period_ns=short_epoch_period)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> pout0[i]
-    elif exp_idx == 3:
+    elif pipeline_index == 3:
         pinc0[i] = QueueInc(port=port0, qid=i)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> pout0[i]
     else:
