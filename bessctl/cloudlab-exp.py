@@ -510,10 +510,10 @@ def main():
     # rate_range = range(1100000, 1800000, 50000)
     # run_long_term_profile(slo, flow_range, rate_range)
 
-    slo = 200000
-    flow_range = range(500, 4000, 500)
-    rate_range = range(1100000, 1800000, 20000)
-    run_long_term_profile(slo, flow_range, rate_range)
+    # slo = 200000
+    # flow_range = range(500, 4000, 500)
+    # rate_range = range(1100000, 1800000, 20000)
+    # run_long_term_profile(slo, flow_range, rate_range)
 
     # slo = 300000
     # flow_range = range(500, 4000, 500)
@@ -525,10 +525,10 @@ def main():
     # rate_range = range(1100000, 1800000, 50000)
     # run_long_term_profile(slo, flow_range, rate_range)
 
-    # slo = 500000
-    # flow_range = range(500, 4000, 500)
-    # rate_range = range(1100000, 1800000, 50000)
-    # run_long_term_profile(slo, flow_range, rate_range)
+    slo = 500000
+    flow_range = range(500, 4000, 500)
+    rate_range = range(1100000, 1800000, 50000)
+    run_long_term_profile(slo, flow_range, rate_range)
 
     # slo = 600000
     # flow_range = range(500, 4000, 500)
