@@ -451,7 +451,6 @@ uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
 }
 
 void NFVCtrl::SendWorkerInfo() {
-  const queue_t qid = ACCESS_ONCE(qid_);
   int pktcnt = 2;
 
   local_batch_->clear();
@@ -482,5 +481,7 @@ void NFVCtrl::SendWorkerInfo() {
     local_batch_->add(pkt);
   }
 
-  port_->SendPackets(qid, local_batch_->pkts(), pktcnt);
+  // This is not robust. Do not send..
+  // const queue_t qid = ACCESS_ONCE(qid_);
+  // port_->SendPackets(qid, local_batch_->pkts(), pktcnt);
 }
