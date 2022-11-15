@@ -166,6 +166,7 @@ void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     // size_t hashed = rte_hash_crc(&ip->src, sizeof(be32_t), 0);
     uint64_t flow_id = (ip->src.value() & 0x0fff000) + (ip->dst.value() & 0x0fff);
 
+    int dst_worker = 0;
     auto it = flow_cache_.find(flow_id);
     if (it == flow_cache_.end()) {
       if (endpoint_id_ == -1) {
@@ -173,14 +174,17 @@ void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         continue;
       }
       // This is a new flow.
-      std::tie(it, std::ignore) = flow_cache_.emplace(flow_id, endpoint_id_);
+      flow_cache_.emplace(flow_id, endpoint_id_);
+      dst_worker = endpoint_id_;
+    } else {
+      dst_worker = it->second;
     }
 
-    pkt_cnts_[it->second] += 1;
+    pkt_cnts_[dst_worker] += 1;
     // Update Ether dst, IP dst, checksum, and TCP checksum
-    eth->dst_addr = macs_[it->second];
+    eth->dst_addr = macs_[dst_worker];
     be32_t before = ip->dst;
-    be32_t after = ips_[it->second];
+    be32_t after = ips_[dst_worker];
     ip->dst = after;
 
     uint32_t l3_increment =
