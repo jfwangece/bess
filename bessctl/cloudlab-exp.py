@@ -504,7 +504,7 @@ def run_ablation_server_mapper():
     all_slo = [200000]
 
     for slo in all_slo:
-        slo_us = slo/1000
+        slo_us = slo / 1000
         # Ironside
         short_prof = "./nf_profiles/short_term_slo{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
