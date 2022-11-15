@@ -628,34 +628,17 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     return (delay[-1], avg_cores)
 
 def run_main_exp():
-    ## Ready to run end-to-end exp
+    target_slos = [200000, 300000, 400000, 500000]
     worker_cnt = 4
-    slo = 200000
-    short_prof = "./nf_profiles/short_200.pro"
-    long_prof = "./nf_profiles/long_200_p50.pro"
-    run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
-    # worker_cnt = 2
-    # slo = 300000
-    # short_prof = "./nf_profiles/short_term_slo300.pro"
-    # long_prof = "./nf_profiles/long_term_slo300.pro"
-    # run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+    ## Ready to run end-to-end exp
+    for slo in target_slos:    
+        slo_us = slo / 1000
+        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
+        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
-    # worker_cnt = 3
-    # slo = 400000
-    # short_prof = "./nf_profiles/short_term_slo400.pro"
-    # long_prof = "./nf_profiles/long_term_slo400.pro"
-    # run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
-
-    # slo = 500000
-    # short_prof = "./nf_profiles/short_term_slo500.pro"
-    # long_prof = "./nf_profiles/long_term_slo500.pro"
-    # run_cluster_exp(slo, short_prof, long_prof)
-
-    # slo = 600000
-    # short_prof = "./nf_profiles/short_term_slo600.pro"
-    # long_prof = "./nf_profiles/long_term_slo600.pro"
-    # run_cluster_exp(slo, short_prof, long_prof)
+    print("Ironside main experiment finished!")
     return
 
 def run_ablation_server_mapper():
