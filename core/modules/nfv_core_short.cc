@@ -306,7 +306,6 @@ uint32_t GetMaxPktCountFromShortTermProfile(uint32_t fc) {
   if (bess::ctrl::short_flow_count_pkt_threshold.size() == 0) {
     return 1000;
   }
-  return (--bess::ctrl::short_flow_count_pkt_threshold.end())->second;
 
   const auto& it = bess::ctrl::short_flow_count_pkt_threshold.find(fc);
   if (it != bess::ctrl::short_flow_count_pkt_threshold.end()) {
@@ -400,7 +399,7 @@ bool NFVCore::ShortEpochProcess() {
   // Greedy assignment: first-fit
   uint32_t local_large_flow = 0;
   uint32_t local_flow_count = epoch_flow_cache_.size();
-  uint32_t local_pkt_thresh = GetMaxPktCountFromShortTermProfile(local_flow_count);
+  uint32_t local_pkt_thresh = GetMaxPktCountFromShortTermProfile(local_flow_count) * 0.7;
   uint32_t local_pkt_assigned = 0;
 
   for (auto it = unoffload_flows_.begin(); it != unoffload_flows_.end(); ++it) {
