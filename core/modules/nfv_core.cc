@@ -267,9 +267,11 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   // Boost if 1) the core has pulled many packets (i.e. 128) in this round; 2) |local_queue_| is large.
   uint32_t queued_pkts = llring_count(local_queue_);
-  if (pull_rounds >= 4 ||
-      queued_pkts >= large_queue_packet_thresh_) {
-    last_boost_ts_ns_ = tsc_to_ns(rdtsc());
+  if (last_boost_ts_ns_ == 0) {
+    if (pull_rounds >= 4 ||
+        queued_pkts >= large_queue_packet_thresh_) {
+      last_boost_ts_ns_ = tsc_to_ns(rdtsc());
+    }
   } else {
     if (queued_pkts * 2 < large_queue_packet_thresh_) {
       sum_core_time_ns_ += tsc_to_ns(rdtsc()) - last_boost_ts_ns_;

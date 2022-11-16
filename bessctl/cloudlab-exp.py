@@ -644,8 +644,9 @@ def run_main_exp():
 
     print("----------     Ironside main experiment results      ----------")
     for i, slo in enumerate(target_slos):
-        core_usage , delay = exp_results[i]
-        print("{} - {:0.2f}, {}".format(slo, core_usage, delay))
+        slo_us = slo / 1000
+        core_usage, delay = exp_results[i]
+        print("{} us - {:0.2f}, {}".format(slo_us, core_usage, delay))
     print("---------------------------------------------------------------")
     return
 
@@ -681,8 +682,9 @@ def run_ablation_server_mapper():
 
     print("-------         Ablation experiment results          ----------")
     for i, slo in enumerate(target_slos):
-        core_usage , delay = exp_results[i]
-        print("{} - {:0.2f}, {}".format(slo, core_usage, delay))
+        slo_us = slo / 1000
+        core_usage, delay = exp_results[i]
+        print("{} us - {:0.2f}, {}".format(slo_us, core_usage, delay))
     print("---------------------------------------------------------------")
     return
 
@@ -707,8 +709,9 @@ def run_ablation_core_mapper():
 
     print("-------         Ablation experiment results          ----------")
     for i, slo in enumerate(target_slos):
-        core_usage , delay = exp_results[i]
-        print("{} - {:0.2f}, {}".format(slo, core_usage, delay))
+        slo_us = slo / 1000
+        core_usage, delay = exp_results[i]
+        print("{} us - {:0.2f}, {}".format(slo_us, core_usage, delay))
     print("---------------------------------------------------------------")
     return
 
