@@ -399,7 +399,7 @@ bool NFVCore::ShortEpochProcess() {
   // Greedy assignment: first-fit
   uint32_t local_large_flow = 0;
   uint32_t local_flow_count = epoch_flow_cache_.size();
-  uint32_t local_pkt_thresh = GetMaxPktCountFromShortTermProfile(local_flow_count) * 0.7;
+  uint32_t local_pkt_thresh = GetMaxPktCountFromShortTermProfile(local_flow_count) - 32;
   uint32_t local_pkt_assigned = 0;
 
   for (auto it = unoffload_flows_.begin(); it != unoffload_flows_.end(); ++it) {
