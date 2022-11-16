@@ -78,7 +78,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
       return CommandFailure(ENOMEM, "Task creation failed");
     }
 
-    // size_ = DEFAULT_SWQ_SIZE;
+    size_ = DEFAULT_SWQ_SIZE;
     // Resize(size_);
     local_queue_ = bess::ctrl::local_q[core_id_];
     local_batch_ = reinterpret_cast<bess::PacketBatch *>
