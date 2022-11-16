@@ -189,6 +189,7 @@ class NFVCore final : public Module {
   // Short epoch: last timestamp, period, and current ID
   uint64_t last_short_epoch_end_ns_;
   uint64_t short_epoch_period_ns_;
+  uint64_t last_boost_ts_ns_;
   uint32_t curr_epoch_id_;
   int max_idle_epoch_count_;
 

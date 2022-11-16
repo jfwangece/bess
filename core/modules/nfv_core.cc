@@ -126,6 +126,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   LOG(INFO) << "epoch thresh: pkt=" << epoch_packet_thresh_ << ", queue=" << large_queue_packet_thresh_;
 
   curr_rcore_ = 0;
+  last_boost_ts_ns_ = 0;
   sum_core_time_ns_ = 0;
 
   epoch_packet_arrival_ = 0;
@@ -246,13 +247,10 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // int status = rte_eth_rx_descriptor_status(port_id_, qid, large_queue_packet_thresh_);
   // bool nic_busy = status != RTE_ETH_RX_DESC_AVAIL;
 
-  // By default, the normal core is busy pulling the NIC queue.
-  bool need_boost = true;
-
   // Busy pulling from the NIC queue
   int cnt = 0;
   uint32_t pull_rounds = 0;
-  while (pull_rounds++ < 10) {
+  while (pull_rounds++ < 8) {
     batch->clear();
     cnt = p->RecvPackets(qid, batch->pkts(), 32);
     batch->set_cnt(cnt);
@@ -263,13 +261,20 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
       UpdateStatsOnFetchBatch(batch);
     }
     if (cnt < 32) {
-      need_boost = false;
       break;
     }
   }
-  // Boost if |local_queue_| is large.
-  if (llring_count(local_queue_) >= large_queue_packet_thresh_) {
-    need_boost = true;
+
+  // Boost if 1) the core has pulled many packets (i.e. 128) in this round; 2) |local_queue_| is large.
+  uint32_t queued_pkts = llring_count(local_queue_);
+  if (pull_rounds >= 4 ||
+      queued_pkts >= large_queue_packet_thresh_) {
+    last_boost_ts_ns_ = tsc_to_ns(rdtsc());
+  } else {
+    if (queued_pkts * 2 < large_queue_packet_thresh_) {
+      sum_core_time_ns_ += tsc_to_ns(rdtsc()) - last_boost_ts_ns_;
+      last_boost_ts_ns_ = 0;
+    }
   }
 
   // Process one batch
@@ -288,7 +293,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     // |epoch_packet_processed_| and |per_flow_states_|
     UpdateStatsPreProcessBatch(batch);
 
-    if (need_boost) {
+    if (last_boost_ts_ns_ > 0) {
       bess::Packet::Free(batch->pkts(), batch->cnt());
     } else {
       ProcessBatch(ctx, batch);
@@ -302,7 +307,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
 
     bool is_active = false;
-    if (epoch_packet_arrival_ > 50) {
+    if (epoch_packet_arrival_ > 10) {
       is_active = true;
     }
 
