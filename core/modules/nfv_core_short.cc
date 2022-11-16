@@ -31,7 +31,6 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
     if (!bess::utils::ParseFlowFromPacket(&flow, pkt)) {
-      // For now, we handle L4 packets only.
       // After this line, all packets must be associated with a flow.
       bess::Packet::Free(pkt);
       continue;
