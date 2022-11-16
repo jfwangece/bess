@@ -625,9 +625,11 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     print("- core usage sum (in us): {}".format(sum(core_usage)))
     print("- avg core usage (in cores): {}".format(avg_cores))
     print("---------------------------------------------------------------")
-    return (delay[-1], avg_cores)
+    # 50, 90, 95, 98, 99
+    return (avg_cores, delay)
 
 def run_main_exp():
+    exp_results = []
     target_slos = [200000, 300000, 400000, 500000]
     worker_cnt = 4
 
@@ -636,9 +638,11 @@ def run_main_exp():
         slo_us = slo / 1000
         short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
-        run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        exp_results.append(r)
 
     print("Ironside main experiment finished!")
+    print(exp_results)
     return
 
 def run_ablation_server_mapper():
