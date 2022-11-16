@@ -65,7 +65,7 @@ void NFVCtrlMsgInit() {
   // |local_q| used by all dedicated cores
   for (int i = 0; i < DEFAULT_LOCALQ_COUNT; i++) {
     local_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-    int ret = llring_init(local_q[i], sw_qsize, 1, 1);
+    int ret = llring_init(local_q[i], sw_qsize, 1, 0);
     if (ret) {
       std::free(local_q[i]);
       LOG(ERROR) << "llring_init failed on local queue " << i;

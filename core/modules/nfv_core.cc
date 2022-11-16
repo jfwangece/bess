@@ -1,4 +1,5 @@
 #include "nfv_core.h"
+#include "nfv_rcore.h"
 #include "nfv_monitor.h"
 
 #include <bitset>
@@ -222,7 +223,6 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
                                      void *arg) {
   Port *p = port_;
   const queue_t qid = (queue_t)(uintptr_t)arg;
-  const int burst = ACCESS_ONCE(burst_);
   bool epoch_advanced = false;
 
   // Read the CPU cycle counter for better accuracy
@@ -269,10 +269,12 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   if (last_boost_ts_ns_ == 0) {
     if (pull_rounds >= 4 ||
         queued_pkts >= large_queue_packet_thresh_) {
+      bess::ctrl::nfv_rcores[core_id_]->AddQueue(local_queue_);
       last_boost_ts_ns_ = tsc_to_ns(rdtsc());
     }
   } else {
     if (queued_pkts * 2 < large_queue_packet_thresh_) {
+      bess::ctrl::nfv_rcores[core_id_]->RemoveQueue(local_queue_);
       sum_core_time_ns_ += tsc_to_ns(rdtsc()) - last_boost_ts_ns_;
       last_boost_ts_ns_ = 0;
     }
@@ -280,7 +282,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   // Process one batch
   batch->clear();
-  cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), burst);
+  cnt = llring_mc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
   batch->set_cnt(cnt);
 
   uint32_t total_pkts = (uint32_t)cnt;
@@ -294,11 +296,12 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     // |epoch_packet_processed_| and |per_flow_states_|
     UpdateStatsPreProcessBatch(batch);
 
-    if (last_boost_ts_ns_ > 0) {
-      bess::Packet::Free(batch->pkts(), batch->cnt());
-    } else {
+    if (last_boost_ts_ns_ == 0) {
       ProcessBatch(ctx, batch);
     }
+    // else {
+    //   bess::Packet::Free(batch->pkts(), batch->cnt());
+    // }
   }
 
   if (epoch_advanced) {

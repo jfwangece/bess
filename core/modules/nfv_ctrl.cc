@@ -107,7 +107,9 @@ int NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
   }
 
   // Find an idle reserved core
-  for (int i = 0; i < DEFAULT_INVALID_CORE_ID; i++) {
+  // [0, ncore - 1] are used for core-boost.
+  // [ncore, rcore - 1] are used for offloading.
+  for (int i = bess::ctrl::ncore; i < bess::ctrl::rcore; i++) {
     if (bess::ctrl::nfv_rcores[i] == nullptr ||
         !bess::ctrl::rcore_state[i]) {
       continue;

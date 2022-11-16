@@ -22,7 +22,7 @@ acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 long_epoch_period = int($BESS_LSTATS_PERIOD!"500000000")
 short_epoch_period = int(slo / 2)
-ncore = int($BESS_NCORE!"10")
+ncore = int($BESS_NCORE!"8")
 queue_scale = 1
 
 # NFVCtrl runs on its own core
@@ -47,7 +47,7 @@ for i in range(lb_cnt / 20):
         nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
 
 # Module
-nfvctrl::NFVCtrl(wid=wid,ncore=core_cnt, rcore=rcore_cnt, qid=total_core_cnt,
+nfvctrl::NFVCtrl(wid=wid, ncore=core_cnt, rcore=rcore_cnt, qid=total_core_cnt,
                 slo_ns=slo,
                 long_epoch_period_ns=long_epoch_period,
                 nf_short_term_profile=short_profile, nf_long_term_profile=long_profile,
@@ -98,7 +98,6 @@ for i in cores:
 for i in rcores:
     pinc0[i] = NFVRCore(core_id=i)
     pout0[i] = QueueOut(port=port0, qid=i)
-    #pinc0[i] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
     pinc0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
 # Burst
