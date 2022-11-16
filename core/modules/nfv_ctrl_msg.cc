@@ -36,6 +36,8 @@ std::map<uint16_t, uint16_t> trans_buckets;
 // moved into this queue will be freed without any processing.
 struct llring* system_dump_q_ = nullptr;
 
+struct llring* local_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
+
 struct llring* sw_q[DEFAULT_SWQ_COUNT] = {nullptr};
 
 SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr}; // sw_q can be assigned if |up_core_id| is invalid
@@ -59,6 +61,19 @@ uint32_t worker_packet_rate[DEFAULT_INVALID_WORKER_ID] = {0}; // the packet rate
 void NFVCtrlMsgInit() {
   size_t sw_qsize = DEFAULT_SWQ_SIZE;
   int bytes = llring_bytes_with_slots(sw_qsize);
+
+  // |local_q| used by all dedicated cores
+  for (int i = 0; i < DEFAULT_LOCALQ_COUNT; i++) {
+    local_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+    int ret = llring_init(sw_q[i], sw_qsize, 1, 1);
+    if (ret) {
+      std::free(local_q[i]);
+      LOG(ERROR) << "llring_init failed on local queue " << i;
+      break;
+    }
+  }
+
+  // |sw_q| used by all aux cores
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     sw_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
 
@@ -98,6 +113,17 @@ void NFVCtrlMsgDeInit() {
   struct llring *q = nullptr;
   SoftwareQueue *q_state = nullptr;
   bess::Packet *pkt = nullptr;
+
+  for (int i = 0; i < DEFAULT_LOCALQ_COUNT; i++) {
+    q = local_q[i];
+    if (q) {
+      while (llring_sc_dequeue(q, (void **)&pkt) == 0) {
+        bess::Packet::Free(pkt);
+      }
+      std::free(q);
+    }
+    q = nullptr;
+  }
 
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     q = sw_q[i];

@@ -11,10 +11,11 @@
 #define DEFAULT_INVALID_WORKER_ID 10
 
 // Number of software packet queues
+#define DEFAULT_LOCALQ_COUNT 20
 #define DEFAULT_SWQ_COUNT 200
 
 // Default queue size
-#define DEFAULT_SWQ_SIZE 4096;
+#define DEFAULT_SWQ_SIZE 1024;
 #define DEFAULT_DUMPQ_SIZE 4096;
 
 // Forward declaration
@@ -71,6 +72,7 @@ extern uint32_t worker_packet_rate[DEFAULT_INVALID_WORKER_ID];
 
 // A pool of software packet queues
 extern struct llring* system_dump_q_;
+extern struct llring* local_q[DEFAULT_LOCALQ_COUNT];
 extern struct llring* sw_q[DEFAULT_SWQ_COUNT];
 
 /// Worker-layer core mapping

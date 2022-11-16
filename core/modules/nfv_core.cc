@@ -43,7 +43,6 @@ int NFVCore::Resize(uint32_t slots) {
         bess::Packet::Free(pkt);
       }
     }
-
     std::free(old_queue);
   }
 
@@ -55,6 +54,13 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   const char *port_name;
   task_id_t tid;
   burst_ = bess::PacketBatch::kMaxBurst;
+
+  // Configure the target CPU core ID
+  core_id_ = 0;
+  if (arg.core_id() > 0) {
+    core_id_ = arg.core_id();
+  }
+  core_.core_id = core_id_;
 
   // Configure the target NIC queue
   if (!arg.port().empty()) {
@@ -72,19 +78,12 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
       return CommandFailure(ENOMEM, "Task creation failed");
     }
 
-    size_ = DEFAULT_SWQ_SIZE;
-    Resize(size_);
-
+    // size_ = DEFAULT_SWQ_SIZE;
+    // Resize(size_);
+    local_queue_ = bess::ctrl::local_q[core_id_];
     local_batch_ = reinterpret_cast<bess::PacketBatch *>
           (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   }
-
-  // Configure the target CPU core ID
-  core_id_ = 0;
-  if (arg.core_id() > 0) {
-    core_id_ = arg.core_id();
-  }
-  core_.core_id = core_id_;
 
   // Configure the short-term optimization epoch size (default: 1000 us)
   short_epoch_period_ns_ = 1000000;
@@ -109,7 +108,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   bess::ctrl::nfv_cores[core_id_] = this;
 
   // Begin with 0 software queue
-  auto assigned = bess::ctrl::NFVCtrlRequestNSwQ(core_id_, 15);
+  auto assigned = bess::ctrl::NFVCtrlRequestNSwQ(core_id_, 10);
   for (int i : assigned) {
     sw_q_.emplace_back (i);
     sw_q_.back().sw_batch = reinterpret_cast<bess::PacketBatch *>
@@ -268,7 +267,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // Boost if 1) the core has pulled many packets (i.e. 128) in this round; 2) |local_queue_| is large.
   uint32_t queued_pkts = llring_count(local_queue_);
   if (last_boost_ts_ns_ == 0) {
-    if (pull_rounds >= 2 ||
+    if (pull_rounds >= 4 ||
         queued_pkts >= large_queue_packet_thresh_) {
       last_boost_ts_ns_ = tsc_to_ns(rdtsc());
     }
