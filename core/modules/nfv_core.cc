@@ -246,6 +246,9 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // int status = rte_eth_rx_descriptor_status(port_id_, qid, large_queue_packet_thresh_);
   // bool nic_busy = status != RTE_ETH_RX_DESC_AVAIL;
 
+  // By default, the normal core is busy pulling the NIC queue.
+  bool need_boost = true;
+
   // Busy pulling from the NIC queue
   int cnt = 0;
   uint32_t pull_rounds = 0;
@@ -260,11 +263,14 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
       UpdateStatsOnFetchBatch(batch);
     }
     if (cnt < 32) {
+      need_boost = false;
       break;
     }
   }
-
-  bool large_queue = bool(llring_count(local_queue_) > large_queue_packet_thresh_);
+  // Boost if |local_queue_| is large.
+  if (llring_count(local_queue_) >= large_queue_packet_thresh_) {
+    need_boost = true;
+  }
 
   // Process one batch
   batch->clear();
@@ -282,11 +288,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     // |epoch_packet_processed_| and |per_flow_states_|
     UpdateStatsPreProcessBatch(batch);
 
-    if (large_queue) {
-      // int sent_pkts = p->SendPackets(qid, batch->pkts(), batch->cnt());
-      // if (sent_pkts < batch->cnt()) {
-      //   bess::Packet::Free(batch->pkts() + sent_pkts, batch->cnt() - sent_pkts);
-      // }
+    if (need_boost) {
       bess::Packet::Free(batch->pkts(), batch->cnt());
     } else {
       ProcessBatch(ctx, batch);

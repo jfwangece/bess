@@ -628,33 +628,38 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     # 50, 90, 95, 98, 99
     return (avg_cores, delay)
 
+# Main experiment
 def run_main_exp():
-    exp_results = []
-    target_slos = [200000, 300000, 400000, 500000]
     worker_cnt = 4
+    target_slos = [100000, 200000, 300000, 400000, 500000]
 
-    ## Ready to run end-to-end exp
-    for slo in target_slos:    
+    exp_results = []
+    for slo in target_slos:
         slo_us = slo / 1000
         short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        # long_prof = "./nf_profiles/long_{}_p90.pro".format(slo_us)
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
         exp_results.append(r)
 
-    print("Ironside main experiment finished!")
-    print(exp_results)
+    print("----------     Ironside main experiment results      ----------")
+    for i, slo in enumerate(target_slos):
+        core_usage , delay = exp_results[i]
+        print("{} - {:0.2f}, {}".format(slo, core_usage, delay))
+    print("---------------------------------------------------------------")
     return
 
+# Ablation experiments
 def run_ablation_server_mapper():
     worker_cnt = 4
-    results = []
-    # all_slo = [200000, 300000, 400000, 500000]
-    all_slo = [200000]
+    # target_slos = [100000, 200000, 300000, 400000, 500000]
+    target_slos = [200000]
 
-    for slo in all_slo:
+    exp_results = []
+    for slo in target_slos:
         slo_us = slo / 1000
         # Ironside
-        short_prof = "./nf_profiles/short_term_slo{}.pro".format(slo_us)
+        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
@@ -665,22 +670,46 @@ def run_ablation_server_mapper():
         r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
         # Static-unsafe: higher cpu usage?
-        # Suppose the core mapepr is able to handle the excessive load on a
-        # dedicated core. Then, the latency should be okay. However, more
-        # packet migrations are required, which requires a slightly higher
-        # CPU core usage.
+        # Suppose the core mapepr can handle excessive loads on a dedicated core.
+        # Latency should be okay. However, more packet migrations are required,
+        # which requires a slightly higher CPU core usage.
         short_prof = "./nf_profiles/short_term_slo{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
-        results.append([slo, r1, r2, r3])
+        exp_results.append([slo, r1, r2, r3])
 
-    print("--- Ablation experiment results ---")
-    print(results)
-    print("-----------------------------------")
+    print("-------         Ablation experiment results          ----------")
+    for i, slo in enumerate(target_slos):
+        core_usage , delay = exp_results[i]
+        print("{} - {:0.2f}, {}".format(slo, core_usage, delay))
+    print("---------------------------------------------------------------")
     return
 
 def run_ablation_core_mapper():
+    worker_cnt = 4
+    target_slos = [100000, 200000, 300000, 400000, 500000]
+
+    exp_results = []
+    exp_results = []
+    for slo in target_slos:
+        slo_us = slo / 1000
+        # Ironside
+        short_prof = "./nf_profiles/short_slo{}.pro".format(slo_us)
+        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+
+        # Static-safe: similar latency && higher cpu usage
+    
+        # Static-unsafe: higher latency
+    
+        exp_results.append([slo, r1])
+
+    print("-------         Ablation experiment results          ----------")
+    for i, slo in enumerate(target_slos):
+        core_usage , delay = exp_results[i]
+        print("{} - {:0.2f}, {}".format(slo, core_usage, delay))
+    print("---------------------------------------------------------------")
     return
 
 def main():
