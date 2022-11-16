@@ -631,7 +631,8 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
 # Main experiment
 def run_main_exp():
     worker_cnt = 4
-    target_slos = [100000, 200000, 300000, 400000, 500000]
+    # target_slos = [100000, 200000, 300000, 400000, 500000]
+    target_slos = [100000, 200000]
 
     exp_results = []
     for slo in target_slos:
