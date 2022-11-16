@@ -306,6 +306,7 @@ uint32_t GetMaxPktCountFromShortTermProfile(uint32_t fc) {
   if (bess::ctrl::short_flow_count_pkt_threshold.size() == 0) {
     return 1000;
   }
+  return (--bess::ctrl::short_flow_count_pkt_threshold.end())->second;
 
   const auto& it = bess::ctrl::short_flow_count_pkt_threshold.find(fc);
   if (it != bess::ctrl::short_flow_count_pkt_threshold.end()) {
