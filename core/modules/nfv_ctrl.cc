@@ -187,6 +187,7 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   if (arg.rcore() > 0) {
     bess::ctrl::rcore = arg.rcore();
   }
+  LOG(INFO) << "ncore: " << bess::ctrl::ncore << ", rcore: " << bess::ctrl::rcore;
 
   long_epoch_period_ns_ = LONG_TERM_UPDATE_PERIOD_NS;
   if (arg.long_epoch_period_ns() > 0) {

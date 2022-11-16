@@ -118,12 +118,14 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   LOG(INFO) << "Core " << core_id_ << " has " << sw_q_.size() << " sw_q.";
 
   // Init epoch thresholds and packet counters
-  epoch_packet_thresh_ = bess::ctrl::short_flow_count_pkt_threshold.begin()->second;
-  large_queue_packet_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second * bess::ctrl::rcore / bess::ctrl::ncore;
-  if (arg.large_queue_scale() > 0) {
-    large_queue_packet_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second * arg.large_queue_scale();
+  if (bess::ctrl::short_flow_count_pkt_threshold.size() > 0) {
+    epoch_packet_thresh_ = bess::ctrl::short_flow_count_pkt_threshold.begin()->second;
+    large_queue_packet_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second * bess::ctrl::rcore / bess::ctrl::ncore;
+    if (arg.large_queue_scale() > 0) {
+      large_queue_packet_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second * arg.large_queue_scale();
+    }
+    LOG(INFO) << "epoch thresh: pkt=" << epoch_packet_thresh_ << ", queue=" << large_queue_packet_thresh_;
   }
-  LOG(INFO) << "epoch thresh: pkt=" << epoch_packet_thresh_ << ", queue=" << large_queue_packet_thresh_;
 
   curr_rcore_ = 0;
   last_boost_ts_ns_ = 0;
@@ -281,27 +283,26 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   }
 
   // Process one batch
-  batch->clear();
-  cnt = llring_mc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
-  batch->set_cnt(cnt);
-
-  uint32_t total_pkts = (uint32_t)cnt;
+  uint32_t total_pkts = 1;
   uint64_t total_bytes = 0;
-  for (int i = 0; i < cnt; i++) {
-    total_bytes += batch->pkts()[i]->total_len();
-  }
 
-  if (cnt > 0) {
-    // Update the number of packets / flows processed:
-    // |epoch_packet_processed_| and |per_flow_states_|
-    UpdateStatsPreProcessBatch(batch);
+  if (last_boost_ts_ns_ > 0) {
+    batch->clear();
+    cnt = llring_mc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
+    if (cnt > 0) {
+      batch->set_cnt(cnt);
+      // Update the number of packets / flows processed:
+      // |epoch_packet_processed_| and |per_flow_states_|
+      UpdateStatsPreProcessBatch(batch);
 
-    if (last_boost_ts_ns_ == 0) {
       ProcessBatch(ctx, batch);
+      // bess::Packet::Free(batch->pkts(), batch->cnt());
     }
-    // else {
-    //   bess::Packet::Free(batch->pkts(), batch->cnt());
-    // }
+
+    total_pkts = (uint32_t)cnt;
+    for (int i = 0; i < cnt; i++) {
+      total_bytes += batch->pkts()[i]->total_len();
+    }
   }
 
   if (epoch_advanced) {

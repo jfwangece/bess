@@ -561,6 +561,8 @@ def run_worker_exp(slo):
     return (delay[0], delay[1])
 
 ## Rack-scale experiments
+# run nfvctrl/cloud_pcap_replay BESS_NUM_WORKER=4, BESS_IG=3
+# run nfvctrl/cloud_chain4 BESS_SPROFILE="./short.prof", BESS_LPROFILE="./long.prof"
 def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     selected_worker_ips = []
     for i in range(num_worker):
