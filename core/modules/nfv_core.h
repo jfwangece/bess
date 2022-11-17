@@ -96,7 +96,7 @@ class NFVCore final : public Module {
  public:
   static const Commands cmds;
 
-  NFVCore() : Module(), local_queue_(0), burst_(32), size_(2048) {
+  NFVCore() : Module(), local_queue_(nullptr), burst_(32), size_(2048) {
     max_allowed_workers_ = 1;
   }
 
@@ -106,13 +106,6 @@ class NFVCore final : public Module {
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg);
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
   CommandResponse CommandGetCoreTime(const bess::pb::EmptyArg &);
-
-  inline int GetNICQueueCount() const {
-    return rte_eth_rx_queue_count(port_id_, qid_);
-  }
-  inline int GetSoftwareQueueCount() const {
-    return llring_count(local_queue_);
-  }
 
   uint64_t GetSumCoreTime();
 
@@ -146,16 +139,12 @@ class NFVCore final : public Module {
   // - Enqueue all packets in |batch| to the software queue |q|
   void BestEffortEnqueue(bess::PacketBatch *batch, llring *q);
 
-  std::string GetDesc() const override;
-
+  // std::string GetDesc() const override;
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
   CommandResponse CommandSetBurst(const bess::pb::NFVCoreCommandSetBurstArg &arg);
 
  private:
   using HashTable = bess::utils::CuckooMap<Flow, FlowState*, FlowHash, Flow::EqualTo>;
-
-  // Return 0 if |local_queue_| is resized successfully.
-  int Resize(uint32_t slots);
 
   cpu_core_t core_id_;
   WorkerCore core_;

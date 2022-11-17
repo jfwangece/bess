@@ -18,39 +18,6 @@ const Commands NFVCore::cmds = {
 };
 
 // NFVCore member functions
-int NFVCore::Resize(uint32_t slots) {
-  struct llring *old_queue = local_queue_;
-  struct llring *new_queue;
-
-  int bytes = llring_bytes_with_slots(slots);
-  new_queue =
-      reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-  if (!new_queue) {
-    return -ENOMEM;
-  }
-
-  int ret = llring_init(new_queue, slots, 1, 1);
-  if (ret) {
-    std::free(new_queue);
-    return -EINVAL;
-  }
-
-  /* migrate packets from the old queue */
-  if (old_queue) {
-    bess::Packet *pkt;
-    while (llring_sc_dequeue(old_queue, (void **)&pkt) == 0) {
-      ret = llring_sp_enqueue(new_queue, pkt);
-      if (ret == -LLRING_ERR_NOBUF) {
-        bess::Packet::Free(pkt);
-      }
-    }
-    std::free(old_queue);
-  }
-
-  local_queue_ = new_queue;
-  return 0;
-}
-
 CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   const char *port_name;
   task_id_t tid;
@@ -150,22 +117,15 @@ void NFVCore::DeInit() {
   rte_atomic16_set(&mark_to_disable_, 1);
   while (rte_atomic16_read(&disabled_) == 0) { usleep(100000); }
 
-  bess::Packet *pkt;
   // Clean the local batch / queue
   if (local_batch_) {
     bess::Packet::Free(local_batch_);
     std::free(local_batch_);
     local_batch_ = nullptr;
   }
-  if (local_queue_) {
-    while (llring_sc_dequeue(local_queue_, (void **)&pkt) == 0) {
-      bess::Packet::Free(pkt);
-    }
-    std::free(local_queue_);
-    local_queue_ = nullptr;
-  }
+  local_queue_ = nullptr;
 
-  // Clean (borrowed) software queues
+  // Clean borrowed software queues
   bess::ctrl::NFVCtrlReleaseNSwQ(core_id_, sw_q_mask_);
   LOG(INFO) << "Core " << core_id_ << " releases " << sw_q_.size() << " sw_q. q_mask: " << std::bitset<64> (sw_q_mask_);
 
@@ -216,9 +176,9 @@ CommandResponse NFVCore::CommandSetBurst(
   }
 }
 
-std::string NFVCore::GetDesc() const {
-  return bess::utils::Format("%s:%hhu/%d", port_->name().c_str(), qid_, llring_count(local_queue_));
-}
+// std::string NFVCore::GetDesc() const {
+//   return bess::utils::Format("%s:%hhu/%d", port_->name().c_str(), qid_, llring_count(local_queue_));
+// }
 
 /* Get a batch from NIC and send it to downstream */
 struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
@@ -286,7 +246,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   uint32_t total_pkts = 0;
   uint64_t total_bytes = 0;
 
-  if (last_boost_ts_ns_ > 0) {
+  if (true || last_boost_ts_ns_ > 0) {
     batch->clear();
     cnt = llring_mc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
     batch->set_cnt(cnt);
