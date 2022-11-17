@@ -185,7 +185,7 @@ void NFVCore::SplitQToSwQ(llring* q) {
   uint32_t curr_cnt = 0;
   while (curr_cnt < total_cnt) { // scan all packets only once
     batch.clear();
-    int cnt = llring_sc_dequeue_burst(q, (void **)batch.pkts(), 32);
+    int cnt = llring_mc_dequeue_burst(q, (void **)batch.pkts(), 32);
     batch.set_cnt(cnt);
 
     // bess::Packet::Free(&batch);
