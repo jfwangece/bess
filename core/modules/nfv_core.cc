@@ -283,25 +283,24 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   }
 
   // Process one batch
-  uint32_t total_pkts = 1;
+  uint32_t total_pkts = 0;
   uint64_t total_bytes = 0;
 
   if (last_boost_ts_ns_ > 0) {
     batch->clear();
     cnt = llring_mc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
-    if (cnt > 0) {
-      batch->set_cnt(cnt);
+    batch->set_cnt(cnt);
+
+    total_pkts = (uint32_t)cnt;
+    for (int i = 0; i < cnt; i++) {
+      total_bytes += batch->pkts()[i]->total_len();
+    }
+    if (cnt > 0) {      
       // Update the number of packets / flows processed:
       // |epoch_packet_processed_| and |per_flow_states_|
       UpdateStatsPreProcessBatch(batch);
 
       ProcessBatch(ctx, batch);
-      // bess::Packet::Free(batch->pkts(), batch->cnt());
-    }
-
-    total_pkts = (uint32_t)cnt;
-    for (int i = 0; i < cnt; i++) {
-      total_bytes += batch->pkts()[i]->total_len();
     }
   }
 
