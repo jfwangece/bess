@@ -271,12 +271,12 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   if (last_boost_ts_ns_ == 0) {
     if (pull_rounds >= 4 ||
         queued_pkts >= large_queue_packet_thresh_) {
-      bess::ctrl::nfv_rcores[core_id_]->AddQueue(local_queue_);
+      // bess::ctrl::nfv_rcores[core_id_]->AddQueue(local_queue_);
       last_boost_ts_ns_ = tsc_to_ns(rdtsc());
     }
   } else {
     if (queued_pkts * 2 < large_queue_packet_thresh_) {
-      bess::ctrl::nfv_rcores[core_id_]->RemoveQueue(local_queue_);
+      // bess::ctrl::nfv_rcores[core_id_]->RemoveQueue(local_queue_);
       sum_core_time_ns_ += tsc_to_ns(rdtsc()) - last_boost_ts_ns_;
       last_boost_ts_ns_ = 0;
     }
@@ -290,11 +290,11 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     batch->clear();
     cnt = llring_mc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
     batch->set_cnt(cnt);
-
     total_pkts = (uint32_t)cnt;
     for (int i = 0; i < cnt; i++) {
       total_bytes += batch->pkts()[i]->total_len();
     }
+
     if (cnt > 0) {      
       // Update the number of packets / flows processed:
       // |epoch_packet_processed_| and |per_flow_states_|
@@ -302,6 +302,16 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
       ProcessBatch(ctx, batch);
     }
+  } else {
+    batch->clear();
+    cnt = llring_mc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
+    batch->set_cnt(cnt);
+    total_pkts = (uint32_t)cnt;
+    for (int i = 0; i < cnt; i++) {
+      total_bytes += batch->pkts()[i]->total_len();
+    }
+
+    bess::Packet::Free(batch);
   }
 
   if (epoch_advanced) {
