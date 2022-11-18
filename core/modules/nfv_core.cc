@@ -275,15 +275,18 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     bool is_active = false;
     if (epoch_packet_arrival_ > 10) {
       is_active = true;
-
-      // Update CPU core usage
-      uint64_t now = tsc_to_ns(rdtsc());
-      const std::lock_guard<std::mutex> lock(core_time_mu_);
-      sum_core_time_ns_ += (1 + curr_rcore_) * (now - last_short_epoch_end_ns_);
     }
+    uint32_t curr_rcore = curr_rcore_;
 
     ShortEpochProcess();
     SplitQToSwQ(local_queue_);
+
+    uint64_t now = tsc_to_ns(rdtsc());
+    // Update CPU core usage
+    if (is_active) {
+      const std::lock_guard<std::mutex> lock(core_time_mu_);
+      sum_core_time_ns_ += (1 + curr_rcore) * (now - last_short_epoch_end_ns_);
+    }
 
     curr_epoch_id_ += 1;
     last_short_epoch_end_ns_ = now;

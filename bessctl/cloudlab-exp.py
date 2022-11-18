@@ -646,6 +646,10 @@ def run_main_exp():
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
         exp_results.append(r)
 
+    if len(exp_results) == 0:
+        print("----------       Ironside exp: no results        ----------")
+        return
+
     print("----------     Ironside main experiment results      ----------")
     for i, slo in enumerate(target_slos):
         slo_us = slo / 1000
@@ -684,6 +688,10 @@ def run_ablation_server_mapper():
 
         exp_results.append([slo, r1, r2, r3])
 
+    if len(exp_results) == 0:
+        print("----------       Ironside exp: no results        ----------")
+        return
+
     print("-------         Ablation experiment results          ----------")
     for i, slo in enumerate(target_slos):
         slo_us = slo / 1000
@@ -710,6 +718,10 @@ def run_ablation_core_mapper():
         # Static-unsafe: higher latency
     
         exp_results.append([slo, r1])
+
+    if len(exp_results) == 0:
+        print("----------       Ironside exp: no results        ----------")
+        return
 
     print("-------         Ablation experiment results          ----------")
     for i, slo in enumerate(target_slos):
