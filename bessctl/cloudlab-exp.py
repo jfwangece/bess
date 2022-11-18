@@ -709,15 +709,26 @@ def run_ablation_core_mapper():
     for slo in target_slos:
         slo_us = slo / 1000
         # Ironside
-        short_prof = "./nf_profiles/short_slo{}.pro".format(slo_us)
+        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
         # Static-safe: similar latency && higher cpu usage
-    
+        short_prof = "./nf_profiles/short_{}_safe.pro".format(slo_us)
+        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+
         # Static-unsafe: higher latency
-    
-        exp_results.append([slo, r1])
+        short_prof = "./nf_profiles/short_{}_unsafe.pro".format(slo_us)
+        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+
+        # No core mapper
+        short_prof = "./nf_profiles/short_term_base.pro"
+        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        r4 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+
+        exp_results.append((r1, r2, r3, r4))
 
     if len(exp_results) == 0:
         print("----------       Ironside exp: no results        ----------")
@@ -726,8 +737,12 @@ def run_ablation_core_mapper():
     print("-------         Ablation experiment results          ----------")
     for i, slo in enumerate(target_slos):
         slo_us = slo / 1000
-        core_usage, delay = exp_results[i]
-        print("{} us - {:0.2f}, {}".format(slo_us, core_usage, delay))
+        r1, r2, r3, r4 = exp_results[i]
+        print("SLO: {} us".format(slo_us))
+        print("      - ironside       {:0.2f}, {}".format(r1[0], r1[1]))
+        print("      - safe           {:0.2f}, {}".format(r2[0], r2[1]))
+        print("      - unsafe         {:0.2f}, {}".format(r3[0], r3[1]))
+        print("      - no core-mapper {:0.2f}, {}".format(r4[0], r4[1]))
     print("---------------------------------------------------------------")
     return
 
@@ -751,13 +766,13 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    run_main_exp()
+    # run_main_exp()
 
     # Ablation: the server mapper
     # run_ablation_server_mapper()
 
     # Ablation: the core mapper
-    # run_ablation_core_mapper()
+    run_ablation_core_mapper()
     return
 
 if __name__ == "__main__":
