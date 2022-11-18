@@ -233,12 +233,10 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   if (last_boost_ts_ns_ == 0) {
     if (pull_rounds >= 4 ||
         queued_pkts >= large_queue_packet_thresh_) {
-      // bess::ctrl::nfv_rcores[core_id_]->AddQueue(local_queue_);
-      last_boost_ts_ns_ = tsc_to_ns(rdtsc());
+      last_boost_ts_ns_ = tsc_to_ns(rdtsc()); // boost!
     }
   } else {
     if (queued_pkts * 2 < large_queue_packet_thresh_) {
-      // bess::ctrl::nfv_rcores[core_id_]->RemoveQueue(local_queue_);
       sum_core_time_ns_ += tsc_to_ns(rdtsc()) - last_boost_ts_ns_;
       last_boost_ts_ns_ = 0;
     }
@@ -256,39 +254,38 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   }
 
   if (cnt > 0) {
-    // Update the number of packets / flows processed:
-    // |epoch_packet_processed_| and |per_flow_states_|
+    // Update |epoch_packet_processed_| and |per_flow_states_|, i.e.
+    // the number of packets and flows processed during the current epoch.
     UpdateStatsPreProcessBatch(batch);
 
     if (last_boost_ts_ns_ == 0) {
       ProcessBatch(ctx, batch);
     } else { // boost!
-      // bess::Packet::Free(batch);
       BestEffortEnqueue(batch, local_boost_queue_);
     }
   }
 
   if (epoch_advanced) {
-    // Get latency summaries.
-    if (false && bess::ctrl::nfv_monitors[core_id_]) {
+    // Get latency summaries to be used by the performance profiler.
+    if (bess::ctrl::exp_id == 1 &&
+        bess::ctrl::nfv_monitors[core_id_] != nullptr) {
       bess::ctrl::nfv_monitors[core_id_]->update_traffic_stats(curr_epoch_id_);
     }
 
     bool is_active = false;
     if (epoch_packet_arrival_ > 10) {
       is_active = true;
+
+      // Update CPU core usage
+      uint64_t now = tsc_to_ns(rdtsc());
+      const std::lock_guard<std::mutex> lock(core_time_mu_);
+      sum_core_time_ns_ += (1 + curr_rcore_) * (now - last_short_epoch_end_ns_);
     }
 
     ShortEpochProcess();
     SplitQToSwQ(local_queue_);
 
     curr_epoch_id_ += 1;
-    uint64_t now = tsc_to_ns(rdtsc());
-    // Update CPU core usage
-    if (is_active) {
-      const std::lock_guard<std::mutex> lock(core_time_mu_);
-      sum_core_time_ns_ += (1 + curr_rcore_) * (now - last_short_epoch_end_ns_);
-    }
     last_short_epoch_end_ns_ = now;
   }
 

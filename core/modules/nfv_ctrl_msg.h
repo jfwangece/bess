@@ -56,6 +56,8 @@ extern NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID];
 extern PMDPort *pmd_port;
 
 // An integer number that identifies an Ironside's experiment.
+// 0: normal run;
+// 1: profiling run;
 extern int exp_id;
 
 // packet rate threshold given the flow count. Values are found using offline profiling

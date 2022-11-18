@@ -24,7 +24,7 @@ PMDPort* pmd_port = nullptr;
 std::shared_mutex nfvctrl_worker_mu;
 std::shared_mutex nfvctrl_bucket_mu;
 
-// Default: 0 (no exp)
+// Default: 0, i.e. a normal run
 int exp_id = 0;
 
 // Long-term and short-term NF profiles

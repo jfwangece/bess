@@ -119,6 +119,7 @@ def start_flowgen(tip, flow, rate):
     print(out)
     print("flowgen {} starts".format(tip))
 
+# For short-term profiling, set |exp_id| to be 1.
 def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     remote_short = "/local/bess/short.prof"
     remote_long = "/local/bess/long.prof"
@@ -441,7 +442,7 @@ def short_term_profile_once(slo):
     long_profile = "./nf_profiles/long_{}_p50.pro".format(slo/1000)
     pids = []
     for i, wip in enumerate(selected_worker_ips):
-        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
+        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
         p.start()
         pids.append(p)
     for p in pids:
