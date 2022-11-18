@@ -270,7 +270,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   if (epoch_advanced) {
     // Get latency summaries.
-    if (bess::ctrl::nfv_monitors[core_id_]) {
+    if (false && bess::ctrl::nfv_monitors[core_id_]) {
       bess::ctrl::nfv_monitors[core_id_]->update_traffic_stats(curr_epoch_id_);
     }
 
