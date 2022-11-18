@@ -96,7 +96,9 @@ class NFVCore final : public Module {
  public:
   static const Commands cmds;
 
-  NFVCore() : Module(), local_queue_(nullptr), burst_(32), size_(2048) {
+  NFVCore() : Module(), burst_(32), size_(2048) {
+    local_queue_ = nullptr;
+    local_boost_queue_ = nullptr;
     max_allowed_workers_ = 1;
   }
 
@@ -156,6 +158,7 @@ class NFVCore final : public Module {
 
   // Software queue that holds packets
   struct llring *local_queue_;
+  struct llring *local_boost_queue_;
   bess::PacketBatch *local_batch_;
   int burst_;
   uint32_t size_;

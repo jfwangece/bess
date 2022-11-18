@@ -49,6 +49,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
     size_ = DEFAULT_SWQ_SIZE;
     // Resize(size_);
     local_queue_ = bess::ctrl::local_q[core_id_];
+    local_boost_queue_ = bess::ctrl::local_boost_q[core_id_];
     local_batch_ = reinterpret_cast<bess::PacketBatch *>
           (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   }
@@ -124,6 +125,7 @@ void NFVCore::DeInit() {
     local_batch_ = nullptr;
   }
   local_queue_ = nullptr;
+  local_boost_queue_ = nullptr;
 
   // Clean borrowed software queues
   bess::ctrl::NFVCtrlReleaseNSwQ(core_id_, sw_q_mask_);
@@ -243,35 +245,27 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   }
 
   // Process one batch
-  uint32_t total_pkts = 0;
+  batch->clear();
+  cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
+  batch->set_cnt(cnt);
+
+  uint32_t total_pkts = (uint32_t)cnt;
   uint64_t total_bytes = 0;
+  for (int i = 0; i < cnt; i++) {
+    total_bytes += batch->pkts()[i]->total_len();
+  }
 
-  if (true || last_boost_ts_ns_ > 0) {
-    batch->clear();
-    cnt = llring_mc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
-    batch->set_cnt(cnt);
-    total_pkts = (uint32_t)cnt;
-    for (int i = 0; i < cnt; i++) {
-      total_bytes += batch->pkts()[i]->total_len();
-    }
+  if (cnt > 0) {
+    // Update the number of packets / flows processed:
+    // |epoch_packet_processed_| and |per_flow_states_|
+    UpdateStatsPreProcessBatch(batch);
 
-    if (cnt > 0) {      
-      // Update the number of packets / flows processed:
-      // |epoch_packet_processed_| and |per_flow_states_|
-      UpdateStatsPreProcessBatch(batch);
-
+    if (last_boost_ts_ns_ == 0) {
       ProcessBatch(ctx, batch);
+    } else { // boost!
+      // bess::Packet::Free(batch);
+      BestEffortEnqueue(batch, local_boost_queue_);
     }
-  } else {
-    batch->clear();
-    cnt = llring_mc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
-    batch->set_cnt(cnt);
-    total_pkts = (uint32_t)cnt;
-    for (int i = 0; i < cnt; i++) {
-      total_bytes += batch->pkts()[i]->total_len();
-    }
-
-    bess::Packet::Free(batch);
   }
 
   if (epoch_advanced) {

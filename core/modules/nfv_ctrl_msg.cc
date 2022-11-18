@@ -38,6 +38,8 @@ struct llring* system_dump_q_ = nullptr;
 
 struct llring* local_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
 
+struct llring* local_boost_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
+
 struct llring* sw_q[DEFAULT_SWQ_COUNT] = {nullptr};
 
 SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr}; // sw_q can be assigned if |up_core_id| is invalid
@@ -62,13 +64,22 @@ void NFVCtrlMsgInit() {
   size_t sw_qsize = DEFAULT_SWQ_SIZE;
   int bytes = llring_bytes_with_slots(sw_qsize);
 
+  int ret;
   // |local_q| used by all dedicated cores
   for (int i = 0; i < DEFAULT_LOCALQ_COUNT; i++) {
     local_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-    int ret = llring_init(local_q[i], sw_qsize, 1, 0);
+    ret = llring_init(local_q[i], sw_qsize, 1, 1);
     if (ret) {
       std::free(local_q[i]);
       LOG(ERROR) << "llring_init failed on local queue " << i;
+      break;
+    }
+
+    local_boost_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+    ret = llring_init(local_q[i], sw_qsize, 1, 1);
+    if (ret) {
+      std::free(local_boost_q[i]);
+      LOG(ERROR) << "llring_init failed on local boost queue " << i;
       break;
     }
   }
@@ -79,7 +90,7 @@ void NFVCtrlMsgInit() {
 
     // single-producer: each sw_q can only be held by one ncore;
     // however, more than 1 rcores can access a sw_q.
-    int ret = llring_init(sw_q[i], sw_qsize, 1, 0);
+    ret = llring_init(sw_q[i], sw_qsize, 1, 0);
     if (ret) {
       std::free(sw_q[i]);
       LOG(ERROR) << "llring_init failed on software queue " << i;
@@ -116,6 +127,15 @@ void NFVCtrlMsgDeInit() {
 
   for (int i = 0; i < DEFAULT_LOCALQ_COUNT; i++) {
     q = local_q[i];
+    if (q) {
+      while (llring_sc_dequeue(q, (void **)&pkt) == 0) {
+        bess::Packet::Free(pkt);
+      }
+      std::free(q);
+    }
+    q = nullptr;
+
+    q = local_boost_q[i];
     if (q) {
       while (llring_sc_dequeue(q, (void **)&pkt) == 0) {
         bess::Packet::Free(pkt);

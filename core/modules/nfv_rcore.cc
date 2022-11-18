@@ -46,6 +46,9 @@ CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
     llring_init(to_remove_queue_, kQSize, 0, 1);
   }
   sw_q_ = nullptr;
+  if (core_id_ < bess::ctrl::ncore) {
+    sw_q_ = bess::ctrl::local_boost_q[core_id_];
+  }
 
   // Run!
   rte_atomic16_set(&mark_to_disable_, 0);
@@ -59,9 +62,7 @@ void NFVRCore::DeInit() {
   while (rte_atomic16_read(&disabled_) == 0) { usleep(100000); }
 
   // Clean the software queue that is currently being processed
-  if (sw_q_) {
-    sw_q_ = nullptr;
-  }
+  sw_q_ = nullptr;
 
   // Clean any queues that are pending
   if (to_add_queue_) {
