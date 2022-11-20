@@ -661,8 +661,7 @@ def run_main_exp():
 # Ablation experiments
 def run_ablation_server_mapper():
     worker_cnt = 4
-    # target_slos = [100000, 200000, 300000, 400000, 500000]
-    target_slos = [200000]
+    target_slos = [100000, 200000, 300000, 400000, 500000]
 
     exp_results = []
     for slo in target_slos:
@@ -674,19 +673,19 @@ def run_ablation_server_mapper():
 
         # Static-safe: higher cpu usage
         # It uses more dedicated cores, and less on-demand cores.
-        short_prof = "./nf_profiles/short_term_slo{}.pro".format(slo_us)
-        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
+        long_prof = "./nf_profiles/long_{}_p50_safe.pro".format(slo_us)
         r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
         # Static-unsafe: higher cpu usage?
         # Suppose the core mapepr can handle excessive loads on a dedicated core.
         # Latency should be okay. However, more packet migrations are required,
         # which requires a slightly higher CPU core usage.
-        short_prof = "./nf_profiles/short_term_slo{}.pro".format(slo_us)
-        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
+        long_prof = "./nf_profiles/long_{}_p50_unsafe.pro".format(slo_us)
         r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
-        exp_results.append([slo, r1, r2, r3])
+        exp_results.append([r1, r2, r3])
 
     if len(exp_results) == 0:
         print("----------       Ironside exp: no results        ----------")
@@ -695,8 +694,11 @@ def run_ablation_server_mapper():
     print("-------         Ablation experiment results          ----------")
     for i, slo in enumerate(target_slos):
         slo_us = slo / 1000
-        core_usage, delay = exp_results[i]
-        print("{} us - {:0.2f}, {}".format(slo_us, core_usage, delay))
+        r1, r2, r3 = exp_results[i]
+        print("SLO: {} us".format(slo_us))
+        print("      - ironside       {:0.2f}, {}".format(r1[0], r1[1]))
+        print("      - safe           {:0.2f}, {}".format(r2[0], r2[1]))
+        print("      - unsafe         {:0.2f}, {}".format(r3[0], r3[1]))
     print("---------------------------------------------------------------")
     return
 
@@ -766,10 +768,10 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    # run_main_exp()
+    run_main_exp()
 
     # Ablation: the server mapper
-    # run_ablation_server_mapper()
+    run_ablation_server_mapper()
 
     # Ablation: the core mapper
     run_ablation_core_mapper()
