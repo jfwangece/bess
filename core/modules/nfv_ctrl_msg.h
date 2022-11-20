@@ -76,6 +76,7 @@ extern uint32_t worker_packet_rate[DEFAULT_INVALID_WORKER_ID];
 extern struct llring* system_dump_q_;
 extern struct llring* local_q[DEFAULT_LOCALQ_COUNT];
 extern struct llring* local_boost_q[DEFAULT_LOCALQ_COUNT];
+extern struct llring* local_mc_q[DEFAULT_LOCALQ_COUNT];
 extern struct llring* sw_q[DEFAULT_SWQ_COUNT];
 
 /// Worker-layer core mapping

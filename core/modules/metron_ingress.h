@@ -3,12 +3,17 @@
 
 #include "../module.h"
 #include "../pb/module_msg.pb.h"
+#include "../utils/checksum.h"
 #include "../utils/flow.h"
 #include "../utils/ip.h"
 
 #include <map>
 #include <vector>
 
+using bess::utils::ChecksumIncrement16;
+using bess::utils::ChecksumIncrement32;
+using bess::utils::UpdateChecksumWithIncrement;
+using bess::utils::UpdateChecksum16;
 using bess::utils::Ethernet;
 using bess::utils::Ipv4;
 using bess::utils::Tcp;
@@ -36,13 +41,14 @@ class MetronIngress final : public Module {
     FlowAggregate(const FlowAggregate& other) {
       start = other.start; end = other.end; core = other.core;
     }
+    Split() {}
   };
 
   MetronIngress() : Module() {
     max_allowed_workers_ = Worker::kMaxWorkers;
   }
 
-  CommandResponse Init(const bess::pb::MetronIngressArg&);
+  CommandResponse Init(const bess::pb::MetronIngressArg& arg);
   void DeInit() override;
 
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
@@ -50,12 +56,16 @@ class MetronIngress final : public Module {
  private:
   uint64_t last_update_ts_;
 
+  // Workers in the cluster (for routing)
+  std::vector<Ethernet::Address> macs_;
+  std::vector<be32_t> ips_;
+
   // All existing flow aggregates in the cluster
   std::vector<FlowAggregate> flow_aggregates_;
 
   // Per-flow-aggregate connection table
   // [0, 255] -> cpu core index
-  std::map<uint32_t, int> mask_to_core_;
+  std::map<uint32_t, int> flow_to_core_;
 
   // For monitoring
   uint64_t pkt_cnts_[256] = {0};

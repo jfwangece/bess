@@ -401,8 +401,22 @@ message IronsideIngressArg {
   int32 pkt_rate_thresh = 4;
 }
 
+message MetronCoreArg {
+  int32 core_id = 1; /// The target CPU core's ID
+}
+
 message MetronIngressArg {
+  message EndhostAddr {
+    string mac = 1; /// A worker's MAC addr
+    string ip = 2; /// A worker's interface IP
+  }
   int32 mode = 1;
+  repeated EndhostAddr endpoints = 2; /// A list of workers in the cluster
+}
+
+message MetronSwitchArg {
+  int32 wid = 1; /// server ID
+  int32 ncore = 2; /// The number of normal cores
 }
 
 message MemAnalyzerArg {

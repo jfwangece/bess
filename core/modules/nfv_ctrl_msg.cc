@@ -12,11 +12,8 @@ namespace ctrl {
 
 // NFVCtrl system components
 NFVCtrl* nfv_ctrl = nullptr;
-
 NFVCore* nfv_cores[DEFAULT_INVALID_CORE_ID] = {nullptr};
-
 NFVRCore* nfv_rcores[DEFAULT_INVALID_CORE_ID] = {nullptr};
-
 NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID] = {nullptr};
 
 PMDPort* pmd_port = nullptr;
@@ -35,38 +32,38 @@ std::map<uint16_t, uint16_t> trans_buckets;
 // A software queue as this server's trash bin. Any packets that are
 // moved into this queue will be freed without any processing.
 struct llring* system_dump_q_ = nullptr;
-
 struct llring* local_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
-
 struct llring* local_boost_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
+struct llring* local_mc_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
 
 struct llring* sw_q[DEFAULT_SWQ_COUNT] = {nullptr};
-
 SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr}; // sw_q can be assigned if |up_core_id| is invalid
 
+// The number of dedicated cores and aux cores in an Ironside worker.
 int ncore = 0;
 int rcore = 0;
 
-bool core_state[DEFAULT_INVALID_CORE_ID] = {false}; // core is in-use if true
+// core is in-use if true
+bool core_state[DEFAULT_INVALID_CORE_ID] = {false};
+// rcore can be assigned if true
+bool rcore_state[DEFAULT_INVALID_CORE_ID] = {false};
+// the number of long epochs in which a core has been live
+int core_liveness[DEFAULT_INVALID_CORE_ID] = {0};
+// the number of in-use normal cores on a server
+int worker_ncore[DEFAULT_INVALID_WORKER_ID] = {0};
 
-bool rcore_state[DEFAULT_INVALID_CORE_ID] = {false}; // rcore can be assigned if true
+// the packet rate on a server
+uint32_t worker_packet_rate[DEFAULT_INVALID_WORKER_ID] = {0};
 
-int core_liveness[DEFAULT_INVALID_CORE_ID] = {0}; // the number of long epochs in which a core has been live
-
-int worker_ncore[DEFAULT_INVALID_WORKER_ID] = {0}; // the number of in-use normal cores on a server
-
-uint32_t worker_packet_rate[DEFAULT_INVALID_WORKER_ID] = {0}; // the packet rate on a server
-
-// Global software queue / reserved core management functions
-
+/// Global software queue / reserved core management functions
 // bess/core/main.cc calls this function to init when bessd starts
 void NFVCtrlMsgInit() {
   size_t sw_qsize = DEFAULT_SWQ_SIZE;
   int bytes = llring_bytes_with_slots(sw_qsize);
 
   int ret;
-  // |local_q| used by all dedicated cores
   for (int i = 0; i < DEFAULT_LOCALQ_COUNT; i++) {
+    // |local_q| used by all dedicated cores
     local_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
     ret = llring_init(local_q[i], sw_qsize, 1, 1);
     if (ret) {
@@ -75,21 +72,31 @@ void NFVCtrlMsgInit() {
       break;
     }
 
+    // |local_boost_q| is used by all dedicated cores in the 'boost' mode.
     local_boost_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-    ret = llring_init(local_q[i], sw_qsize, 1, 1);
+    ret = llring_init(local_boost_q[i], sw_qsize, 1, 1);
     if (ret) {
       std::free(local_boost_q[i]);
       LOG(ERROR) << "llring_init failed on local boost queue " << i;
       break;
     }
+
+    // |local_mc_q| is used by all Metron / Quadrant cores to receive tagged packets.
+    // mp: many software switch cores; sc: each worker core pulls from its own queue.
+    local_mc_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+    ret = llring_init(local_mc_q[i], sw_qsize, 0, 1);
+    if (ret) {
+      std::free(local_mc_q[i]);
+      LOG(ERROR) << "llring_init failed on local boost queue " << i;
+      break;
+    }
   }
 
-  // |sw_q| used by all aux cores
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
-    sw_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-
+    // |sw_q| used by all aux cores
     // single-producer: each sw_q can only be held by one ncore;
     // however, more than 1 rcores can access a sw_q.
+    sw_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
     ret = llring_init(sw_q[i], sw_qsize, 1, 0);
     if (ret) {
       std::free(sw_q[i]);
@@ -121,9 +128,9 @@ void NFVCtrlMsgInit() {
 }
 
 void NFVCtrlMsgDeInit() {
-  struct llring *q = nullptr;
   SoftwareQueue *q_state = nullptr;
   bess::Packet *pkt = nullptr;
+  struct llring *q = nullptr;
 
   for (int i = 0; i < DEFAULT_LOCALQ_COUNT; i++) {
     q = local_q[i];
@@ -133,7 +140,6 @@ void NFVCtrlMsgDeInit() {
       }
       std::free(q);
     }
-    q = nullptr;
 
     q = local_boost_q[i];
     if (q) {
@@ -142,28 +148,34 @@ void NFVCtrlMsgDeInit() {
       }
       std::free(q);
     }
-    q = nullptr;
-  }
 
-  for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
-    q = sw_q[i];
+    q = local_mc_q[i];
     if (q) {
       while (llring_sc_dequeue(q, (void **)&pkt) == 0) {
         bess::Packet::Free(pkt);
       }
       std::free(q);
     }
-    q = nullptr;
+  }
+
+  q = nullptr;
+  for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
+    q = sw_q[i];
+    if (q) {
+      while (llring_mc_dequeue(q, (void **)&pkt) == 0) {
+        bess::Packet::Free(pkt);
+      }
+      std::free(q);
+    }
 
     q_state = sw_q_state[i];
     if (q_state) {
       std::free(q_state);
     }
-    q_state = nullptr;
   }
 
   if (system_dump_q_) {
-    while (llring_sc_dequeue(system_dump_q_, (void **)&pkt) == 0) {
+    while (llring_mc_dequeue(system_dump_q_, (void **)&pkt) == 0) {
       bess::Packet::Free(pkt);
     }
     std::free(system_dump_q_);
@@ -177,7 +189,6 @@ void NFVCtrlCheckAllComponents() {
   if (nfv_ctrl == nullptr || pmd_port == nullptr) {
     return;
   }
-
   nfv_ctrl->InitPMD(pmd_port);
 }
 
@@ -202,7 +213,6 @@ std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n) {
     std::vector<int> assigned;
     return assigned;
   }
-
   return nfv_ctrl->RequestNSwQ(core_id, n);
 }
 
