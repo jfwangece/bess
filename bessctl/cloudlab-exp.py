@@ -109,8 +109,17 @@ def start_traffic(tip, num_worker, mode):
     cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
-    print(out)
-    print("traffic {} starts".format(tip))
+    if len(out) > 0:
+        print(out)
+    print("traffic {} starts: worker-scale routing".format(tip))
+
+def start_traffic_core_ingress(tip, num_worker, mode):
+    cmds = ["run", "nfvctrl/cloud_pcap_metron", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
+    p = run_remote_besscmd(tip, cmds)
+    out, err = p.communicate()
+    if len(out) > 0:
+        print(out)
+    print("traffic {} starts: core-scale routing".format(tip))
 
 def start_flowgen(tip, flow, rate):
     cmds = ["run", "nfvctrl/cloud_flowgen BESS_FLOW={}, BESS_PKT_RATE={}".format(flow, rate)]
@@ -138,6 +147,15 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     out, err = p.communicate()
     # print(out)
     print("ironside worker {} starts".format(wip))
+
+def start_metron_worker(wip, worker_id):
+    cmds = ["run", "nfvctrl/cloud_metron_chain4"]
+    extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}".format(macs[0], worker_id)
+    cmds.append(extra_cmd)
+    p = run_remote_besscmd(wip, cmds)
+    out, err = p.communicate()
+    # print(out)
+    print("metron worker {} starts".format(wip))
 
 def parse_latency_result(tip):
     cmds = ['command', 'module', 'measure0', 'get_summary', 'MeasureCommandGetSummaryArg', '{"latency_percentiles": [50.0, 90.0, 95.0, 98.0, 99.0]}']
@@ -580,7 +598,6 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
         p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
         p.start()
         pids.append(p)
-
     for p in pids:
         p.join()
     print("exp: all bessd started")
@@ -592,7 +609,6 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
         # p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
         p.start()
         pids.append(p)
-
     for p in pids:
         p.join()
     print("exp: all workers started")
@@ -629,6 +645,67 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     print("- avg core usage (in cores): {}".format(avg_cores))
     print("---------------------------------------------------------------")
     # 50, 90, 95, 98, 99
+    return (avg_cores, delay)
+
+def run_metron_exp(num_worker):
+    selected_worker_ips = []
+    for i in range(num_worker):
+        selected_worker_ips.append(worker_ip[i])
+    exp_duration = 30
+
+    # Start all bessd
+    pids = []
+    for tip in traffic_ip:
+        p = multiprocessing.Process(target=start_remote_bessd, args=(tip,))
+        p.start()
+        pids.append(p)
+    for wip in worker_ip:
+        p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
+        p.start()
+        pids.append(p)
+    for p in pids:
+        p.join()
+    print("exp: all bessd started")
+
+    # Run all workers
+    pids = []
+    for i, wip in enumerate(selected_worker_ips):
+        p = multiprocessing.Process(target=start_metron_worker, args=(wip, i))
+        p.start()
+        pids.append(p)
+    for p in pids:
+        p.join()
+    print("exp: all workers started")
+
+    ig_mode = 0
+    for tip in traffic_ip:
+        start_traffic_core_ingress(tip, num_worker, ig_mode)
+    print("exp: traffic started")
+
+    time.sleep(exp_duration - 1)
+
+    measure_results = parse_latency_result(traffic_ip[0])
+    if len(measure_results) == 0:
+        print("- Ironside rack-scale exp: no result - ")
+        return
+
+    total_packets = measure_results[0]
+    delay = measure_results[1:]
+    core_usage = []
+    for i, wip in enumerate(selected_worker_ips):
+        core_usage.append(parse_cpu_time_result(wip) * 3 / 1000)
+    avg_cores = sum(core_usage) / 1000000.0 / exp_duration
+
+    print("---------------------------------------------------------------")
+    print("- Ironside rack-scale exp result")
+    print("- {} Ironside workers".format(num_worker))
+    print("- ingress mode: {} '{}'".format(ig_mode, ig_mode_text[ig_mode]))
+    print("- total packets: {}".format(total_packets))
+    print("- pkt delay (in us): {}".format(delay))
+    print("- core usage (in us): {}".format(core_usage))
+    print("- core usage sum (in us): {}".format(sum(core_usage)))
+    print("- avg core usage (in cores): {}".format(avg_cores))
+    print("---------------------------------------------------------------")
     return (avg_cores, delay)
 
 # Main experiment
@@ -768,13 +845,13 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    run_main_exp()
+    # run_main_exp()
 
     # Ablation: the server mapper
-    run_ablation_server_mapper()
+    # run_ablation_server_mapper()
 
     # Ablation: the core mapper
-    run_ablation_core_mapper()
+    # run_ablation_core_mapper()
     return
 
 if __name__ == "__main__":

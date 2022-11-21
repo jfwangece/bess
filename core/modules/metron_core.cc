@@ -2,6 +2,12 @@
 #include <metron_core.h>
 
 CommandResponse MetronCore::Init(const bess::pb::MetronCoreArg& arg) {
+  task_id_t tid;
+  tid = RegisterTask(nullptr);
+  if (tid == INVALID_TASK_ID) {
+    return CommandFailure(ENOMEM, "Task creation failed");
+  }
+
   core_id_ = 0;
   if (arg.core_id() > 0) {
     core_id_ = arg.core_id();

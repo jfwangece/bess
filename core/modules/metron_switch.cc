@@ -55,10 +55,8 @@ void MetronSwitch::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   for (int i = 0; i < num_cores_; i++) {
     struct llring* q = bess::ctrl::local_mc_q[i];
     if (pkt_batch_[i]->cnt()) {
-      int queued = llring_mp_enqueue_burst(q, (void**)pkt_batch_[i]->pkts(), pkt_batch_[i]->cnt());
-      if (queued < 0) {
-        queued = queued & (~RING_QUOT_EXCEED);
-      }
+      int queued =
+          llring_mp_enqueue_burst(q, (void**)pkt_batch_[i]->pkts(), pkt_batch_[i]->cnt());
       if (queued < pkt_batch_[i]->cnt()) {
         int to_drop = pkt_batch_[i]->cnt() - queued;
         bess::Packet::Free(pkt_batch_[i]->pkts() + queued, to_drop);
