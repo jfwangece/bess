@@ -7,7 +7,7 @@
 
 class MetronCore final : public Module {
  public:
-  MetronCore() : Module() { max_allowed_workers_ = 1; }
+  MetronCore() : Module() { max_allowed_workers_ = Worker::kMaxWorkers; }
 
   CommandResponse Init(const bess::pb::MetronCoreArg& arg);
   void DeInit() override;
