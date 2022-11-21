@@ -35,7 +35,7 @@ void MetronSwitch::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     pkt_batch_[i]->clear();
   }
 
-  int dst_core = 0;
+  uint32_t dst_core = 0;
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
