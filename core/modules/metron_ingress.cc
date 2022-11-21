@@ -55,8 +55,8 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     uint32_t flow_id = ip->dst.value() & 0xff;
     pkt_cnts_[flow_id] += 1;
 
-    int dst_worker = 0;
-    int dst_core = 0;
+    uint32_t dst_worker = 0;
+    uint32_t dst_core = 0;
     auto it = flow_to_core_.find(flow_id);
     if (it != flow_to_core_.end()) {
       dst_core = it->second;

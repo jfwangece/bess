@@ -697,9 +697,8 @@ def run_metron_exp(num_worker):
     avg_cores = sum(core_usage) / 1000000.0 / exp_duration
 
     print("---------------------------------------------------------------")
-    print("- Ironside rack-scale exp result")
-    print("- {} Ironside workers".format(num_worker))
-    print("- ingress mode: {} '{}'".format(ig_mode, ig_mode_text[ig_mode]))
+    print("- Metron rack-scale exp result")
+    print("- {} Metron workers".format(num_worker))
     print("- total packets: {}".format(total_packets))
     print("- pkt delay (in us): {}".format(delay))
     print("- core usage (in us): {}".format(core_usage))
@@ -732,6 +731,16 @@ def run_main_exp():
         slo_us = slo / 1000
         core_usage, delay = exp_results[i]
         print("{} us - {:0.2f}, {}".format(slo_us, core_usage, delay))
+    print("---------------------------------------------------------------")
+    return
+
+def run_compare_exp():
+    worker_cnt = 4
+    target_slos = [100000, 200000, 300000, 400000, 500000]
+
+    run_metron_exp(worker_cnt)
+
+    print("--------    Ironside comparison experiment results    ---------")
     print("---------------------------------------------------------------")
     return
 
@@ -830,8 +839,8 @@ def main():
     # reset_grub_for_all()
     # install_mlnx_for_all()
     # get_macs_for_all()
-    install_bess_for_all()
     # fetch_bess_for_all()
+    install_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()
@@ -846,6 +855,7 @@ def main():
 
     # Main: latency-efficiency comparisons
     # run_main_exp()
+    run_compare_exp()
 
     # Ablation: the server mapper
     # run_ablation_server_mapper()

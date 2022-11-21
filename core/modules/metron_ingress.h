@@ -65,7 +65,7 @@ class MetronIngress final : public Module {
 
   // Per-flow-aggregate connection table
   // [0, 255] -> cpu core index
-  std::map<uint32_t, int> flow_to_core_;
+  std::map<uint32_t, uint32_t> flow_to_core_;
 
   // For monitoring
   uint64_t pkt_cnts_[256] = {0};
