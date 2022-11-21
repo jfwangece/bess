@@ -53,6 +53,7 @@ worker0 = {}
 pout0 = {}
 fw = {}
 lb = {}
+nfvmo = {}
 monitor = {}
 
 # Pipeline
