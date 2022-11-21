@@ -30,6 +30,7 @@ void MetronCore::DeInit() {
 struct task_result MetronCore::RunTask(Context *ctx, bess::PacketBatch *batch,
                                      void *) {
   if (local_queue_ == nullptr) {
+    LOG(INFO) << "metron: core " << core_id_ << " local_mc_q is not ready";
     return {.block = false, .packets = 0, .bits = 0};
   }
 
@@ -37,7 +38,6 @@ struct task_result MetronCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   if (cnt == 0) {
     return {.block = false, .packets = 0, .bits = 0};
   }
-  LOG(INFO) << "core: " << core_id_ << ", batch: " << cnt;
 
   batch->set_cnt(cnt);
   uint64_t total_bytes = 0;

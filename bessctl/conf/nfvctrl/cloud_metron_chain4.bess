@@ -58,11 +58,11 @@ monitor = {}
 # Pipeline
 for i in switch_cores:
     pinc0[i] = QueueInc(port=port0, qid=i)
-    switch0[i] = MetronSwitch(wid=wid, ncore=worker_core_cnt)
+    switch0[i] = MetronSwitch(wid=wid, ncore=worker_core_cnt) # switches are dumb
     pinc0[i] -> switch0[i]
 
 for i in worker_cores:
-    worker0[i] = MetronCore(core_id=i)
+    worker0[i] = MetronCore(core_id=i-worker_cores[0])
     pout0[i] = QueueOut(port=port0, qid=i)
     worker0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
