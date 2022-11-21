@@ -55,12 +55,6 @@ CommandResponse NFVMonitor::Init([[maybe_unused]]const bess::pb::NFVMonitorArg &
   last_update_traffic_stats_ts_ns_ = curr_ts_ns_;
   next_epoch_id_ = 0;
 
-  update_traffic_stats_period_ns_ = DEFAULT_TRAFFIC_STATS_LONG_TERM_UPDATE_PERIOD_NS;
-  if (arg.short_epoch_period_ns() > 0) {
-    update_traffic_stats_period_ns_ = (uint64_t)arg.short_epoch_period_ns();
-  }
-  LOG(INFO) << "Traffic update period: " << update_traffic_stats_period_ns_;
-
   // Initialize all elements in the buffer to avoid memory access bugs.
   size_t buffer_size = (arg.latency_sample_buffer_size() > 0) ? arg.latency_sample_buffer_size():DEFAULT_LATENCY_QUEUE_SIZE;
   per_core_latency_sample_.set_capacity(buffer_size);

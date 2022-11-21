@@ -63,8 +63,13 @@ for i in switch_cores:
 
 for i in worker_cores:
     worker0[i] = MetronCore(core_id=i-worker_cores[0])
+    fw[i] = FlowACL(rules=acl_rules)
+    lb[i] = FlowLB(endpoints=nat_hosts)
+    monitor[i] = FlowCounter()
+    nfvmo[i] = NFVMonitor(core_id=i-worker_cores[0])
     pout0[i] = QueueOut(port=port0, qid=i)
-    worker0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
+
+    worker0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
 # Burst
 for i in switch_cores:

@@ -54,9 +54,9 @@ class NFVMonitor final : public Module {
   // Timestamp
   uint64_t curr_ts_ns_;
   uint64_t curr_nic_ts_ns_;
+
   // Performance statistics recorded in Epoch
   uint64_t last_update_traffic_stats_ts_ns_;
-  uint64_t update_traffic_stats_period_ns_;
   uint32_t next_epoch_id_;
 
   // Core statistics
