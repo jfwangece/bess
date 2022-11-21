@@ -13,6 +13,7 @@
 // Number of software packet queues
 #define DEFAULT_LOCALQ_COUNT 10
 #define DEFAULT_SWQ_COUNT 200
+#define DEFAULT_NICQ_COUNT 40
 
 // Default queue size
 #define DEFAULT_SWQ_SIZE 1024;
@@ -76,8 +77,8 @@ extern uint32_t worker_packet_rate[DEFAULT_INVALID_WORKER_ID];
 extern struct llring* system_dump_q_;
 extern struct llring* local_q[DEFAULT_LOCALQ_COUNT];
 extern struct llring* local_boost_q[DEFAULT_LOCALQ_COUNT];
-extern struct llring* local_mc_q[DEFAULT_LOCALQ_COUNT];
 extern struct llring* sw_q[DEFAULT_SWQ_COUNT];
+extern struct llring* local_mc_q[DEFAULT_NICQ_COUNT];
 
 /// Worker-layer core mapping
 extern int ncore;

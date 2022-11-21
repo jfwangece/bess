@@ -34,7 +34,7 @@ std::map<uint16_t, uint16_t> trans_buckets;
 struct llring* system_dump_q_ = nullptr;
 struct llring* local_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
 struct llring* local_boost_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
-struct llring* local_mc_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
+struct llring* local_mc_q[DEFAULT_NICQ_COUNT] = {nullptr};
 
 struct llring* sw_q[DEFAULT_SWQ_COUNT] = {nullptr};
 SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr}; // sw_q can be assigned if |up_core_id| is invalid
@@ -80,16 +80,6 @@ void NFVCtrlMsgInit() {
       LOG(ERROR) << "llring_init failed on local boost queue " << i;
       break;
     }
-
-    // |local_mc_q| is used by all Metron / Quadrant cores to receive tagged packets.
-    // mp: many software switch cores; sc: each worker core pulls from its own queue.
-    local_mc_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-    ret = llring_init(local_mc_q[i], sw_qsize, 0, 1);
-    if (ret) {
-      std::free(local_mc_q[i]);
-      LOG(ERROR) << "llring_init failed on local boost queue " << i;
-      break;
-    }
   }
 
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
@@ -111,6 +101,18 @@ void NFVCtrlMsgInit() {
         std::aligned_alloc(alignof(SoftwareQueue), sizeof(SoftwareQueue)));
     sw_q_state[i]->up_core_id = DEFAULT_INVALID_CORE_ID;
     sw_q_state[i]->down_core_id = DEFAULT_INVALID_CORE_ID;
+  }
+
+  for (int i = 0; i < DEFAULT_NICQ_COUNT; i++) {
+    // |local_mc_q| is used by all Metron / Quadrant cores to receive tagged packets.
+    // mp: many software switch cores; sc: each worker core pulls from its own queue.
+    local_mc_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+    ret = llring_init(local_mc_q[i], sw_qsize, 0, 1);
+    if (ret) {
+      std::free(local_mc_q[i]);
+      LOG(ERROR) << "llring_init failed on local boost queue " << i;
+      break;
+    }
   }
 
   // Assign a system dump queue.
@@ -148,17 +150,8 @@ void NFVCtrlMsgDeInit() {
       }
       std::free(q);
     }
-
-    q = local_mc_q[i];
-    if (q) {
-      while (llring_sc_dequeue(q, (void **)&pkt) == 0) {
-        bess::Packet::Free(pkt);
-      }
-      std::free(q);
-    }
   }
 
-  q = nullptr;
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     q = sw_q[i];
     if (q) {
@@ -171,6 +164,16 @@ void NFVCtrlMsgDeInit() {
     q_state = sw_q_state[i];
     if (q_state) {
       std::free(q_state);
+    }
+  }
+
+  for (int i = 0; i < DEFAULT_NICQ_COUNT; i++) {
+    q = local_mc_q[i];
+    if (q) {
+      while (llring_sc_dequeue(q, (void **)&pkt) == 0) {
+        bess::Packet::Free(pkt);
+      }
+      std::free(q);
     }
   }
 

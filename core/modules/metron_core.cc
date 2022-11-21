@@ -14,6 +14,9 @@ CommandResponse MetronCore::Init(const bess::pb::MetronCoreArg& arg) {
   }
 
   local_queue_ = bess::ctrl::local_mc_q[core_id_];
+  if (local_queue_ == nullptr) {
+    LOG(FATAL) << "metron: core " << core_id_ << " local_mc_q is not ready";
+  }
   LOG(INFO) << "metron: core " << core_id_;
   return CommandSuccess();
 }
@@ -27,7 +30,6 @@ void MetronCore::DeInit() {
 struct task_result MetronCore::RunTask(Context *ctx, bess::PacketBatch *batch,
                                      void *) {
   if (local_queue_ == nullptr) {
-    LOG(FATAL) << "metron: local_mc_q is not ready";
     return {.block = false, .packets = 0, .bits = 0};
   }
 
