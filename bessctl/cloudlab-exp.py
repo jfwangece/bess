@@ -101,12 +101,12 @@ def setup_cpu_memory(ip):
 
 def start_remote_bessd(ip):
     bessd = "/local/bess/core/bessd"
-    bessd_cmd = "sudo {} --dpdk=true --buffers=262144 -k".format(bessd)
+    bessd_cmd = "sudo {} --dpdk=true --buffers=1048576 -k".format(bessd)
     run_remote_command(ip, bessd_cmd)
     return
 
 def start_traffic(tip, num_worker, mode):
-    pkt_thresh = 2000000
+    pkt_thresh = 1200000
     cmds = ["run", "nfvctrl/cloud_pcap_replay_mc",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
     # cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]

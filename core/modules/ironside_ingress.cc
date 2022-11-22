@@ -18,6 +18,15 @@ CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
   macs_.clear();
   pkt_cnts_.clear();
 
+  rewrite_ = 0;
+  if (arg.rewrite() > 0) {
+    rewrite_ = arg.rewrite();
+  }
+  if (rewrite_ > 0) {
+    ip_mask_ = be32_t(0x000000f0 << (2 * rewrite_));;
+    tcp_port_mask_ = be16_t(0x1000 << (rewrite_));
+  }
+
   mode_ = 0;
   if (arg.mode() > 0) {
     mode_ = arg.mode();
@@ -183,15 +192,21 @@ void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     pkt_cnts_[dst_worker] += 1;
     // Update Ether dst, IP dst, checksum, and TCP checksum
     eth->dst_addr = macs_[dst_worker];
-    be32_t before = ip->dst;
+    // be32_t before = ip->dst;
     be32_t after = ips_[dst_worker];
     ip->dst = after;
 
-    uint32_t l3_increment =
-      ChecksumIncrement32(before.raw_value(), after.raw_value());
-    ip->checksum = UpdateChecksumWithIncrement(ip->checksum, l3_increment);
-    uint32_t l4_increment = l3_increment;
-    tcp->checksum = UpdateChecksumWithIncrement(tcp->checksum, l4_increment);
+    if (rewrite_ > 0) {
+      ip->src = ip->src | ip_mask_;
+      tcp->src_port = tcp->dst_port | tcp_port_mask_;
+      tcp->dst_port = tcp->dst_port | tcp_port_mask_;
+    }
+
+    // uint32_t l3_increment =
+    //   ChecksumIncrement32(before.raw_value(), after.raw_value());
+    // ip->checksum = UpdateChecksumWithIncrement(ip->checksum, l3_increment);
+    // uint32_t l4_increment = l3_increment;
+    // tcp->checksum = UpdateChecksumWithIncrement(tcp->checksum, l4_increment);
 
     EmitPacket(ctx, pkt);
   }

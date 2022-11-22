@@ -28,21 +28,23 @@ class IronsideIngress final : public Module {
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
  private:
+  int rewrite_ = 0;
+  be32_t ip_mask_;
+  be16_t tcp_port_mask_;
+
+  // Load balancing
   int mode_ = 0;
+  int ncore_thresh_;
+  uint32_t pkt_rate_thresh_;
 
   // Workers in the cluster.
   std::vector<Ethernet::Address> macs_;
   std::vector<be32_t> ips_;
   std::vector<uint32_t> pkt_cnts_;
 
-  // Normal core threshold.
-  int ncore_thresh_;
-  uint32_t pkt_rate_thresh_;
+  // Routing
   int endpoint_id_ = 0;
   uint64_t last_endpoint_update_ts_ = 0;
-
-  // Per-flow connection table
-  // std::map<Flow, be32_t, FlowHash> flow_cache_;
 
   // Per-flow-aggregate connection table
   std::map<uint64_t, int> flow_cache_;

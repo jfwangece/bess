@@ -399,6 +399,7 @@ message IronsideIngressArg {
   repeated EndhostAddr endpoints = 2; /// A list of workers in the cluster
   int32 ncore_thresh = 3; /// The normal core threshold for ToR-level scaling
   int32 pkt_rate_thresh = 4;
+  int32 rewrite = 5; /// In the multi-core mode, rewrite headers for each packet
 }
 
 message MetronCoreArg {
