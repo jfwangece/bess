@@ -45,9 +45,11 @@ CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
   if (to_remove_queue_) {
     llring_init(to_remove_queue_, kQSize, 0, 1);
   }
+
   sw_q_ = nullptr;
   if (core_id_ < bess::ctrl::ncore) {
     sw_q_ = bess::ctrl::local_boost_q[core_id_];
+    LOG(INFO) << "rcore: " << core_id_;
   }
 
   // Run!

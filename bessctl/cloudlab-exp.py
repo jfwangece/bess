@@ -106,7 +106,7 @@ def start_remote_bessd(ip):
     return
 
 def start_traffic(tip, num_worker, mode):
-    pkt_thresh = 1200000
+    pkt_thresh = 2000000
     cmds = ["run", "nfvctrl/cloud_pcap_replay_mc",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
     # cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
