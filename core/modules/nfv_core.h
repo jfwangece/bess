@@ -17,6 +17,7 @@ using bess::utils::Flow;
 using bess::utils::FlowHash;
 using bess::utils::FlowRoutingRule;
 using bess::utils::CoreStats;
+using bess::utils::BucketStats;
 using bess::utils::WorkerCore;
 
 // Assumption:
@@ -133,6 +134,8 @@ class NFVCore final : public Module {
   // - Update epoch packet processed, flow processed
   void UpdateStatsPreProcessBatch(bess::PacketBatch *batch);
 
+  std::vector<uint64_t> GetBucketStats();
+
   // EpochEndProcess:
   // - Scan all packets in |q| and split them to all software queues
   void SplitQToSwQ(llring* q);
@@ -209,6 +212,8 @@ class NFVCore final : public Module {
   // nfvctrl->NotifyCtrlLoadBalanceNow();
   uint32_t num_epoch_with_large_queue_;
 
+  // For recording per-bucket packet and flow counts
+  BucketStats local_bucket_stats_;
   // For recording active flows in an epoch
   std::set<FlowState*> epoch_flow_cache_;
   // For each epoch, the set of flows that are not migrated to aux cores

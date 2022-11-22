@@ -1,3 +1,4 @@
+#include "nfv_core.h"
 #include "nfv_ctrl.h"
 #include "nfv_ctrl_msg.h"
 
@@ -316,20 +317,26 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
 
 uint32_t NFVCtrl::LongEpochProcess() {
   // Per-bucket packet rate and flow count are to be used by the long-term op.
-  std::vector<uint64_t> per_bucket_pkt_rate;
-  std::vector<uint64_t> per_bucket_flow_count;
+  std::vector<uint64_t> per_bucket_pkt_rate(512, 0);
+  std::vector<uint64_t> per_bucket_flow_count(512, 0);
 
   uint64_t pps = 0;
   uint64_t to_rate_per_sec = 1000000000ULL / (tsc_to_ns(rdtsc()) - last_long_epoch_end_ns_);
-  bess::utils::bucket_stats->bucket_table_lock.lock();
-  for (int i = 0; i < RETA_SIZE; i++) {
-    per_bucket_pkt_rate.push_back(bess::utils::bucket_stats->per_bucket_packet_counter[i] * to_rate_per_sec);
-    per_bucket_flow_count.push_back(bess::utils::bucket_stats->per_bucket_flow_cache[i].size() * to_rate_per_sec);
-    pps += per_bucket_pkt_rate[i];
-    bess::utils::bucket_stats->per_bucket_packet_counter[i] = 0;
-    bess::utils::bucket_stats->per_bucket_flow_cache[i].clear();
+
+  for (int j = 0; j < bess::ctrl::ncore; j++) {
+    std::vector<uint64_t> stats = bess::ctrl::nfv_cores[j]->GetBucketStats();
+    for (int i = 0; i < RETA_SIZE; i++) {
+      per_bucket_pkt_rate[i] += stats[2*i];
+      per_bucket_flow_count[i] += stats[2*i + 1];
+    }
   }
-  bess::utils::bucket_stats->bucket_table_lock.unlock();
+
+  for (int i = 0; i < RETA_SIZE; i++) {
+    per_bucket_pkt_rate[i] *= to_rate_per_sec;
+    per_bucket_flow_count[i] *= to_rate_per_sec;
+    pps += per_bucket_pkt_rate[i];
+  }
+
   curr_packet_rate_ = (uint32_t)pps;
 
   std::map<uint16_t, uint16_t> moves =
