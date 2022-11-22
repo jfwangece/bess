@@ -21,7 +21,6 @@ namespace {
 std::vector<uint64_t> NFVCore::GetBucketStats() {
   std::vector<uint64_t> stats;
 
-  local_bucket_stats_.bucket_table_lock.lock();
   for (int i = 0; i < RETA_SIZE; i++) {
     stats.push_back(local_bucket_stats_.per_bucket_packet_counter[i]);
     stats.push_back(local_bucket_stats_.per_bucket_flow_cache[i].size());
@@ -29,7 +28,6 @@ std::vector<uint64_t> NFVCore::GetBucketStats() {
     local_bucket_stats_.per_bucket_packet_counter[i] = 0;
     local_bucket_stats_.per_bucket_flow_cache[i].clear();
   }
-  local_bucket_stats_.bucket_table_lock.unlock();
   return stats;
 }
 
@@ -66,10 +64,8 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
 
     // update per-bucket packet counter and per-bucket flow cache.
     uint32_t id = state->rss;
-    local_bucket_stats_.bucket_table_lock.lock();
     local_bucket_stats_.per_bucket_packet_counter[id] += 1;
     local_bucket_stats_.per_bucket_flow_cache[id].emplace(state->flow, true);
-    local_bucket_stats_.bucket_table_lock.unlock();
 
     // Append flow's stats pointer to pkt's metadata
     *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt)) = state;
