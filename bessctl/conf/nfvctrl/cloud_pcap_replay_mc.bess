@@ -38,7 +38,7 @@ pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=num_cores)
 pinc0::PortInc(port=pmd_port0)
 
 pcap_port[0] = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
-src[0] = PortInc(port=pcap_port[i])
+src[0] = PortInc(port=pcap_port[0])
 
 repl::Replicate(gates=[0, 1], header_only=True)
 replq1::Queue(size=pow(2,20), pcap_backpressure=True)

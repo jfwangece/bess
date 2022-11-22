@@ -106,7 +106,10 @@ def start_remote_bessd(ip):
     return
 
 def start_traffic(tip, num_worker, mode):
-    cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
+    pkt_thresh = 4000000
+    cmds = ["run", "nfvctrl/cloud_pcap_replay_mc",
+            "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
+    # cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     if len(out) > 0:
@@ -581,6 +584,7 @@ def run_worker_exp(slo):
 
 ## Rack-scale experiments
 # run nfvctrl/cloud_pcap_replay BESS_NUM_WORKER=4, BESS_IG=3
+# run nfvctrl/cloud_pcap_replay_mc BESS_NUM_WORKER=4, BESS_IG=3, BESS_PKT_RATE_THRESH=3000000
 # run nfvctrl/cloud_chain4 BESS_SPROFILE="./short.prof", BESS_LPROFILE="./long.prof"
 def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     selected_worker_ips = []
@@ -854,8 +858,8 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    # run_main_exp()
-    run_compare_exp()
+    run_main_exp()
+    # run_compare_exp()
 
     # Ablation: the server mapper
     # run_ablation_server_mapper()
