@@ -207,6 +207,8 @@ void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     // ip->checksum = UpdateChecksumWithIncrement(ip->checksum, l3_increment);
     // uint32_t l4_increment = l3_increment;
     // tcp->checksum = UpdateChecksumWithIncrement(tcp->checksum, l4_increment);
+    tcp->checksum = CalculateIpv4TcpChecksum(*ip, *tcp);
+    ip->checksum = CalculateIpv4Checksum(*ip);
 
     EmitPacket(ctx, pkt);
   }
