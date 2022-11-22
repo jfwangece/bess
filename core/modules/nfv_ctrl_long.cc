@@ -214,7 +214,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
     if (!bess::ctrl::core_state[i]) {
       continue;
     }
-    // LOG(INFO) << i << ", " << per_cpu_flow_count[i] << ", " << GetMaxPktRateFromLongTermProfile(per_cpu_flow_count[i]);
+    LOG(INFO) << "c" << i << ": " << per_cpu_pkt_rate[i] << ", " << per_cpu_flow_count[i] << ", " << GetMaxPktRateFromLongTermProfile(per_cpu_flow_count[i]);
 
     // Move a bucket and do this until the aggregated packet rate is below the threshold
     while (per_cpu_pkt_rate[i] >
