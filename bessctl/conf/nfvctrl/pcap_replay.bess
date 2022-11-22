@@ -72,10 +72,10 @@ all_cores = [(offset0 + i) for i in range(15)]
 bess.add_worker(wid=1, core=1)
 pinc0.attach_task(wid=1)
 
+# traffic out
 bess.add_worker(wid=2, core=2)
 src[0].attach_task(wid=2)
 
-# traffic out
 bess.add_worker(wid=3, core=3)
 bess.add_worker(wid=4, core=4)
 replq1.attach_task(wid=3)

@@ -1,0 +1,98 @@
+#
+# The traffic generator that replays a PCAP packet trace.
+#
+import scapy.all as scapy
+
+num_cores = 4
+pcie0 = $BESS_DEV!"81:00.0"
+num_workers = int($BESS_NUM_WORKER!"4")
+
+offset0 = 0
+ips = ["10.10.1.{}".format(x) for x in [2,3,4,5]]
+macs = ["b8:ce:f6:b0:35:e2", "b8:ce:f6:d2:3a:c2", "b8:ce:f6:cc:8e:cc", "b8:ce:f6:cc:a2:e4"]
+workers=[{"ip": ips[i], "mac": macs[i]} for i in range(num_workers)]
+
+# 0: min core; 1: min rate; 2: max core; 3: max rate
+ig_mode = int($BESS_IG!'3')
+ncore=int($BESS_NCORE!'4')
+pkt_rate_thresh=int($BESS_PKT_RATE_THRESH!'10000000')
+
+# Backbone
+PCAPFILE = $PCAP!"/local/bess/experiment_conf/20190117-130000.tcp.pcap"
+# AS
+#PCAPFILE = $PCAP!"/local/bess/experiment_conf/202209011400.pcap"
+pcap_file = '{}'.format(PCAPFILE)
+playback_speed_conf = $PCAPCONF!"/local/bess/experiment_conf/pcap_dynamics_0.conf"
+tag_offset = 72
+burst_size=int($BESS_BURST!'32')
+
+pcap_port = {}
+src = {}
+queue = {}
+re = {}
+ig = {}
+qout = {}
+
+## Pipeline
+pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=num_cores)
+pinc0::PortInc(port=pmd_port0)
+
+pcap_port[0] = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
+src[0] = PortInc(port=pcap_port[i])
+
+repl::Replicate(gates=[0, 1], header_only=True)
+replq1::Queue(size=pow(2,20), pcap_backpressure=True)
+repl1::Replicate(gates=[0, 1], header_only=True)
+replq2::Queue(size=pow(2,20))
+repl2::Replicate(gates=[0, 1], header_only=True)
+
+src[0] -> repl
+repl:0 -> replq1 -> repl1
+repl:1 -> replq2 -> repl2
+
+for i in range(num_cores):
+    if i == 0 or i == 2:
+        queue[i] = Queue(size=pow(2,20), pcap_backpressure=True)
+    else:
+        queue[i] = Queue(size=pow(2,20))
+
+    re[i] = Replayer(offset=tag_offset, dynamic_traffic_conf=playback_speed_conf)
+    ig[i] = IronsideIngress(mode=ig_mode, endpoints=workers, ncore_thresh=ncore, pkt_rate_thresh=pkt_rate_thresh)
+    qout[i] = QueueOut(port=pmd_port0, qid=i)
+
+    queue[i] -> re[i] -> ig[i] -> Timestamp(offset=tag_offset) -> qout[i]
+
+repl1:0 -> queue[0]
+repl1:1 -> queue[1]
+repl2:0 -> queue[2]
+repl2:1 -> queue[3]
+
+pinc0 -> Measure(offset=tag_offset) -> Sink()
+
+# Configure
+pinc0.set_burst(burst=burst_size)
+for i in range(num_cores):
+    queue[i].set_burst(burst=burst_size)
+
+socket0_cores = [i for i in range(32)]
+socket1_cores = [32 + i for i in range(32)]
+
+## Core Assignment
+# traffic inc
+bess.add_worker(wid=1, core=socket1_cores[1])
+pinc0.attach_task(wid=1)
+
+# traffic out
+bess.add_worker(wid=2, core=socket1_cores[2])
+src[0].attach_task(wid=2)
+
+bess.add_worker(wid=3, core=socket1_cores[3])
+bess.add_worker(wid=4, core=socket1_cores[4])
+replq1.attach_task(wid=3)
+replq2.attach_task(wid=4)
+
+for i in range(num_cores):
+    bess.add_worker(wid=5+i, core=socket1_cores[5+i])
+    queue[i].attach_task(wid=5+i)
+
+bess.resume_all()
