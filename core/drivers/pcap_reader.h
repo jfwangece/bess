@@ -15,11 +15,12 @@ using bess::utils::Ipv4;
 using bess::utils::be16_t;
 using bess::utils::be32_t;
 
+#define DEFAULT_PCAPQ_COUNT 8
+extern bool pcap_block[DEFAULT_PCAPQ_COUNT];
+
 class PCAPReader final : public Port {
  public:
   static const int MAX_TEMPLATE_SIZE = 1500;
-  static uint64_t per_pcap_pkt_counts_[4];
-  static bool blocked_[4];
   static int total_pcaps_;
   static std::shared_mutex mtx_;
 
@@ -36,8 +37,8 @@ class PCAPReader final : public Port {
  private:
   unsigned char tmpl_[MAX_TEMPLATE_SIZE] = {};
 
-  // The unique ID of this module
-  int pcap_index_ = -1;
+  // The index of this PcapReplay module.
+  int pcap_id_ = 0;
 
   bool is_timestamp_ = false;
   bool is_reset_payload_ = false;

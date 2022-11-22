@@ -94,6 +94,9 @@ class Queue : public Module {
   // Whether backpressure should be applied or not
   bool backpressure_;
 
+  // Whether backpressure should be applied to PcapReplay or not
+  bool pcap_backpressure_;
+
   // Whether queuestamp should be applied or not
   bool queuestamp_;
 

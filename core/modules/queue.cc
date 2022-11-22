@@ -131,6 +131,12 @@ CommandResponse Queue::Init(const bess::pb::QueueArg &arg) {
     backpressure_ = true;
   }
 
+  pcap_backpressure_ = false;
+  if (arg.pcap_backpressure()) {
+    VLOG(1) << "Pcap Backpressure enabled for " << name() << "::Queue";
+    pcap_backpressure_ = true;
+  }
+
   queuestamp_ = false;
   if (arg.queuestamp()) {
     VLOG(1) << "Queuestamp enabled for " << name() << "::Queue";
@@ -212,6 +218,9 @@ void Queue::ProcessBatch(Context *, bess::PacketBatch *batch) {
   if (backpressure_ && llring_count(queue_) > high_water_) {
     SignalOverload();
   }
+  if (pcap_backpressure_ && llring_count(queue_) > 65536) {
+    SignalOverload();
+  }
 
   stats_.enqueued += queued;
 
@@ -261,6 +270,9 @@ struct task_result Queue::RunTask(Context *ctx, bess::PacketBatch *batch,
   RunNextModule(ctx, batch);
 
   if (backpressure_ && llring_count(queue_) < low_water_) {
+    SignalUnderload();
+  }
+  if (pcap_backpressure_ && llring_count(queue_) < 16384) {
     SignalUnderload();
   }
 

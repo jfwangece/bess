@@ -5,6 +5,7 @@ import scapy.all as scapy
 
 PCAPFILE = $PCAP!"./experiment_conf/20190117-130000.tcp.pcap"
 assert PCAPFILE
+pcap_file = '{}'.format(PCAPFILE)
 print("Target PCAP file: %s" %(PCAPFILE))
 
 playback_rate_mpps = float($BESS_PKT_RATE!"0.0")
@@ -12,43 +13,81 @@ playback_rate_mbps = float($BESS_BIT_RATE!"0.0")
 playback_speed = float($BESS_SPEED!"1")
 playback_speed_conf = $BESS_RATE_CONF!"./experiment_conf/pcap_dynamics_0.conf"
 burst_size=int($BESS_BURST!'32')
+num_cores = 4
 tag_offset = 72
-pcie0, offset0="05:00.0", 0
+#pcie0, offset0="05:00.0", 1
+pcie0, offset0="5e:00.0", 1
 
-pcap_file = '{}'.format(PCAPFILE)
+pcap_port = {}
+src = {}
+queue = {}
+re = {}
+qout = {}
 
-pcap_port = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
-src = PortInc(port=pcap_port)
-queue = Queue(size=pow(2,24))
-if playback_rate_mpps > 0:
-    replayer = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
-elif playback_rate_mbps > 0:
-    replayer = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
-elif len(playback_speed_conf) > 0:
-    replayer = Replayer(offset=tag_offset, dynamic_traffic_conf=playback_speed_conf)
-else:
-    replayer = Replayer(offset=tag_offset, speed=playback_speed)
-
-pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=1)
-pout0::PortOut(port=pmd_port0)
+# Pipeline
+pmd_port0::PMDPort(pci=pcie0, num_inc_q=1, num_out_q=num_cores)
 pinc0::PortInc(port=pmd_port0)
 
-src -> queue -> replayer -> Timestamp(offset=tag_offset) -> pout0
+pcap_port[0] = PCAPReader(dev='{}'.format(pcap_file), offset=tag_offset, timestamp=True)
+src[0] = PortInc(port=pcap_port[0])
+repl::Replicate(gates=[0, 1], header_only=True)
+src[0] -> repl
+
+repl:0 -> replq1::Queue(size=pow(2,20), pcap_backpressure=True) -> repl1::Replicate(gates=[0, 1], header_only=True)
+repl:1 -> replq2::Queue(size=pow(2,20)) -> repl2::Replicate(gates=[0, 1], header_only=True)
+
+for i in range(num_cores):
+    if i == 0 or i == 2:
+        queue[i] = Queue(size=pow(2,20), pcap_backpressure=True)
+    else:
+        queue[i] = Queue(size=pow(2,20))
+
+    if playback_rate_mpps > 0:
+        re[i] = Replayer(offset=tag_offset, rate_mpps=playback_rate_mpps)
+    elif playback_rate_mbps > 0:
+        re[i] = Replayer(offset=tag_offset, rate_mbps=playback_rate_mbps)
+    elif len(playback_speed_conf) > 0:
+        re[i] = Replayer(offset=tag_offset, dynamic_traffic_conf=playback_speed_conf)
+    else:
+        re[i] = Replayer(offset=tag_offset, speed=playback_speed)
+    qout[i] = QueueOut(port=pmd_port0, qid=i)
+
+    queue[i] -> re[i] -> Timestamp(offset=tag_offset) -> qout[i]
+
+repl1:0 -> queue[0]
+repl1:1 -> queue[1]
+repl2:0 -> queue[2]
+repl2:1 -> queue[3]
 pinc0 -> Measure(offset=tag_offset) -> Sink()
 
-queue.set_burst(burst=burst_size)
+# Configure
 pinc0.set_burst(burst=burst_size)
+for i in range(num_cores):
+    queue[i].set_burst(burst=burst_size)
 
-bess.add_worker(wid=1, core=1+offset0)
-bess.add_worker(wid=2, core=3+offset0)
-bess.add_worker(wid=3, core=5+offset0)
-bess.add_tc('rl',
-            policy='rate_limit',
-            resource='packet',
-            limit={'packet': 100000000},
-            wid=2)
-src.attach_task(wid=1)
-queue.attach_task(parent='rl')
-pinc0.attach_task(wid=3)
+# Core Assignment
+all_cores = [(offset0 + i) for i in range(15)]
+
+# traffic inc
+bess.add_worker(wid=1, core=1)
+pinc0.attach_task(wid=1)
+
+bess.add_worker(wid=2, core=2)
+src[0].attach_task(wid=2)
+
+# traffic out
+bess.add_worker(wid=3, core=3)
+bess.add_worker(wid=4, core=4)
+replq1.attach_task(wid=3)
+replq2.attach_task(wid=4)
+
+bess.add_worker(wid=5, core=5)
+bess.add_worker(wid=6, core=6)
+bess.add_worker(wid=7, core=7)
+bess.add_worker(wid=8, core=8)
+queue[0].attach_task(wid=5)
+queue[1].attach_task(wid=6)
+queue[2].attach_task(wid=7)
+queue[3].attach_task(wid=8)
 
 bess.resume_all()

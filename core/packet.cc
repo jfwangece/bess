@@ -62,6 +62,20 @@ Packet *Packet::copy(const Packet *src) {
   return dst;
 }
 
+Packet *Packet::copy_head(const Packet *src) {
+  DCHECK(src->is_linear());
+
+  Packet *dst = reinterpret_cast<Packet *>(rte_pktmbuf_alloc(src->pool_));
+  if (!dst) {
+    return nullptr;  // FAIL.
+  }
+
+  bess::utils::CopyInlined(dst->append(src->total_len()), src->head_data(),
+                           src->head_len(), true);
+
+  return dst;
+}
+
 // basically rte_hexdump() from eal_common_hexdump.c
 static std::string HexDump(const void *buffer, size_t len) {
   std::ostringstream dump;

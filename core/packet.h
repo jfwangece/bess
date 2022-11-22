@@ -187,6 +187,7 @@ class alignas(64) Packet {
   // Duplicate a new Packet object, allocated from the same PacketPool as src.
   // Returns nullptr if memory allocation failed
   static Packet *copy(const Packet *src);
+  static Packet *copy_head(const Packet *src);
 
   phys_addr_t dma_addr() { return buf_physaddr_ + data_off_; }
 

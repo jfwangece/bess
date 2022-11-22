@@ -59,6 +59,8 @@ class Replicate final : public Module {
   gate_idx_t gates_[kMaxGates];
   // The total number of output gates
   int ngates_;
+  // If true, only copy each packet's header.
+  bool header_only_;
 };
 
 #endif  // BESS_MODULES_RELICATE_H_

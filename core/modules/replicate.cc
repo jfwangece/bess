@@ -47,6 +47,11 @@ CommandResponse Replicate::Init(const bess::pb::ReplicateArg &arg) {
   }
   ngates_ = arg.gates_size();
 
+  header_only_ = false;
+  if (arg.header_only()) {
+    header_only_ = true;
+  }
+
   return CommandSuccess();
 }
 
@@ -61,6 +66,7 @@ CommandResponse Replicate::CommandSetGates(
   }
 
   ngates_ = arg.gates_size();
+
   return CommandSuccess();
 }
 
@@ -69,7 +75,12 @@ void Replicate::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   for (int i = 0; i < cnt; i++) {
     bess::Packet *tocopy = batch->pkts()[i];
     for (int j = 1; j < ngates_; j++) {
-      bess::Packet *newpkt = bess::Packet::copy(tocopy);
+      bess::Packet *newpkt = nullptr;
+      if (header_only_) {
+        newpkt = bess::Packet::copy_head(tocopy);
+      } else {
+        newpkt = bess::Packet::copy(tocopy);
+      }
       if (newpkt) {
         EmitPacket(ctx, newpkt, gates_[j]);
       }

@@ -681,7 +681,7 @@ def _do_start(cli, opts):
         opts = []
 
     # need -E to pass GCOV_* env variables through
-    cmd = 'sudo -E %s/core/bessd --dpdk=true --buffers=262144 -k %s' % (os.path.dirname(cli.this_dir),
+    cmd = 'sudo -E %s/core/bessd --dpdk=true --buffers=1048576 -k %s' % (os.path.dirname(cli.this_dir),
                                            ' '.join(opts))
 
     cli.bess.disconnect()
