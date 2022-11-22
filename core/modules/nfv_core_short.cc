@@ -63,17 +63,17 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       state = state_it->second;
     }
 
-    // update per-bucket packet counter and per-bucket flow cache.
-    uint32_t id = state->rss;
-    local_bucket_stats_.per_bucket_packet_counter[id] += 1;
-    local_bucket_stats_.per_bucket_flow_cache[id].emplace(state->flow, true);
-
     // Append flow's stats pointer to pkt's metadata
     *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt)) = state;
     // LOG(INFO) << "set: " << *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
 
+    // update per-bucket packet counter and per-bucket flow cache.
+    uint32_t id = state->rss;
+    local_bucket_stats_.per_bucket_packet_counter[id] += 1;
+
     if (state->short_epoch_packet_count == 0) {
       // Update the per-epoch flow count
+      local_bucket_stats_.per_bucket_flow_cache[id].emplace(state->flow, true);
       epoch_flow_cache_.emplace(state);
     }
     state->short_epoch_packet_count += 1;
