@@ -43,6 +43,9 @@ SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr}; // sw_q can be assigne
 int ncore = 0;
 int rcore = 0;
 
+uint64_t pcpb_packet_count[DEFAULT_INVALID_CORE_ID][512] = {0};
+uint64_t pcpb_flow_count[DEFAULT_INVALID_CORE_ID][512] = {0};
+
 // core is in-use if true
 bool core_state[DEFAULT_INVALID_CORE_ID] = {false};
 // rcore can be assigned if true

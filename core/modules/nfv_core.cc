@@ -107,6 +107,12 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   unoffload_flows_.clear();
   per_flow_states_.Clear(); // CuckooMap
 
+  update_bucket_stats_ = false;
+  for (int i = 0; i < RETA_SIZE; i++) {
+    local_bucket_stats_.per_bucket_packet_counter[i] = 0;
+    local_bucket_stats_.per_bucket_flow_cache[i].clear();
+  }
+
   // Run!
   rte_atomic16_set(&mark_to_disable_, 0);
   rte_atomic16_set(&disabled_, 0);
@@ -188,6 +194,16 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   Port *p = port_;
   const queue_t qid = (queue_t)(uintptr_t)arg;
   bool epoch_advanced = false;
+
+  if (update_bucket_stats_) {
+    for (int i = 0; i < RETA_SIZE; i++) {
+      bess::ctrl::pcpb_packet_count[core_id_][i] = local_bucket_stats_.per_bucket_packet_counter[i];
+      bess::ctrl::pcpb_flow_count[core_id_][i] = local_bucket_stats_.per_bucket_flow_cache[i].size();
+      local_bucket_stats_.per_bucket_packet_counter[i] = 0;
+      local_bucket_stats_.per_bucket_flow_cache[i].clear();
+    }
+    update_bucket_stats_ = false;
+  }
 
   // Read the CPU cycle counter for better accuracy
   curr_ts_ns_ = tsc_to_ns(rdtsc());

@@ -263,6 +263,12 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   } else {
     LOG(ERROR) << "failed to allocate to_remove_queue_";
   }
+  msg_queue_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+  if (msg_queue_) {
+    llring_init(msg_queue_, kQQSize, 0, 1);
+  } else {
+    LOG(ERROR) << "failed to allocate msg_queue_";
+  }
 
   std::string ingress_ip = "10.10.1.1";
   bess::utils::ParseIpv4Address(ingress_ip, &monitor_dst_ip_);

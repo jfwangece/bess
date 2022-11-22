@@ -84,6 +84,10 @@ extern struct llring* local_mc_q[DEFAULT_NICQ_COUNT];
 extern int ncore;
 extern int rcore;
 
+// Performance states
+extern uint64_t pcpb_packet_count[DEFAULT_INVALID_CORE_ID][512];
+extern uint64_t pcpb_flow_count[DEFAULT_INVALID_CORE_ID][512];
+
 // States for maintaining software packet queues, normal and reserved cores.
 extern SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT];
 extern bool core_state[DEFAULT_INVALID_CORE_ID];

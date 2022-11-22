@@ -52,6 +52,9 @@ class NFVCtrl final : public Module {
   inline void RemoveQueue(struct llring* q) {
     llring_mp_enqueue(to_remove_queue_, (void*)q);
   }
+  inline void AddMsg(void* msg) {
+    llring_mp_enqueue(msg_queue_, msg);
+  }
 
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg) override;
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
@@ -133,6 +136,7 @@ class NFVCtrl final : public Module {
 
   // A vector of software queues that cannot be assigned to a reserved core
   std::vector<struct llring*> to_dump_sw_q_;
+  struct llring *msg_queue_;
   struct llring *to_add_queue_;
   struct llring *to_remove_queue_;
 

@@ -134,7 +134,8 @@ class NFVCore final : public Module {
   // - Update epoch packet processed, flow processed
   void UpdateStatsPreProcessBatch(bess::PacketBatch *batch);
 
-  std::vector<uint64_t> GetBucketStats();
+  // Notify this core to upload per-bucket states
+  void UpdateBucketStats();
 
   // EpochEndProcess:
   // - Scan all packets in |q| and split them to all software queues
@@ -213,6 +214,7 @@ class NFVCore final : public Module {
   uint32_t num_epoch_with_large_queue_;
 
   // For recording per-bucket packet and flow counts
+  bool update_bucket_stats_;
   BucketStats local_bucket_stats_;
   // For recording active flows in an epoch
   std::set<FlowState*> epoch_flow_cache_;

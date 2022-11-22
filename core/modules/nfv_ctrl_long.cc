@@ -324,13 +324,15 @@ uint32_t NFVCtrl::LongEpochProcess() {
   uint64_t to_rate_per_sec = 1000000000ULL / (tsc_to_ns(rdtsc()) - last_long_epoch_end_ns_);
 
   for (int j = 0; j < bess::ctrl::ncore; j++) {
-    std::vector<uint64_t> stats = bess::ctrl::nfv_cores[j]->GetBucketStats();
-    for (int i = 0; i < RETA_SIZE; i++) {
-      per_bucket_pkt_rate[i] += stats[2*i];
-      per_bucket_flow_count[i] += stats[2*i + 1];
-    }
+    bess::ctrl::nfv_cores[j]->UpdateBucketStats();
   }
 
+  for (int j = 0; j < bess::ctrl::ncore; j++) {
+    for (int i = 0; i < RETA_SIZE; i++) {
+      per_bucket_pkt_rate[i] += bess::ctrl::pcpb_packet_count[j][i];
+      per_bucket_flow_count[i] += bess::ctrl::pcpb_flow_count[j][i];
+    }
+  }
   for (int i = 0; i < RETA_SIZE; i++) {
     per_bucket_pkt_rate[i] *= to_rate_per_sec;
     per_bucket_flow_count[i] *= to_rate_per_sec;

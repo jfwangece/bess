@@ -18,18 +18,8 @@ using bess::utils::add_debug_tag_nfvcore;
 namespace {
 } // namespace
 
-std::vector<uint64_t> NFVCore::GetBucketStats() {
-  std::vector<uint64_t> stats;
-
-  for (int i = 0; i < RETA_SIZE; i++) {
-    stats.push_back(0);
-    stats.push_back(0);
-    // stats.push_back(local_bucket_stats_.per_bucket_packet_counter[i]);
-    // stats.push_back(local_bucket_stats_.per_bucket_flow_cache[i].size());
-    // local_bucket_stats_.per_bucket_packet_counter[i] = 0;
-    // local_bucket_stats_.per_bucket_flow_cache[i].clear();
-  }
-  return stats;
+void NFVCore::UpdateBucketStats() {
+  update_bucket_stats_ = true;
 }
 
 void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
