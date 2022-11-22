@@ -16,6 +16,7 @@ workers=[{"ip": ips[i], "mac": macs[i]} for i in range(num_workers)]
 ig_mode = int($BESS_IG!'3')
 ncore=int($BESS_NCORE!'4')
 pkt_rate_thresh=int($BESS_PKT_RATE_THRESH!'10000000')
+per_core_pkt_rate_thresh = pkt_rate_thresh / num_cores
 
 # Backbone
 PCAPFILE = $PCAP!"/local/bess/experiment_conf/20190117-130000.tcp.pcap"
@@ -57,7 +58,7 @@ for i in range(num_cores):
         queue[i] = Queue(size=pow(2,20))
 
     re[i] = Replayer(offset=tag_offset, dynamic_traffic_conf=playback_speed_conf)
-    ig[i] = IronsideIngress(mode=ig_mode, endpoints=workers, ncore_thresh=ncore, pkt_rate_thresh=pkt_rate_thresh)
+    ig[i] = IronsideIngress(mode=ig_mode, endpoints=workers, ncore_thresh=ncore, pkt_rate_thresh=per_core_pkt_rate_thresh)
     qout[i] = QueueOut(port=pmd_port0, qid=i)
 
     queue[i] -> re[i] -> ig[i] -> Timestamp(offset=tag_offset) -> qout[i]
