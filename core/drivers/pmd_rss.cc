@@ -156,10 +156,10 @@ void PMDPort::UpdateRssFlow(std::map<uint16_t, uint16_t>& moves) {
   // first = bucket ID; second = core ID;
   int remapping = 0;
   for (auto &it : moves) {
-    uint16_t reta_id = it.first;
+    uint16_t shard = it.first;
     uint16_t core_id = it.second;
     for (uint16_t i = 0; i < 4; i++) {
-      reta_id += i * 128;
+      uint16_t reta_id = shard + i * 128;
       if (reta_table_[reta_id] != core_id) {
         remapping += 1;
         reta_table_[reta_id] = core_id;

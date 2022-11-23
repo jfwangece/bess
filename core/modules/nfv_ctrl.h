@@ -121,12 +121,14 @@ class NFVCtrl final : public Module {
   queue_t qid_;
   bess::PacketBatch* local_batch_;
 
-  // Normal cores and reserved cores
+  /// The number of dedicated cores
   uint16_t total_core_count_;
-  uint16_t active_core_count_; // Updated during the algorithm
-
-  rte_atomic16_t curr_active_core_count_; // Updated after the algorithm
-  uint32_t curr_packet_rate_; // Updated during/after the algorithm
+  // Updated during the algorithm
+  uint16_t active_core_count_;
+  // Updated after the algorithm
+  rte_atomic16_t curr_active_core_count_;
+  // Updated during/after the algorithm
+  uint32_t curr_packet_rate_;
 
   be32_t monitor_src_ip_;
   be32_t monitor_dst_ip_;

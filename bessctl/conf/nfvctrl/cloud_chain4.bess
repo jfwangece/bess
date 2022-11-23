@@ -48,6 +48,7 @@ for i in range(lb_cnt / 20):
         nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
 
 # Module
+# nfvctrl must be declared before PMDPort 
 nfvctrl::NFVCtrl(wid=wid, ncore=core_cnt, rcore=rcore_cnt, qid=total_core_cnt,
                 slo_ns=slo,
                 long_epoch_period_ns=long_epoch_period,

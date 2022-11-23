@@ -181,8 +181,8 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
 
   total_core_count_ = 0;
   if (arg.ncore() > 0) {
-    total_core_count_ = arg.ncore();
     bess::ctrl::ncore = arg.ncore();
+    total_core_count_ = bess::ctrl::ncore;
   }
   if (arg.rcore() > 0) {
     bess::ctrl::rcore = arg.rcore();
@@ -329,8 +329,9 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
     if (llring_count(msg_queue_) != (uint32_t)bess::ctrl::ncore) {
       goto cleanup;
     }
+
     void* m = nullptr;
-    for (int i = 0; i < bess::ctrl::ncore; i++) {
+    while(llring_count(msg_queue_) > 0) {
       llring_sc_dequeue(msg_queue_, (void**)&m);
     }
     msg_mode_ = false;
@@ -338,7 +339,7 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
     // Default long-term op
     // Re-group RSS buckets to cores to adpat to long-term load changes
     uint32_t moves = LongEpochProcess();
-    if (false && moves > 0) {
+    if (moves > 0) {
       LOG(INFO) << "Long-term op: default, time = " << last_long_epoch_end_ns_;
     }
     rte_atomic16_set(&is_rebalancing_load_now_, 0);
