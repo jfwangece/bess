@@ -190,9 +190,8 @@ class NFVCore final : public Module {
   int max_idle_epoch_count_;
 
   // Core-related
-  std::mutex core_time_mu_;
   uint32_t curr_rcore_ = 0;
-  uint64_t sum_core_time_ns_ = 0;
+  rte_atomic64_t sum_core_time_ns_;
 
   // Per-core admission control to avoid latency SLO violations
   // Based on our design, it approximates the NF profile curve

@@ -33,8 +33,8 @@ total_core_cnt = core_cnt + rcore_cnt
 cores = [i for i in range(core_cnt)]
 rcores = [core_cnt + i for i in range(rcore_cnt)]
 print("total cores: %d" %(total_core_cnt))
-print("%d normal cores: %s".format(len(cores), cores))
-print("%d reserved cores: %s".format(len(rcores), rcores))
+print("{} normal cores: {}".format(len(cores), cores))
+print("{} reserved cores: {}".format(len(rcores), rcores))
 
 acl_rules = []
 for i in range(acl_cnt / 50):

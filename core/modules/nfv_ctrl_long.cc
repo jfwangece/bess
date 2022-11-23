@@ -428,6 +428,8 @@ uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
     for (int i = 0; i < SHARD_NUM; i++) {
       per_shard_pkt_rate[i] += bess::ctrl::pcpb_packet_count[j][i];
       per_shard_flow_count[i] += bess::ctrl::pcpb_flow_count[j][i];
+      bess::ctrl::pcpb_packet_count[j][i] = 0;
+      bess::ctrl::pcpb_flow_count[j][i] = 0;
     }
   }
   for (int i = 0; i < SHARD_NUM; i++) {

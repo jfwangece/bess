@@ -175,6 +175,7 @@ def parse_latency_result(tip):
             fields.append(float(line.split(':')[1].strip()) / 1000.0)
     return fields
 
+# For CPU core usage
 def parse_cpu_time_result(wip):
     cmds = ['command', 'module', 'nfv_core0', 'get_core_time', 'EmptyArg']
     p = run_remote_besscmd(wip, cmds)
@@ -185,6 +186,7 @@ def parse_cpu_time_result(wip):
             return int(line.split(':')[2].strip())
     return 0
 
+# For short-term profiling
 def parse_cpu_epoch_result(wip):
     cmds = ['command', 'module', 'nfvctrl', 'get_summary', 'EmptyArg']
     p = run_remote_besscmd(wip, cmds)
@@ -196,7 +198,7 @@ def parse_cpu_epoch_result(wip):
         local_path = "/tmp/stat{}.txt".format(core_id)
         remote_cmd = ['scp', 'uscnsl@{}:{}'.format(wip, remote_path), local_path, '>/dev/null', '2>&1', '\n']
         os.system(' '.join(remote_cmd))
-    
+
     for core_id in range(5):
         local_path = "/tmp/stat{}.txt".format(core_id)
         fp = open(local_path, "r")
@@ -557,7 +559,7 @@ def run_worker_exp(slo):
         start_flowgen(tip, flow, pkt_rate)
     print("exp: traffic started")
 
-    time.sleep(exp_duration - 1)
+    time.sleep(exp_duration - 2)
 
     measure_results = parse_latency_result(traffic_ip[0])
     if len(measure_results) == 0:

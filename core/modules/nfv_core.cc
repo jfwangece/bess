@@ -98,7 +98,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
 
   curr_rcore_ = 0;
   last_boost_ts_ns_ = 0;
-  sum_core_time_ns_ = 0;
+  rte_atomic64_set(&sum_core_time_ns_, 0);
 
   epoch_packet_arrival_ = 0;
   epoch_packet_processed_ = 0;
@@ -151,7 +151,7 @@ void NFVCore::DeInit() {
 
 CommandResponse NFVCore::CommandGetCoreTime(const bess::pb::EmptyArg &) {
   uint64_t sum = 0;
-  for (uint32_t i = 0; i < DEFAULT_INVALID_CORE_ID; i++) {
+  for (int i = 0; i < bess::ctrl::ncore; i++) {
     if (bess::ctrl::nfv_cores[i] != nullptr) {
       sum += bess::ctrl::nfv_cores[i]->GetSumCoreTime();
     }
@@ -226,7 +226,6 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   // status: -95 (not supported)
   // int status = rte_eth_rx_descriptor_status(port_id_, qid, large_queue_packet_thresh_);
-  // bool nic_busy = status != RTE_ETH_RX_DESC_AVAIL;
 
   // Busy pulling from the NIC queue
   int cnt = 0;
@@ -255,7 +254,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
   } else {
     if (queued_pkts * 2 < large_queue_packet_thresh_) {
-      sum_core_time_ns_ += tsc_to_ns(rdtsc()) - last_boost_ts_ns_;
+      uint64_t core_diff = tsc_to_ns(rdtsc()) - last_boost_ts_ns_;
+      rte_atomic64_add(&sum_core_time_ns_, core_diff);
       last_boost_ts_ns_ = 0;
     }
   }
@@ -302,8 +302,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     uint64_t now = tsc_to_ns(rdtsc());
     // Update CPU core usage
     if (is_active) {
-      const std::lock_guard<std::mutex> lock(core_time_mu_);
-      sum_core_time_ns_ += (1 + curr_rcore) * (now - last_short_epoch_end_ns_);
+      uint64_t core_diff = (1 + curr_rcore) * (now - last_short_epoch_end_ns_);
+      rte_atomic64_add(&sum_core_time_ns_, core_diff);
     }
 
     curr_epoch_id_ += 1;
@@ -321,8 +321,7 @@ void NFVCore::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 }
 
 uint64_t NFVCore::GetSumCoreTime() {
-  const std::lock_guard<std::mutex> lock(core_time_mu_);
-  return sum_core_time_ns_;
+  return rte_atomic64_read(&sum_core_time_ns_);
 }
 
 ADD_MODULE(NFVCore, "nfv_core", "It handles traffic burstiness at a normal core")
