@@ -107,9 +107,9 @@ def start_remote_bessd(ip):
 
 def start_traffic(tip, num_worker, mode):
     pkt_thresh = 2000000
-    cmds = ["run", "nfvctrl/cloud_pcap_replay_mc",
-            "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
-    # cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
+    # cmds = ["run", "nfvctrl/cloud_pcap_replay_mc",
+    #         "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
+    cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     if len(out) > 0:
@@ -714,11 +714,12 @@ def run_metron_exp(num_worker):
 # Main experiment
 def run_test_exp():
     worker_cnt = 4
-    target_slos = [100000, 200000]
+    target_slos = [200000]
 
     exp_results = []
     for slo in target_slos:
         slo_us = slo / 1000
+        # short_prof = "./nf_profiles/short_term_base.pro"
         short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
@@ -728,7 +729,7 @@ def run_test_exp():
         print("----------       Ironside exp: no results        ----------")
         return
 
-    print("----------     Ironside main experiment results      ----------")
+    print("----------     Ironside test experiment results      ----------")
     for i, slo in enumerate(target_slos):
         slo_us = slo / 1000
         core_usage, delay = exp_results[i]

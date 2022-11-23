@@ -72,7 +72,7 @@ class BucketStats {
   BucketStats() {}
   // [0, SHARD_NUM - 1]
   uint32_t RSSHashToID(uint32_t hash) {
-    return (hash & (RETA_SIZE - 1)) / RETA_TO_SHARD;
+    return (hash & (RETA_SIZE - 1)) % SHARD_NUM;
   }
 
   uint64_t per_bucket_packet_counter[RETA_SIZE] = {0};
