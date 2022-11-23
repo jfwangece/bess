@@ -81,6 +81,29 @@ void PMDPort::UpdateRssReta(std::map<uint16_t, uint16_t>& moves) {
   }
 }
 
+void PMDPort::UpdateRssReta(std::map<uint16_t, uint16_t>& moves, uint16_t total_shards) {
+  // first = shard ID; second = core ID;
+  int remapping = 0;
+  for (auto &it : moves) {
+    uint16_t shard = it.first;
+    uint16_t core_id = it.second;
+    for (uint16_t reta_id = shard; reta_id < reta_size_; reta_id += total_shards) {
+      if (reta_table_[reta_id] != core_id) {
+        remapping += 1;
+        reta_table_[reta_id] = core_id;
+        reta_conf_[reta_id / RTE_RETA_GROUP_SIZE].reta[it.first % RTE_RETA_GROUP_SIZE] = core_id;
+      }
+    }
+  }
+
+  if (remapping) {
+    int ret = rte_eth_dev_rss_reta_update(dpdk_port_id_, reta_conf_, reta_size_);
+    if (ret != 0) {
+      LOG(INFO) << "Failed to set NIC reta table: " << rte_strerror(ret);
+    }
+  }
+}
+
 void PMDPort::UpdateRssFlow() {
   if (!is_use_group_table_) {
     LOG(INFO) << "Group flow table is not supported";
@@ -156,10 +179,26 @@ void PMDPort::UpdateRssFlow(std::map<uint16_t, uint16_t>& moves) {
   // first = bucket ID; second = core ID;
   int remapping = 0;
   for (auto &it : moves) {
+    uint16_t reta_id = it.first;
+    uint16_t core_id = it.second;
+    if (reta_table_[reta_id] != core_id) {
+      remapping += 1;
+      reta_table_[reta_id] = core_id;
+    }
+  }
+
+  if (remapping) {
+    UpdateRssFlow();
+  }
+}
+
+void PMDPort::UpdateRssFlow(std::map<uint16_t, uint16_t>& moves, uint16_t total_shards) {
+  // first = shard ID; second = core ID;
+  int remapping = 0;
+  for (auto &it : moves) {
     uint16_t shard = it.first;
     uint16_t core_id = it.second;
-    for (uint16_t i = 0; i < 4; i++) {
-      uint16_t reta_id = shard + i * 128;
+    for (uint16_t reta_id = shard; reta_id < reta_size_; reta_id += total_shards) {
       if (reta_table_[reta_id] != core_id) {
         remapping += 1;
         reta_table_[reta_id] = core_id;

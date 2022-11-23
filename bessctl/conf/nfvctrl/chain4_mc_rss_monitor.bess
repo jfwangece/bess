@@ -3,23 +3,20 @@
 # NAT -> Snort
 #
 
-nic=int($BESS_NIC!'1')
+pcie0, offset0="5e:00.0", 1 # MLX
+
 burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 slo = int($BESS_SLO!"200000")
-long_epoch_period = int($BESS_LSTATS_PERIOD!"500000000")
+long_epoch_period = int($BESS_LSTATS_PERIOD!"1000000000")
 short_epoch_period = int(slo / 2)
 exp_idx = int($BESS_EXP!"1")
-ncore = int($BESS_NCORE!"6")
+ncore = int($BESS_NCORE!"5")
 
-# By default, pick MLX NICs
-pcie0, offset0="af:00.0", 7 # XL710
-if nic != 0:
-    pcie0, offset0="5e:00.0", 1 # MLX
-
+# Ironside configure
 queue_scale = 1
-short_profile = "/home/uscnsl/jianfeng/bess_fork/nf_profiles/short_term.pro"
+short_profile = "/home/uscnsl/jianfeng/bess_fork/nf_profiles/short_100_unsafe.pro"
 long_profile = "/home/uscnsl/jianfeng/bess_fork/nf_profiles/long_term_psize1050_slo100.pro"
 
 # NFVCtrl runs on its own core
@@ -65,38 +62,36 @@ nfvmo = {}
 # Pipeline
 for i in cores:
     pout0[i] = QueueOut(port=port0, qid=i)
-    #pout0[i] = Sink()
     fw[i] = FlowACL(rules=acl_rules)
     lb[i] = FlowLB(endpoints=nat_hosts)
     monitor[i] = FlowCounter()
 
     if exp_idx == 0:
         pinc0[i] = NFVCore(core_id=i, port=port0, qid=i, short_epoch_period_ns=short_epoch_period)
-        nfvmo[i] = NFVMonitor(core_id=i, short_epoch_period_ns=short_epoch_period)
+        nfvmo[i] = NFVMonitor(core_id=i)
         pinc0[i] -> nfvmo[i] -> pout0[i]
     elif exp_idx == 1:
         # Default: Chain 4 w/ NFVMonitor
         pinc0[i] = NFVCore(core_id=i, port=port0, qid=i, short_epoch_period_ns=short_epoch_period, large_queue_scale=queue_scale)
-        nfvmo[i] = NFVMonitor(core_id=i, short_epoch_period_ns=short_epoch_period)
-        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> pout0[i]
+        nfvmo[i] = NFVMonitor(core_id=i)
+        pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> MACSwap() -> pout0[i]
     elif exp_idx == 2:
         # Comparison: Chain 4 w/ QueueInc
         pinc0[i] = QueueInc(port=port0, qid=i)
-        nfvmo[i] = NFVMonitor(core_id=i, short_epoch_period_ns=short_epoch_period)
+        nfvmo[i] = NFVMonitor(core_id=i)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> pout0[i]
     elif exp_idx == 3:
         pinc0[i] = QueueInc(port=port0, qid=i)
         pinc0[i] -> fw[i] -> lb[i] -> monitor[i] -> pout0[i]
     else:
         pinc0[i] = QueueInc(port=port0, qid=i)
-        nfvmo[i] = NFVMonitor(core_id=i, short_epoch_period_ns=short_epoch_period)
+        nfvmo[i] = NFVMonitor(core_id=i)
         pinc0[i] -> nfvmo[i] -> pout0[i]
 
 for i in rcores:
-    pinc0[i] = NFVRCore(core_id=i)
+    pinc0[i] = NFVRCore(core_id=i-core_cnt)
     pout0[i] = QueueOut(port=port0, qid=i)
-    #pout0[i] = Sink()
-    pinc0[i] -> MACSwap() -> pout0[i]
+    pinc0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> MACSwap() -> pout0[i]
 
 # Burst
 for i in cores:

@@ -70,16 +70,18 @@ void NFVCtrl::InitPMD(PMDPort* port) {
 
   port_ = port;
   // start with 0.5x CPU core load
-  active_core_count_ = bess::ctrl::ncore / 2;
+  // active_core_count_ = bess::ctrl::ncore / 2;
+  active_core_count_ = 4;
   if (active_core_count_ == 0) {
     active_core_count_ = 1;
   }
 
   // Reset PMD's reta table (even-distributed RSS buckets)
-  for (uint16_t i = 0; i < SHARD_NUM; i++) {
-    for (uint16_t j = 0; j < RETA_TO_SHARD; j++) {
-      uint16_t rss = i + SHARD_NUM * j;
-      port_->reta_table_[rss] = i % active_core_count_;
+  for (uint16_t shard = 0; shard < SHARD_NUM; shard++) {
+    uint16_t core_id = shard % active_core_count_;;
+    for (uint16_t i = 0; i < RETA_TO_SHARD; i++) {
+      uint16_t reta_id = shard + SHARD_NUM * i;
+      port_->reta_table_[reta_id] = core_id;
     }
   }
 
@@ -194,7 +196,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
   std::vector<uint64_t> per_cpu_pkt_rate(bess::ctrl::ncore, 0);
   std::vector<uint64_t> per_cpu_flow_count(bess::ctrl::ncore, 0);
   active_core_count_ = 0;
-  LOG(INFO) << 1;
+
   // Compute the aggregated packet rate for each core.
   // Note: |core_state|: a normal core is in-use;
   // |core_liveness|: # of long-term epochs that a core has been active
@@ -210,7 +212,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
       active_core_count_ += 1;
     }
   }
-  LOG(INFO) << 2;
+
   // Find if any core is exceeding threshold and add it to the to be moved list
   std::vector<uint16_t> to_move_shards;
   std::map<uint16_t, uint16_t> to_move_shards_to_cores; // remember where to put back
@@ -234,13 +236,13 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
       bess::ctrl::core_liveness[i] = 1;
     }
   }
-  LOG(INFO) << 3;
+
   // For all shards to be moved, assign them to a core
   std::map<uint16_t, uint16_t> shard_moves = FindMoves(
       per_cpu_pkt_rate, per_cpu_flow_count,
       per_shard_pkt_rate, per_shard_flow_count,
       to_move_shards);
-  LOG(INFO) << 4;
+
   // Keep track of these shards
   for (auto shard : to_move_shards) {
     uint16_t core = to_move_shards_to_cores[shard];
@@ -252,7 +254,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
   if (active_core_count_ == 1) {
     return shard_moves;
   }
-  LOG(INFO) << 5;
+
   // Find the CPU with minimum flow rate and (try to) delete it
   uint16_t min_rate_core = DEFAULT_INVALID_CORE_ID;
   uint64_t min_rate = 0;
@@ -280,7 +282,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
       min_rate > GetMaxPktRateFromLongTermProfile(per_cpu_flow_count[min_rate_core]) / 2) {
     return shard_moves;
   }
-  LOG(INFO) << 6;
+
   // Move all buckets at the min-rate core; before that, save the current state
   per_cpu_pkt_rate[min_rate_core] = 100000000;
   int org_active_cores = active_core_count_;
@@ -291,7 +293,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
       per_cpu_pkt_rate, per_cpu_flow_count,
       per_shard_pkt_rate, per_shard_flow_count,
       pack_shards);
-  LOG(INFO) << 7;
+
   if (active_core_count_ > org_active_cores ||
       pack_shards.size() > 0 ||
       tmp_shard_moves.size() != pack_shard_cnt) {
@@ -314,7 +316,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
     bess::ctrl::core_state[min_rate_core] = false;
     active_core_count_ -= 1;
   }
-  LOG(INFO) << 8;
+
   return shard_moves;
 }
 
@@ -346,8 +348,8 @@ uint32_t NFVCtrl::LongEpochProcess() {
   SendWorkerInfo();
 
   if (moves.size() && port_) {
-    port_->UpdateRssFlow(moves);
-    LOG(INFO) << "default; moves=" << moves.size() << ", cores=" << active_core_count_;
+    port_->UpdateRssFlow(moves, SHARD_NUM);
+    LOG(INFO) << "default; shard moves=" << moves.size() << ", cores=" << active_core_count_;
   }
   return moves.size();
 }
@@ -445,8 +447,8 @@ uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
   SendWorkerInfo();
 
   if (moves.size() && port_) {
-    port_->UpdateRssFlow(moves);
-    LOG(INFO) << "on-demand; moves=" <<  moves.size() << ", cores=" << active_core_count_;
+    port_->UpdateRssFlow(moves, SHARD_NUM);
+    LOG(INFO) << "on-demand; shard moves=" << moves.size() << ", cores=" << active_core_count_;
   }
   return moves.size();
 }

@@ -196,17 +196,6 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   const queue_t qid = (queue_t)(uintptr_t)arg;
   bool epoch_advanced = false;
 
-  if (update_bucket_stats_) {
-    for (int i = 0; i < SHARD_NUM; i++) {
-      bess::ctrl::pcpb_packet_count[core_id_][i] = local_bucket_stats_.per_bucket_packet_counter[i];
-      bess::ctrl::pcpb_flow_count[core_id_][i] = local_bucket_stats_.per_bucket_flow_cache[i].size();
-      local_bucket_stats_.per_bucket_packet_counter[i] = 0;
-      local_bucket_stats_.per_bucket_flow_cache[i].clear();
-    }
-    bess::ctrl::nfv_ctrl->AddMsg((void*)this);
-    update_bucket_stats_ = false;
-  }
-
   // Read the CPU cycle counter for better accuracy
   curr_ts_ns_ = tsc_to_ns(rdtsc());
   if (curr_ts_ns_ - last_short_epoch_end_ns_ > short_epoch_period_ns_) {
@@ -257,6 +246,20 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
       uint64_t core_diff = tsc_to_ns(rdtsc()) - last_boost_ts_ns_;
       rte_atomic64_add(&sum_core_time_ns_, core_diff);
       last_boost_ts_ns_ = 0;
+    }
+  }
+
+  if (update_bucket_stats_) {
+    for (int i = 0; i < SHARD_NUM; i++) {
+      bess::ctrl::pcpb_packet_count[core_id_][i] = local_bucket_stats_.per_bucket_packet_counter[i];
+      bess::ctrl::pcpb_flow_count[core_id_][i] = local_bucket_stats_.per_bucket_flow_cache[i].size();
+      local_bucket_stats_.per_bucket_packet_counter[i] = 0;
+      local_bucket_stats_.per_bucket_flow_cache[i].clear();
+    }
+    bess::ctrl::nfv_ctrl->AddMsg((void*)this);
+    update_bucket_stats_ = false;
+    if (last_boost_ts_ns_ == 0) {
+      last_boost_ts_ns_ = tsc_to_ns(rdtsc()); // boost!
     }
   }
 

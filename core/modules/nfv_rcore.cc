@@ -49,7 +49,7 @@ CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
   sw_q_ = nullptr;
   if (core_id_ < bess::ctrl::ncore) {
     sw_q_ = bess::ctrl::local_boost_q[core_id_];
-    LOG(INFO) << "rcore: " << core_id_;
+    LOG(INFO) << "rcore (boost): " << core_id_;
   }
 
   // Run!
