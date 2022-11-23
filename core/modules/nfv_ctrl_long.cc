@@ -77,7 +77,7 @@ void NFVCtrl::InitPMD(PMDPort* port) {
 
   // Reset PMD's reta table (even-distributed RSS buckets)
   for (uint16_t i = 0; i < port_->reta_size_; i++) {
-    port_->reta_table_[i] = (i / RETA_TO_SHARD) % active_core_count_;
+    port_->reta_table_[i] = (i % SHARD_NUM) % active_core_count_;
   }
 
   local_batch_ = reinterpret_cast<bess::PacketBatch *>
@@ -344,10 +344,6 @@ uint32_t NFVCtrl::LongEpochProcess() {
   SendWorkerInfo();
 
   if (moves.size() && port_) {
-    bess::ctrl::nfvctrl_bucket_mu.lock();
-    bess::ctrl::trans_buckets = moves;
-    bess::ctrl::nfvctrl_bucket_mu.unlock();
-
     port_->UpdateRssFlow(moves);
     LOG(INFO) << "default; moves=" << moves.size() << ", cores=" << active_core_count_;
   }
@@ -447,10 +443,6 @@ uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
   SendWorkerInfo();
 
   if (moves.size() && port_) {
-    bess::ctrl::nfvctrl_bucket_mu.lock();
-    bess::ctrl::trans_buckets = moves;
-    bess::ctrl::nfvctrl_bucket_mu.unlock();
-
     port_->UpdateRssFlow(moves);
     LOG(INFO) << "on-demand; moves=" <<  moves.size() << ", cores=" << active_core_count_;
   }
