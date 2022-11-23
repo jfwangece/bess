@@ -76,6 +76,9 @@ def install_bess(recompile, ip):
     print("Install BESS daemon for {}".format(ip))
 
     if recompile:
+        bessd = "/local/bess/core/bessd"
+        cmd = "sudo {} --dpdk=false -k".format(bessd)
+        run_remote_command(ip, cmd)
         cmd = "sudo apt install -y htop git && git clone https://github.com/jwangee/FaaS-Setup.git"
         run_remote_command(ip, cmd)
         cmd = "cd ./FaaS-Setup && git pull && ./ironside-install.sh"
@@ -100,6 +103,7 @@ def setup_cpu_memory(ip):
     return
 
 def start_remote_bessd(ip):
+    # start the new one
     bessd = "/local/bess/core/bessd"
     bessd_cmd = "sudo {} --dpdk=true --buffers=1048576 -k".format(bessd)
     run_remote_command(ip, bessd_cmd)
