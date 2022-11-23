@@ -188,27 +188,26 @@ std::map<uint16_t, uint16_t> NFVCtrl::FindMoves(std::vector<uint64_t>& per_cpu_p
 std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
         const std::vector<uint64_t>& per_shard_pkt_rate,
         const std::vector<uint64_t>& per_shard_flow_count) {
-  std::vector<uint64_t> per_cpu_pkt_rate(total_core_count_);
-  std::vector<uint64_t> per_cpu_flow_count(total_core_count_);
+  std::vector<uint64_t> per_cpu_pkt_rate(total_core_count_, 0);
+  std::vector<uint64_t> per_cpu_flow_count(total_core_count_, 0);
   active_core_count_ = 0;
-
+  LOG(INFO) << 1;
   // Compute the aggregated packet rate for each core.
   // Note: |core_state|: a normal core is in-use;
   // |core_liveness|: # of long-term epochs that a core has been active
   for (uint16_t i = 0; i < total_core_count_; i++) {
-    per_cpu_pkt_rate[i] = 0;
-    per_cpu_flow_count[i] = 0;
     if (core_shard_mapping_[i].size() > 0) {
       for (uint16_t shard : core_shard_mapping_[i]) {
         per_cpu_pkt_rate[i] += per_shard_pkt_rate[shard];
         per_cpu_flow_count[i] += per_shard_flow_count[shard];
       }
+
       bess::ctrl::core_state[i] = true;
       bess::ctrl::core_liveness[i] += 1;
       active_core_count_ += 1;
     }
   }
-
+  LOG(INFO) << 2;
   // Find if any core is exceeding threshold and add it to the to be moved list
   std::vector<uint16_t> to_move_shards;
   std::map<uint16_t, uint16_t> to_move_shards_to_cores; // remember where to put back
@@ -218,27 +217,27 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
     }
     // LOG(INFO) << "c" << i << ": " << per_cpu_pkt_rate[i] << ", " << per_cpu_flow_count[i] << ", " << GetMaxPktRateFromLongTermProfile(per_cpu_flow_count[i]);
 
-    // Move a bucket and do this until the aggregated packet rate is below the threshold
+    // Move a shard and do this until the aggregated packet rate is below the threshold
     while (per_cpu_pkt_rate[i] >
           GetMaxPktRateFromLongTermProfile(per_cpu_flow_count[i]) * (1 - MIGRATE_HEAD_ROOM) &&
           core_shard_mapping_[i].size() > 0) {
-      uint16_t bucket = core_shard_mapping_[i].back();
-      to_move_shards.push_back(bucket);
-      to_move_shards_to_cores.emplace(bucket, i);
+      uint16_t shard = core_shard_mapping_[i].back();
+      to_move_shards.push_back(shard);
+      to_move_shards_to_cores.emplace(shard, i);
       core_shard_mapping_[i].pop_back();
 
-      per_cpu_pkt_rate[i] -= per_shard_pkt_rate[bucket];
-      per_cpu_flow_count[i] -= per_shard_flow_count[bucket];
+      per_cpu_pkt_rate[i] -= per_shard_pkt_rate[shard];
+      per_cpu_flow_count[i] -= per_shard_flow_count[shard];
       bess::ctrl::core_liveness[i] = 1;
     }
   }
-
+  LOG(INFO) << 3;
   // For all shards to be moved, assign them to a core
   std::map<uint16_t, uint16_t> shard_moves = FindMoves(
       per_cpu_pkt_rate, per_cpu_flow_count,
       per_shard_pkt_rate, per_shard_flow_count,
       to_move_shards);
-
+  LOG(INFO) << 4;
   // Keep track of these shards
   for (auto shard : to_move_shards) {
     uint16_t core = to_move_shards_to_cores[shard];
@@ -250,7 +249,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
   if (active_core_count_ == 1) {
     return shard_moves;
   }
-
+  LOG(INFO) << 5;
   // Find the CPU with minimum flow rate and (try to) delete it
   uint16_t min_rate_core = DEFAULT_INVALID_CORE_ID;
   uint64_t min_rate = 0;
@@ -278,7 +277,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
       min_rate > GetMaxPktRateFromLongTermProfile(per_cpu_flow_count[min_rate_core]) / 2) {
     return shard_moves;
   }
-
+  LOG(INFO) << 6;
   // Move all buckets at the min-rate core; before that, save the current state
   per_cpu_pkt_rate[min_rate_core] = 100000000;
   int org_active_cores = active_core_count_;
@@ -289,7 +288,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
       per_cpu_pkt_rate, per_cpu_flow_count,
       per_shard_pkt_rate, per_shard_flow_count,
       pack_shards);
-
+  LOG(INFO) << 7;
   if (active_core_count_ > org_active_cores ||
       pack_shards.size() > 0 ||
       tmp_shard_moves.size() != pack_shard_cnt) {
@@ -312,7 +311,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
     bess::ctrl::core_state[min_rate_core] = false;
     active_core_count_ -= 1;
   }
-
+  LOG(INFO) << 8;
   return shard_moves;
 }
 
@@ -323,8 +322,8 @@ uint32_t NFVCtrl::LongEpochProcess() {
   uint64_t time_diff_ns = tsc_to_ns(rdtsc()) - last_long_epoch_end_ns_;
   uint64_t pps = 0;
 
-  for (int j = 0; j < bess::ctrl::ncore; j++) {
-    for (int i = 0; i < SHARD_NUM; i++) {
+  for (int i = 0; i < SHARD_NUM; i++) {
+    for (int j = 0; j < bess::ctrl::ncore; j++) {
       per_shard_pkt_rate[i] += bess::ctrl::pcpb_packet_count[j][i];
       per_shard_flow_count[i] += bess::ctrl::pcpb_flow_count[j][i];
       bess::ctrl::pcpb_packet_count[j][i] = 0;
@@ -358,8 +357,8 @@ uint32_t NFVCtrl::LongEpochProcess() {
 std::map<uint16_t, uint16_t> NFVCtrl::OnDemandLongTermOptimization(uint16_t core_id,
         const std::vector<uint64_t>& per_shard_pkt_rate,
         const std::vector<uint64_t>& per_shard_flow_count) {
-  std::vector<uint64_t> per_cpu_pkt_rate(total_core_count_);
-  std::vector<uint64_t> per_cpu_flow_count(total_core_count_);
+  std::vector<uint64_t> per_cpu_pkt_rate(total_core_count_, 0);
+  std::vector<uint64_t> per_cpu_flow_count(total_core_count_, 0);
 
   for (uint16_t i = 0; i < total_core_count_; i++) {
     per_cpu_pkt_rate[i] = 0;

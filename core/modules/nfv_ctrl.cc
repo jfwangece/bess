@@ -324,11 +324,9 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
         bess::ctrl::nfv_cores[i]->UpdateBucketStats();
       }
       msg_mode_ = true;
-      LOG(INFO) << "1";
       goto cleanup;
     }
     if (llring_count(msg_queue_) != (uint32_t)bess::ctrl::ncore) {
-      LOG(INFO) << "2";
       goto cleanup;
     }
     void* m = nullptr;
@@ -336,7 +334,6 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
       llring_sc_dequeue(msg_queue_, (void**)&m);
     }
     msg_mode_ = false;
-    LOG(INFO) << "3";
 
     // Default long-term op
     // Re-group RSS buckets to cores to adpat to long-term load changes
