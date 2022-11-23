@@ -6,8 +6,8 @@
 #include "../utils/sys_measure.h"
 
 // The amount of space to leave when packing buckets into CPUs
-#define MIGRATE_HEAD_ROOM 0.1
-#define ASSIGN_HEAD_ROOM 0.2
+#define MIGRATE_HEAD_ROOM 0.15
+#define ASSIGN_HEAD_ROOM 0.25
 
 namespace {
 // Template for generating TCP packets without data
@@ -216,7 +216,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
     if (!bess::ctrl::core_state[i]) {
       continue;
     }
-    LOG(INFO) << "c" << i << ": " << per_cpu_pkt_rate[i] << ", " << per_cpu_flow_count[i] << ", " << GetMaxPktRateFromLongTermProfile(per_cpu_flow_count[i]);
+    // LOG(INFO) << "c" << i << ": " << per_cpu_pkt_rate[i] << ", " << per_cpu_flow_count[i] << ", " << GetMaxPktRateFromLongTermProfile(per_cpu_flow_count[i]);
 
     // Move a bucket and do this until the aggregated packet rate is below the threshold
     while (per_cpu_pkt_rate[i] >
