@@ -76,8 +76,11 @@ void NFVCtrl::InitPMD(PMDPort* port) {
   }
 
   // Reset PMD's reta table (even-distributed RSS buckets)
-  for (uint16_t i = 0; i < port_->reta_size_; i++) {
-    port_->reta_table_[i] = (i % SHARD_NUM) % active_core_count_;
+  for (uint16_t i = 0; i < SHARD_NUM; i++) {
+    for (uint16_t j = 0; j < RETA_TO_SHARD; j++) {
+      uint16_t rss = i + SHARD_NUM * j;
+      port_->reta_table_[rss] = i % active_core_count_;
+    }
   }
 
   local_batch_ = reinterpret_cast<bess::PacketBatch *>
