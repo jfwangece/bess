@@ -196,7 +196,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   bool epoch_advanced = false;
 
   if (update_bucket_stats_) {
-    for (int i = 0; i < RETA_SIZE; i++) {
+    for (int i = 0; i < 128; i++) {
       bess::ctrl::pcpb_packet_count[core_id_][i] = local_bucket_stats_.per_bucket_packet_counter[i];
       bess::ctrl::pcpb_flow_count[core_id_][i] = local_bucket_stats_.per_bucket_flow_cache[i].size();
       local_bucket_stats_.per_bucket_packet_counter[i] = 0;
