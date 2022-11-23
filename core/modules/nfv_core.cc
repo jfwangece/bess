@@ -1,3 +1,4 @@
+#include "nfv_ctrl.h"
 #include "nfv_core.h"
 #include "nfv_rcore.h"
 #include "nfv_monitor.h"
@@ -196,12 +197,13 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   bool epoch_advanced = false;
 
   if (update_bucket_stats_) {
-    for (int i = 0; i < 128; i++) {
+    for (int i = 0; i < SHARD_NUM; i++) {
       bess::ctrl::pcpb_packet_count[core_id_][i] = local_bucket_stats_.per_bucket_packet_counter[i];
       bess::ctrl::pcpb_flow_count[core_id_][i] = local_bucket_stats_.per_bucket_flow_cache[i].size();
       local_bucket_stats_.per_bucket_packet_counter[i] = 0;
       local_bucket_stats_.per_bucket_flow_cache[i].clear();
     }
+    bess::ctrl::nfv_ctrl->AddMsg((void*)this);
     update_bucket_stats_ = false;
   }
 

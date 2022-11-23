@@ -9,9 +9,13 @@
 #include "lock_less_queue.h"
 
 #define RETA_SIZE 512
+// Every 4 RSS buckets are mapped to the same shard.
+#define SHARD_NUM 128
+#define RETA_TO_SHARD 4
+
 namespace bess{
 namespace utils {
-
+// A core's performance snapshot.
 struct Snapshot {
   Snapshot(int t_id) {
     epoch_id = t_id; active_core_count = 0; sum_packet_rate = 0;
@@ -66,8 +70,9 @@ class CoreStats {
 class BucketStats {
  public:
   BucketStats() {}
+  // [0, SHARD_NUM - 1]
   uint32_t RSSHashToID(uint32_t hash) {
-    return hash & (RETA_SIZE-1);
+    return (hash & (RETA_SIZE - 1)) / RETA_TO_SHARD;
   }
 
   uint64_t per_bucket_packet_counter[RETA_SIZE] = {0};

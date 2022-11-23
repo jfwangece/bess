@@ -28,7 +28,6 @@ class NFVMonitor;
 
 namespace bess {
 namespace ctrl {
-
 // Used in measure, ironside_ingress
 extern std::shared_mutex nfvctrl_worker_mu;
 // Used in nfvctrl, nfv_core

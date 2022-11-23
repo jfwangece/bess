@@ -155,15 +155,17 @@ void PMDPort::UpdateRssFlow() {
 void PMDPort::UpdateRssFlow(std::map<uint16_t, uint16_t>& moves) {
   // first = bucket ID; second = core ID;
   int remapping = 0;
-  std::set<uint16_t> active_cores;
   for (auto &it : moves) {
-    if (reta_table_[it.first] != it.second) {
-      remapping += 1;
+    uint16_t reta_id = it.first;
+    uint16_t core_id = it.second;
+    for (uint16_t i = 0; i < 4; i++) {
+      reta_id += i * 128;
+      if (reta_table_[reta_id] != core_id) {
+        remapping += 1;
+        reta_table_[reta_id] = core_id;
+      }
     }
-    reta_table_[it.first] = it.second;
-    active_cores.emplace(it.second);
   }
-  // LOG(INFO) << "(UpdateRssFlow): " << active_cores.size() << " active cores";
 
   if (remapping) {
     UpdateRssFlow();

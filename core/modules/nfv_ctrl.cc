@@ -269,6 +269,7 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   } else {
     LOG(ERROR) << "failed to allocate msg_queue_";
   }
+  msg_mode_ = false;
 
   std::string ingress_ip = "10.10.1.1";
   bess::utils::ParseIpv4Address(ingress_ip, &monitor_dst_ip_);
@@ -318,6 +319,22 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
 
   uint64_t curr_ts_ns = tsc_to_ns(rdtsc());
   if (curr_ts_ns - last_long_epoch_end_ns_ > long_epoch_period_ns_) {
+    if (!msg_mode_) {
+      for (int i = 0; i < bess::ctrl::ncore; i++) {
+        bess::ctrl::nfv_cores[i]->UpdateBucketStats();
+      }
+      msg_mode_ = true;
+      goto cleanup;
+    }
+    if (llring_count(msg_queue_) != (uint32_t)bess::ctrl::ncore) {
+      goto cleanup;
+    }
+    void* m = nullptr;
+    for (int i = 0; i < bess::ctrl::ncore; i++) {
+      llring_sc_dequeue(msg_queue_, (void**)&m);
+    }
+    msg_mode_ = false;
+
     // Default long-term op
     // Re-group RSS buckets to cores to adpat to long-term load changes
     uint32_t moves = LongEpochProcess();
@@ -358,6 +375,7 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
     }
   }
 
+cleanup:
   // The following is a factory that dumps packets (in batch) that won't
   // be processed by any Cores or RCores.
   // WHy do we need this?

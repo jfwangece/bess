@@ -113,8 +113,8 @@ class NFVCtrl final : public Module {
 
   int worker_id_;
 
-  // For each normal CPU core, the set of assigned RSS buckets
-  std::map<uint16_t, std::vector<uint16_t>> core_bucket_mapping_;
+  // For each normal CPU core, the set of assigned RSS shards
+  std::map<uint16_t, std::vector<uint16_t>> core_shard_mapping_;
 
   // For updating RSS bucket assignment
   PMDPort *port_;
@@ -134,9 +134,11 @@ class NFVCtrl final : public Module {
   // The lock for maintaining a pool of software queues
   mutable std::mutex sw_q_mtx_;
 
+  bool msg_mode_;
+  struct llring *msg_queue_;
+
   // A vector of software queues that cannot be assigned to a reserved core
   std::vector<struct llring*> to_dump_sw_q_;
-  struct llring *msg_queue_;
   struct llring *to_add_queue_;
   struct llring *to_remove_queue_;
 
