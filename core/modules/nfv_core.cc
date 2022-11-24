@@ -93,7 +93,11 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
     if (arg.large_queue_scale() > 0) {
       large_queue_packet_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second * arg.large_queue_scale();
     }
-    LOG(INFO) << "epoch thresh: pkt=" << epoch_packet_thresh_ << ", queue=" << large_queue_packet_thresh_;
+    busy_pull_round_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second / 32;
+    if (busy_pull_round_thresh_ < 1) {
+      busy_pull_round_thresh_ = 1;
+    }
+    LOG(INFO) << "epoch thresh: pkt=" << epoch_packet_thresh_ << ", q=" << large_queue_packet_thresh_ << ", pull round=" << busy_pull_round_thresh_;
   }
 
   curr_rcore_ = 0;
@@ -237,7 +241,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // Boost if 1) the core has pulled many packets (i.e. 128) in this round; 2) |local_queue_| is large.
   uint32_t queued_pkts = llring_count(local_queue_);
   if (last_boost_ts_ns_ == 0) {
-    if (pull_rounds >= 4 ||
+    if (pull_rounds >= busy_pull_round_thresh_ ||
         queued_pkts >= large_queue_packet_thresh_) {
       last_boost_ts_ns_ = tsc_to_ns(rdtsc()); // boost!
     }
@@ -270,10 +274,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   batch->set_cnt(cnt);
 
   uint32_t total_pkts = (uint32_t)cnt;
-  uint64_t total_bytes = 0;
-  for (int i = 0; i < cnt; i++) {
-    total_bytes += batch->pkts()[i]->total_len();
-  }
+  uint64_t total_bytes = 0; // forget about counting bytes
 
   if (cnt > 0) {
     // Update |epoch_packet_processed_| and |per_flow_states_|, i.e.

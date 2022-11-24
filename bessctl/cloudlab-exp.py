@@ -570,7 +570,7 @@ def run_worker_exp(slo):
         start_flowgen(tip, flow, pkt_rate)
     print("exp: traffic started")
 
-    time.sleep(exp_duration - 2)
+    time.sleep(exp_duration)
 
     measure_results = parse_latency_result(traffic_ip[0])
     if len(measure_results) == 0:
@@ -635,7 +635,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
         start_traffic(tip, num_worker, ig_mode)
     print("exp: traffic started")
 
-    time.sleep(exp_duration - 1)
+    time.sleep(exp_duration)
 
     measure_results = parse_latency_result(traffic_ip[0])
     if len(measure_results) == 0:
@@ -660,7 +660,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     print("- avg core usage (in cores): {}".format(avg_cores))
     print("---------------------------------------------------------------")
     # 50, 90, 95, 98, 99
-    return (avg_cores, delay)
+    return (avg_cores, total_packets/1000000.0, delay)
 
 def run_metron_exp(num_worker):
     selected_worker_ips = []
@@ -695,7 +695,7 @@ def run_metron_exp(num_worker):
         start_traffic_core_ingress(tip, num_worker, ig_mode)
     print("exp: traffic started")
 
-    time.sleep(exp_duration - 1)
+    time.sleep(exp_duration)
 
     measure_results = parse_latency_result(traffic_ip[0])
     if len(measure_results) == 0:
@@ -741,8 +741,8 @@ def run_test_exp():
     print("----------     Ironside test experiment results      ----------")
     for i, slo in enumerate(target_slos):
         slo_us = slo / 1000
-        core_usage, delay = exp_results[i]
-        print("{} us - {:0.2f}, {}".format(slo_us, core_usage, delay))
+        r = exp_results[i]
+        print("{} us - {:0.2f}, {:0.2f}, {}".format(slo_us, r[0], r[1], r[2]))
     print("---------------------------------------------------------------")
     return
 
@@ -766,8 +766,8 @@ def run_main_exp():
     print("----------     Ironside main experiment results      ----------")
     for i, slo in enumerate(target_slos):
         slo_us = slo / 1000
-        core_usage, delay = exp_results[i]
-        print("{} us - {:0.2f}, {}".format(slo_us, core_usage, delay))
+        r = exp_results[i]
+        print("{} us - {:0.2f}, {:0.2f}, {}".format(slo_us, r[0], r[1], r[2]))
     print("---------------------------------------------------------------")
     return
 
@@ -819,9 +819,9 @@ def run_ablation_server_mapper():
         slo_us = slo / 1000
         r1, r2, r3 = exp_results[i]
         print("SLO: {} us".format(slo_us))
-        print("      - ironside       {:0.2f}, {}".format(r1[0], r1[1]))
-        print("      - safe           {:0.2f}, {}".format(r2[0], r2[1]))
-        print("      - unsafe         {:0.2f}, {}".format(r3[0], r3[1]))
+        print("      - ironside       {:0.2f}, {:0.2f}, {}".format(r1[0], r1[1], r1[2]))
+        print("      - safe           {:0.2f}, {:0.2f}, {}".format(r2[0], r2[1], r2[2]))
+        print("      - unsafe         {:0.2f}, {:0.2f}, {}".format(r3[0], r3[1], r3[2]))
     print("---------------------------------------------------------------")
     return
 
@@ -864,10 +864,10 @@ def run_ablation_core_mapper():
         slo_us = slo / 1000
         r1, r2, r3, r4 = exp_results[i]
         print("SLO: {} us".format(slo_us))
-        print("      - ironside       {:0.2f}, {}".format(r1[0], r1[1]))
-        print("      - safe           {:0.2f}, {}".format(r2[0], r2[1]))
-        print("      - unsafe         {:0.2f}, {}".format(r3[0], r3[1]))
-        print("      - no core-mapper {:0.2f}, {}".format(r4[0], r4[1]))
+        print("      - ironside       {:0.2f}, {:0.2f}, {}".format(r1[0], r1[1], r1[2]))
+        print("      - safe           {:0.2f}, {:0.2f}, {}".format(r2[0], r2[1], r2[2]))
+        print("      - unsafe         {:0.2f}, {:0.2f}, {}".format(r3[0], r3[1], r3[2]))
+        print("      - no core-mapper {:0.2f}, {:0.2f}, {}".format(r4[0], r4[1], r4[2]))
     print("---------------------------------------------------------------")
     return
 

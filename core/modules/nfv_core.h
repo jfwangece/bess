@@ -196,6 +196,7 @@ class NFVCore final : public Module {
   // Per-core admission control to avoid latency SLO violations
   // Based on our design, it approximates the NF profile curve
   uint32_t epoch_packet_thresh_;
+  uint32_t busy_pull_round_thresh_;
   uint32_t large_queue_packet_thresh_;
   uint32_t epoch_drop1_;
   uint32_t epoch_drop2_;
