@@ -13,14 +13,14 @@ offset0 = 1
 traffic_ip = "10.10.1.1"
 traffic_mac = $TRAFFIC_MAC!"b8:ce:f6:d2:3b:1a"
 
-slo = int($BESS_SLO!"200000")
-short_profile = $BESS_SPROFILE!"/local/bess/nf_profiles/short_term.pro"
-long_profile = $BESS_LPROFILE!"/local/bess/nf_profiles/long_term_psize1050_slo100.pro"
+slo = int($BESS_SLO!"100000")
+short_profile = $BESS_SPROFILE!"/local/bess/nf_profiles/short_100.pro"
+long_profile = $BESS_LPROFILE!"/local/bess/nf_profiles/long_100_p50.pro"
 
 burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
-long_epoch_period = int($BESS_LSTATS_PERIOD!"1000000000")
+long_epoch_period = int($BESS_LSTATS_PERIOD!"2000000000")
 short_epoch_period = int(slo / 2)
 ncore = int($BESS_NCORE!"8")
 queue_scale = 1
