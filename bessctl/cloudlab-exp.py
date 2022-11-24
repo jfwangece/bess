@@ -747,7 +747,7 @@ def run_test_exp():
     return
 
 def run_main_exp():
-    worker_cnt = 4
+    worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
     exp_results = []
@@ -772,7 +772,7 @@ def run_main_exp():
     return
 
 def run_compare_exp():
-    worker_cnt = 4
+    worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
     run_metron_exp(worker_cnt)
@@ -783,7 +783,7 @@ def run_compare_exp():
 
 # Ablation experiments
 def run_ablation_server_mapper():
-    worker_cnt = 4
+    worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
     exp_results = []
@@ -826,7 +826,7 @@ def run_ablation_server_mapper():
     return
 
 def run_ablation_core_mapper():
-    worker_cnt = 4
+    worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
     exp_results = []

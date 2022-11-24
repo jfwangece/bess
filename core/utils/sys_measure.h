@@ -10,8 +10,8 @@
 
 #define RETA_SIZE 512
 // Every 4 RSS buckets are mapped to the same shard.
-#define SHARD_NUM 128
-#define RETA_TO_SHARD 4
+#define SHARD_NUM 64
+#define RETA_TO_SHARD (RETA_SIZE/SHARD_NUM)
 
 namespace bess{
 namespace utils {

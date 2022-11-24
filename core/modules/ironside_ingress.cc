@@ -200,7 +200,7 @@ void IronsideIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     ip->dst = after;
 
     if (rewrite_ > 0) {
-      ip->src = ip->src | ip_mask_;
+      // ip->src = ip->src | ip_mask_;
       tcp->src_port = tcp->dst_port | tcp_port_mask_;
       tcp->dst_port = tcp->dst_port | tcp_port_mask_;
     }
