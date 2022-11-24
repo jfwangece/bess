@@ -60,8 +60,8 @@ CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
     pkt_cnts_[i] = 0;
   }
 
-  for (int i = 0; i < macs_.size(); i++) {
-    LOG(INFO) << "worker " << i << ": " << macs_[i] << ", " << ips_[i];
+  for (uint32_t i = 0; i < macs_.size(); i++) {
+    LOG(INFO) << "worker " << i << ": " << macs_[i].ToString() << ", " << ips_[i].value();
   }
   LOG(INFO) << "mode: " << mode_ << "; ncore thresh=" << ncore_thresh_ << "; rate thresh=" << pkt_rate_thresh_;
   return CommandSuccess();
