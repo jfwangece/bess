@@ -263,13 +263,9 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
   } else {
     LOG(ERROR) << "failed to allocate to_remove_queue_";
   }
-  msg_queue_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-  if (msg_queue_) {
-    llring_init(msg_queue_, kQQSize, 0, 1);
-  } else {
-    LOG(ERROR) << "failed to allocate msg_queue_";
-  }
+
   msg_mode_ = false;
+  rte_atomic16_set(&long_term_stats_ready_cores_, 0);
 
   std::string ingress_ip = "10.10.1.1";
   bess::utils::ParseIpv4Address(ingress_ip, &monitor_dst_ip_);
@@ -326,14 +322,12 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
       msg_mode_ = true;
       goto cleanup;
     }
-    if (llring_count(msg_queue_) != (uint32_t)bess::ctrl::ncore) {
+
+    if (rte_atomic16_read(&long_term_stats_ready_cores_) != bess::ctrl::ncore) {
       goto cleanup;
     }
 
-    void* m = nullptr;
-    while(llring_count(msg_queue_) > 0) {
-      llring_sc_dequeue(msg_queue_, (void**)&m);
-    }
+    rte_atomic16_set(&long_term_stats_ready_cores_, 0);
     msg_mode_ = false;
 
     // Default long-term op

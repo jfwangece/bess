@@ -76,8 +76,7 @@ def install_bess(recompile, ip):
     print("Install BESS daemon for {}".format(ip))
 
     if recompile:
-        bessd = "/local/bess/core/bessd"
-        cmd = "sudo {} --dpdk=false -k".format(bessd)
+        cmd = "sudo kill `pgrep bessd`"
         run_remote_command(ip, cmd)
         cmd = "sudo apt install -y htop git && git clone https://github.com/jwangee/FaaS-Setup.git"
         run_remote_command(ip, cmd)
@@ -111,9 +110,9 @@ def start_remote_bessd(ip):
 
 def start_traffic(tip, num_worker, mode):
     pkt_thresh = 2000000
-    # cmds = ["run", "nfvctrl/cloud_pcap_replay_mc",
-    #         "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
-    cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
+    cmds = ["run", "nfvctrl/cloud_pcap_replay_mc",
+            "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
+    # cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     if len(out) > 0:
@@ -719,7 +718,7 @@ def run_metron_exp(num_worker):
 
 # Main experiment
 def run_test_exp():
-    worker_cnt = 4
+    worker_cnt = 3
     target_slos = [200000]
 
     exp_results = []

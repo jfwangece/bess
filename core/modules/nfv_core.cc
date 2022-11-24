@@ -256,7 +256,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
       local_bucket_stats_.per_bucket_packet_counter[i] = 0;
       local_bucket_stats_.per_bucket_flow_cache[i].clear();
     }
-    bess::ctrl::nfv_ctrl->AddMsg((void*)this);
+
+    bess::ctrl::nfv_ctrl->NotifyLongTermStatsReady();
     update_bucket_stats_ = false;
     if (last_boost_ts_ns_ == 0) {
       last_boost_ts_ns_ = tsc_to_ns(rdtsc()); // boost!

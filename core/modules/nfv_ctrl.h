@@ -52,8 +52,8 @@ class NFVCtrl final : public Module {
   inline void RemoveQueue(struct llring* q) {
     llring_mp_enqueue(to_remove_queue_, (void*)q);
   }
-  inline void AddMsg(void* msg) {
-    llring_mp_enqueue(msg_queue_, msg);
+  inline void NotifyLongTermStatsReady() {
+    rte_atomic16_inc(&long_term_stats_ready_cores_);
   }
 
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg) override;
@@ -137,7 +137,7 @@ class NFVCtrl final : public Module {
   mutable std::mutex sw_q_mtx_;
 
   bool msg_mode_;
-  struct llring *msg_queue_;
+  rte_atomic16_t long_term_stats_ready_cores_;
 
   // A vector of software queues that cannot be assigned to a reserved core
   std::vector<struct llring*> to_dump_sw_q_;
