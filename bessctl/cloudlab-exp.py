@@ -25,6 +25,23 @@ all_ip = traffic_ip + worker_ip
 # * in nfv_ctrl_long.cc: edit traffic dst mac
 macs = ["b8:ce:f6:d2:3a:ba", "b8:ce:f6:b0:35:e2", "b8:ce:f6:d2:3a:c2", "b8:ce:f6:cc:8e:cc", "b8:ce:f6:cc:a2:e4"]
 
+def wait_pids(pids):
+    for p in pids:
+        p.join()
+    return
+
+def wait_pids_with_timeout(pids, max_time=10):
+    start = time.time()
+    while time.time() < start < max_time:
+        if any(p.is_alive() for p in pids):
+            time.sleep(0.2)
+            continue
+        break
+    else:
+        for p in pids:
+            p.terminate()
+            p.join()
+
 def send_remote_file(ip, local_path, target_path):
     remote_cmd = ['scp', local_path, 'uscnsl@{}:{}'.format(ip, target_path), '>/dev/null', '2>&1', '\n']
     os.system(' '.join(remote_cmd))
@@ -76,7 +93,7 @@ def install_bess(recompile, ip):
     print("Install BESS daemon for {}".format(ip))
 
     if recompile:
-        cmd = "sudo kill `pgrep bessd`"
+        cmd = "sudo pkill -f bessd"
         run_remote_command(ip, cmd)
         cmd = "sudo apt install -y htop git && git clone https://github.com/jwangee/FaaS-Setup.git"
         run_remote_command(ip, cmd)
@@ -102,6 +119,9 @@ def setup_cpu_memory(ip):
     return
 
 def start_remote_bessd(ip):
+    # kill the old one
+    cmd = "sudo pkill -f bessd"
+    run_remote_command(ip, cmd)
     # start the new one
     bessd = "/local/bess/core/bessd"
     bessd_cmd = "sudo {} --dpdk=true --buffers=1048576 -k".format(bessd)
@@ -233,8 +253,7 @@ def reset_grub_for_all():
         p.start()
         pids.append(p)
 
-    for p in pids:
-        p.join()
+    wait_pids(pids)
 
     print("Done resetting grub")
     return
@@ -247,8 +266,7 @@ def install_mlnx_for_all():
         p.start()
         pids.append(p)
 
-    for p in pids:
-        p.join()
+    wait_pids(pids)
 
     print("Done installing mlnx")
     return
@@ -261,8 +279,7 @@ def install_bess_for_all():
         p.start()
         pids.append(p)
 
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("Done installing ironside")
     return
 
@@ -274,8 +291,7 @@ def fetch_bess_for_all():
         p.start()
         pids.append(p)
 
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("Done fetching ironside configures")
     return
 
@@ -297,8 +313,7 @@ def setup_cpu_hugepage_for_all():
         p.start()
         pids.append(p)
 
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("exp: all hugepages ready")
     return
 
@@ -308,8 +323,7 @@ def run_traffic():
         p = multiprocessing.Process(target=start_remote_bessd, args=(tip,))
         p.start()
         pids.append(p)
-    for p in pids:
-        p.join()
+    wait_pids(pids)
 
     for tip in traffic_ip:
         start_traffic(tip)
@@ -339,8 +353,7 @@ def long_term_profile_once(slo, flow, pkt_rate):
         p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
         p.start()
         pids.append(p)
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("exp: all bessd started")
 
     # Run all workers
@@ -351,8 +364,7 @@ def long_term_profile_once(slo, flow, pkt_rate):
         p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
         p.start()
         pids.append(p)
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("exp: all workers started")
 
     total_flow = flow
@@ -459,8 +471,7 @@ def short_term_profile_once(slo):
         p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
         p.start()
         pids.append(p)
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("exp: all bessd started")
 
     # Run all workers
@@ -471,8 +482,7 @@ def short_term_profile_once(slo):
         p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
         p.start()
         pids.append(p)
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("exp: all workers started")
 
     ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
@@ -540,8 +550,7 @@ def run_worker_exp(slo):
         p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
         p.start()
         pids.append(p)
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("exp: all bessd started")
 
     # Run all workers
@@ -552,8 +561,7 @@ def run_worker_exp(slo):
         p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
         p.start()
         pids.append(p)
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("exp: all workers started")
 
     flow = 1000
@@ -607,8 +615,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
         p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
         p.start()
         pids.append(p)
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("exp: all bessd started")
 
     # Run all workers
@@ -618,8 +625,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
         # p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
         p.start()
         pids.append(p)
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("exp: all workers started")
 
     # mode: 0 min core; 1 min traffic; 2 max core; 3 max traffic
@@ -672,8 +678,7 @@ def run_metron_exp(num_worker):
         p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
         p.start()
         pids.append(p)
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("exp: all bessd started")
 
     # Run all workers
@@ -682,8 +687,7 @@ def run_metron_exp(num_worker):
         p = multiprocessing.Process(target=start_metron_worker, args=(wip, i))
         p.start()
         pids.append(p)
-    for p in pids:
-        p.join()
+    wait_pids(pids)
     print("exp: all workers started")
 
     ig_mode = 0
@@ -887,8 +891,8 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    run_test_exp()
-    # run_main_exp()
+    # run_test_exp()
+    run_main_exp()
     # run_compare_exp()
 
     # Ablation: the server mapper
