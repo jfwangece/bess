@@ -22,8 +22,6 @@ class MetronCore final : public Module {
   uint64_t GetSumCoreTime();
 
  private:
-  using HashTable = bess::utils::CuckooMap<Flow, FlowState*, FlowHash, Flow::EqualTo>;
-
   uint32_t core_id_;
 
   uint64_t epoch_packet_count_;
