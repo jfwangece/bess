@@ -60,7 +60,7 @@ for i in range(num_cores):
     ig[i] = MetronIngress(mode=ig_mode, endpoints=workers)
     qout[i] = QueueOut(port=pmd_port0, qid=i)
 
-    src[i] -> queue[i] -> re[i] -> ig[i] -> Timestamp(offset=tag_offset) -> qout[i]
+    queue[i] -> re[i] -> ig[i] -> Timestamp(offset=tag_offset) -> qout[i]
 
 repl1:0 -> queue[0]
 repl1:1 -> queue[1]
