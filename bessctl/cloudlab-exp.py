@@ -600,10 +600,11 @@ def run_worker_exp(slo):
 # run nfvctrl/cloud_pcap_replay_mc BESS_NUM_WORKER=4, BESS_IG=3, BESS_PKT_RATE_THRESH=3000000
 # run nfvctrl/cloud_chain4 BESS_SPROFILE="./short.prof", BESS_LPROFILE="./long.prof"
 def run_cluster_exp(num_worker, slo, short_profile, long_profile):
+    exp_duration = 35
+
     selected_worker_ips = []
     for i in range(num_worker):
         selected_worker_ips.append(worker_ip[i])
-    exp_duration = 30
 
     # Start all bessd
     pids = []
@@ -723,13 +724,13 @@ def run_metron_exp(num_worker):
 # Main experiment
 def run_test_exp():
     worker_cnt = 3
-    target_slos = [200000]
+    target_slos = [100000]
 
     exp_results = []
     for slo in target_slos:
         slo_us = slo / 1000
         # short_prof = "./nf_profiles/short_term_base.pro"
-        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
+        short_prof = "./nf_profiles/short_{}_safe.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
         exp_results.append(r)
@@ -891,8 +892,8 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    # run_test_exp()
-    run_main_exp()
+    run_test_exp()
+    # run_main_exp()
     # run_compare_exp()
 
     # Ablation: the server mapper
