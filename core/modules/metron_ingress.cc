@@ -18,12 +18,27 @@ CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
     ips_.push_back(addr);
   }
 
+  pkt_rate_thresh_ = 1000000;
+  if (arg.pkt_rate_thresh() > 0) {
+    pkt_rate_thresh_ = arg.pkt_rate_thresh();
+  }
+
   // Initially, all flow aggregates go to core 0.
   flow_aggregates_.emplace_back(FlowAggregate(0, 255, 0));
-  for (uint32_t i = 0; i < 255; i++) {
-    flow_to_core_.emplace(i, 0);
-    pkt_cnts_[i] = 0;
+  for (uint32_t i = 0; i < 256; i++) {
+    flow_id_to_core_[i] = 0;
   }
+
+  // Init
+  in_use_cores_[0] = true;
+  for (int i = 0; i < 64; i++) {
+    per_core_pkt_cnts_[i] = 0;
+  }
+  for (int i = 0; i < 256; i++) {
+    per_flow_id_pkt_cnts_[i] = 0;
+  }
+
+  LOG(INFO) << "metron ingress: pkt thresh " << pkt_rate_thresh_;
 
   return CommandSuccess();
 }
@@ -31,14 +46,79 @@ CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
 void MetronIngress::DeInit() {
   flow_aggregates_.clear();
   flow_to_core_.clear();
+
   // Initially, all flow aggregates go to core 0.
   flow_aggregates_.emplace_back(FlowAggregate());
   for (uint32_t i = 0; i < 256; i++) {
-    flow_to_core_.emplace(i, 0);
+    flow_id_to_core_[i] = 0;
+  }
+
+  in_use_cores_[0] = true;
+  for (int i = 0; i < 64; i++) {
+    per_core_pkt_cnts_[i] = 0;
+  }
+  for (int i = 0; i < 256; i++) {
+    per_flow_id_pkt_cnts_[i] = 0;
+  }
+}
+
+int MetronIngress::GetFreeCore() {
+  for (int i = 0; i < 64; i++) {
+    if (!in_use_cores_[i]) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+void MetronIngress::ProcessOverloads() {
+  uint64_t curr_ts = tsc_to_ns(rdtsc());
+  if (curr_ts - last_update_ts_ < 1000000000) {
+    return;
+  }
+  last_update_ts_ = curr_ts;
+
+  for (int i = 0; i < 64; i++) {
+    if (per_core_pkt_cnts_[i] > pkt_rate_thresh_) {
+      uint32_t left = 0;
+      uint32_t mid = 127;
+      uint32_t right = 255;
+      int org_core = i;
+
+      // Search for the flow aggregate
+      for (auto it = flow_aggregates_.begin(); it != flow_aggregates_.end(); it++) {
+        if (it->core == i) {
+          left = it->start;
+          right = it->end;
+          flow_aggregates_.erase(it);
+          break;
+        }
+      }
+
+      // Split (128, 255)
+      mid = (left + right) / 2;
+      int new_core = GetFreeCore();
+
+      in_use_cores_[new_core] = true;
+      flow_aggregates_.emplace_back(FlowAggregate(left, mid, org_core));
+      flow_aggregates_.emplace_back(FlowAggregate(mid + 1, right, new_core));
+      for (uint32_t flow_id = mid + 1; flow_id <= right; flow_id++) {
+        flow_id_to_core_[flow_id] = new_core;
+      }
+    }
+  }
+
+  for (int i = 0; i < 64; i++) {
+    per_core_pkt_cnts_[i] = 0;
+  }
+  for (int i = 0; i < 256; i++) {
+    per_flow_id_pkt_cnts_[i] = 0;
   }
 }
 
 void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
+  ProcessOverloads();
+
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
@@ -53,7 +133,6 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     // |flow_id|: [0, 255]
     uint32_t flow_id = ip->dst.value() & 0xff;
-    pkt_cnts_[flow_id] += 1;
 
     uint32_t dst_worker = 0;
     uint32_t dst_core = 0;
@@ -62,14 +141,19 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       dst_core = it->second;
     } else {
       // This is a new flow.
-      for (auto it = flow_aggregates_.begin(); it != flow_aggregates_.end(); it++) {
-        if (flow_id >= it->start && flow_id < it->end) {
-          dst_core = it->core;
-          flow_to_core_.emplace(flow_id, dst_core);
-          break;
-        }
-      }
+      // for (auto it = flow_aggregates_.begin(); it != flow_aggregates_.end(); it++) {
+      //   if (flow_id >= it->start && flow_id < it->end) {
+      //     dst_core = it->core;
+      //     flow_to_core_.emplace(flow_id, dst_core);
+      //     break;
+      //   }
+      // }
+      dst_core = flow_id_to_core_[flow_id];
+      flow_to_core_.emplace(flow_id, dst_core);
     }
+
+    per_flow_id_pkt_cnts_[flow_id] += 1;
+    per_core_pkt_cnts_[dst_core] += 1;
 
     // Send to core
     eth->dst_addr = macs_[dst_worker];

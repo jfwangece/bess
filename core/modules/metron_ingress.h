@@ -41,7 +41,9 @@ class MetronIngress final : public Module {
     FlowAggregate(const FlowAggregate& other) {
       start = other.start; end = other.end; core = other.core;
     }
-    Split() {}
+    bool operator==(const FlowAggregate& other) const {
+      return (this->start == other.start) && (this->end == other.end);
+    }
   };
 
   MetronIngress() : Module() {
@@ -51,10 +53,16 @@ class MetronIngress final : public Module {
   CommandResponse Init(const bess::pb::MetronIngressArg& arg);
   void DeInit() override;
 
+  void ProcessOverloads();
+
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
  private:
+  int GetFreeCore();
+
   uint64_t last_update_ts_;
+
+  uint32_t pkt_rate_thresh_;
 
   // Workers in the cluster (for routing)
   std::vector<Ethernet::Address> macs_;
@@ -65,10 +73,14 @@ class MetronIngress final : public Module {
 
   // Per-flow-aggregate connection table
   // [0, 255] -> cpu core index
-  std::map<uint32_t, uint32_t> flow_to_core_;
+  int flow_id_to_core_[256];
+  std::map<uint32_t, int> flow_to_core_;
+
+  bool in_use_cores_[64] = {false};
 
   // For monitoring
-  uint64_t pkt_cnts_[256] = {0};
+  uint64_t per_core_pkt_cnts_[64];
+  uint64_t per_flow_id_pkt_cnts_[256];
 };
 
 #endif  // BESS_MODULES_METRON_INGRESS_H_
