@@ -17,7 +17,7 @@ burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 
-switch_core_cnt = 4
+switch_core_cnt = 1
 worker_core_cnt = 10
 total_core_cnt = switch_core_cnt + worker_core_cnt
 

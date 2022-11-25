@@ -106,13 +106,13 @@ void MetronIngress::ProcessOverloads() {
       int new_core = GetFreeCore();
 
       in_use_cores_[new_core] = true;
-      flow_aggregates_.emplace_back(FlowAggregate(left, mid, org_core));
-      flow_aggregates_.emplace_back(FlowAggregate(mid + 1, right, new_core));
+      flow_aggregates_.emplace_back(left, mid, org_core);
+      flow_aggregates_.emplace_back(mid + 1, right, new_core);
       for (uint32_t flow_id = mid + 1; flow_id <= right; flow_id++) {
         flow_id_to_core_[flow_id] = new_core;
       }
 
-      LOG(INFO) << "core " << i << ": " << per_core_pkt_cnts_[i]
+      LOG(INFO) << "core " << i << ": " << per_core_pkt_cnts_[i] << " | "
                 << "[" << left << ", " << mid << "] / "
                 << "[" << mid + 1 << ", " << right << "]";
     }
