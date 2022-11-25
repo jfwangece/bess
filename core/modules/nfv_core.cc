@@ -95,8 +95,8 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
       large_queue_packet_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second * arg.large_queue_scale();
     }
 
-    // busy_pull_round_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second / 32;
-    busy_pull_round_thresh_ = (bess::ctrl::short_flow_count_pkt_threshold.begin())->second / 32;
+    busy_pull_round_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second / 32;
+    // busy_pull_round_thresh_ = (bess::ctrl::short_flow_count_pkt_threshold.begin())->second / 32;
     if (busy_pull_round_thresh_ < 1) {
       busy_pull_round_thresh_ = 1;
     }
