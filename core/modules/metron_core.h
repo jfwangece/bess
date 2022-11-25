@@ -24,12 +24,13 @@ class MetronCore final : public Module {
  private:
   uint32_t core_id_;
 
+  bool is_active_;
+  uint64_t idle_epochs_;
   uint64_t epoch_packet_count_;
 
   // Timestamps
   // CPU core usage is measured in epochs.
   uint64_t last_short_epoch_end_ns_;
-
   rte_atomic64_t sum_core_time_ns_;
 
   // Software queue that holds packets.

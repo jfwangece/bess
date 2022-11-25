@@ -42,6 +42,8 @@ CommandResponse MetronCore::Init(const bess::pb::MetronCoreArg& arg) {
     bess::ctrl::metron_cores[core_id_] = this;
   }
 
+  is_active_ = true;
+  idle_epochs_ = 0;
   epoch_packet_count_ = 0;
   last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
   rte_atomic64_set(&sum_core_time_ns_, 0);
@@ -73,10 +75,24 @@ struct task_result MetronCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   uint64_t now = tsc_to_ns(rdtsc());
   if (now - last_short_epoch_end_ns_ >= 1000000) {
-    if (epoch_packet_count_ > 32) {
+    if (epoch_packet_count_ <= 32) {
+      if (is_active_) {
+        idle_epochs_ += 1;
+        if (idle_epochs_ >= 500) {
+          is_active_ = false;
+        }
+      }
+    } else {
+      is_active_ = true;
+      idle_epochs_ = 0;
+    }
+
+    if (is_active_) {
       uint64_t core_diff = now - last_short_epoch_end_ns_;
       rte_atomic64_add(&sum_core_time_ns_, core_diff);
     }
+
+    epoch_packet_count_ = 0;
     last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
   }
 
