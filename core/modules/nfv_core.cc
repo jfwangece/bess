@@ -246,7 +246,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // Boost if 1) the core has pulled many packets (i.e. 128) in this round; 2) |local_queue_| is large.
   uint32_t queued_pkts = llring_count(local_queue_);
   if (last_boost_ts_ns_ == 0) {
-    if (pull_rounds >= busy_pull_round_thresh_ ||
+    if (epoch_advanced ||
+        pull_rounds >= busy_pull_round_thresh_ ||
         queued_pkts >= large_queue_packet_thresh_) {
       last_boost_ts_ns_ = tsc_to_ns(rdtsc()); // boost!
     }
@@ -311,13 +312,12 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     ShortEpochProcess();
     SplitQToSwQ(local_queue_);
 
-    uint64_t now = tsc_to_ns(rdtsc());
     // Update CPU core usage
+    uint64_t now = tsc_to_ns(rdtsc());
     if (is_active) {
       uint64_t core_diff = (1 + curr_rcore) * (now - last_short_epoch_end_ns_);
       rte_atomic64_add(&sum_core_time_ns_, core_diff);
     }
-
     curr_epoch_id_ += 1;
     last_short_epoch_end_ns_ = now;
   }
