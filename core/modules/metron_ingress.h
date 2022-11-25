@@ -79,8 +79,8 @@ class MetronIngress final : public Module {
   bool in_use_cores_[64] = {false};
 
   // For monitoring
-  uint64_t per_core_pkt_cnts_[64];
-  uint64_t per_flow_id_pkt_cnts_[256];
+  uint32_t per_core_pkt_cnts_[64];
+  uint32_t per_flow_id_pkt_cnts_[256];
 };
 
 #endif  // BESS_MODULES_METRON_INGRESS_H_

@@ -13,7 +13,7 @@ macs = ["b8:ce:f6:b0:35:e2", "b8:ce:f6:d2:3a:c2", "b8:ce:f6:cc:8e:cc", "b8:ce:f6
 workers=[{"ip": ips[i], "mac": macs[i]} for i in range(num_workers)]
 
 ig_mode = int($BESS_IG!'0')
-pkt_rate_thresh=int($BESS_PKT_RATE_THRESH!'1400000')
+pkt_rate_thresh=int($BESS_PKT_RATE_THRESH!'1700000')
 per_core_pkt_rate_thresh = pkt_rate_thresh / num_cores
 
 # Backbone

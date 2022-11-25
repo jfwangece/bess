@@ -67,10 +67,12 @@ void MetronIngress::DeInit() {
 int MetronIngress::GetFreeCore() {
   for (int i = 0; i < 20; i++) {
     if (!in_use_cores_[i]) {
+      LOG(INFO) << i;
       return i;
     }
   }
-  return -1;
+  LOG(INFO) << 0;
+  return 0;
 }
 
 void MetronIngress::ProcessOverloads() {
@@ -88,31 +90,38 @@ void MetronIngress::ProcessOverloads() {
       int org_core = i;
 
       // Search for the flow aggregate
+      bool found = false;
       for (auto it = flow_aggregates_.begin(); it != flow_aggregates_.end(); it++) {
         if (it->core == i) {
           left = it->start;
           right = it->end;
           flow_aggregates_.erase(it);
+          found = true;
           break;
         }
       }
+      if (!found) {
+        continue;;
+      }
 
-      // Split (128, 255)
+      // Split
       mid = (left + right) / 2;
       if (left == mid) {
         continue;
       }
 
       int new_core = GetFreeCore();
-
       in_use_cores_[new_core] = true;
       flow_aggregates_.emplace_back(left, mid, org_core);
       flow_aggregates_.emplace_back(mid + 1, right, new_core);
       for (uint32_t flow_id = mid + 1; flow_id <= right; flow_id++) {
+        if (flow_id > 255) {
+          LOG(FATAL) << "incorrect flow_id";
+        }
         flow_id_to_core_[flow_id] = new_core;
       }
 
-      LOG(INFO) << "core " << i << ": " << per_core_pkt_cnts_[i] << " | "
+      LOG(INFO) << "core " << i << " -> " << new_core << ": " << per_core_pkt_cnts_[i] << " | "
                 << "[" << left << ", " << mid << "] / "
                 << "[" << mid + 1 << ", " << right << "]";
     }
