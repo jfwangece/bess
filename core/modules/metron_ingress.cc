@@ -75,7 +75,7 @@ int MetronIngress::GetFreeCore() {
 
 void MetronIngress::ProcessOverloads() {
   uint64_t curr_ts = tsc_to_ns(rdtsc());
-  if (curr_ts - last_update_ts_ < 1000000000) {
+  if (curr_ts - last_update_ts_ < 1500000000) {
     return;
   }
   last_update_ts_ = curr_ts;
@@ -99,6 +99,10 @@ void MetronIngress::ProcessOverloads() {
 
       // Split (128, 255)
       mid = (left + right) / 2;
+      if (left == mid) {
+        continue;
+      }
+
       int new_core = GetFreeCore();
 
       in_use_cores_[new_core] = true;
@@ -139,22 +143,16 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     uint32_t flow_id = ip->dst.value() & 0xff;
 
     uint32_t dst_worker = 0;
-    uint32_t dst_core = 0;
-    auto it = flow_to_core_.find(flow_id);
-    if (it != flow_to_core_.end()) {
-      dst_core = it->second;
-    } else {
-      // This is a new flow.
-      // for (auto it = flow_aggregates_.begin(); it != flow_aggregates_.end(); it++) {
-      //   if (flow_id >= it->start && flow_id < it->end) {
-      //     dst_core = it->core;
-      //     flow_to_core_.emplace(flow_id, dst_core);
-      //     break;
-      //   }
-      // }
-      dst_core = flow_id_to_core_[flow_id];
-      flow_to_core_.emplace(flow_id, dst_core);
-    }
+    uint32_t dst_core = flow_id_to_core_[flow_id];
+
+    /// Note: flows must be migrated to achieve overload-control.
+    // auto it = flow_to_core_.find(flow_id);
+    // if (it != flow_to_core_.end()) {
+    //   dst_core = it->second;
+    // } else {
+    //   dst_core = flow_id_to_core_[flow_id];
+    //   flow_to_core_.emplace(flow_id, dst_core);
+    // }
 
     per_flow_id_pkt_cnts_[flow_id] += 1;
     per_core_pkt_cnts_[dst_core] += 1;
