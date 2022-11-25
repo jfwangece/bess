@@ -198,10 +198,6 @@ class NFVCore final : public Module {
   uint32_t epoch_packet_thresh_;
   uint32_t busy_pull_round_thresh_;
   uint32_t large_queue_packet_thresh_;
-  uint32_t epoch_drop1_;
-  uint32_t epoch_drop2_;
-  uint32_t epoch_drop3_;
-  uint32_t epoch_drop4_;
 
   // Max number of new flows processed in a epoch
   uint32_t epoch_packet_arrival_;
@@ -224,9 +220,16 @@ class NFVCore final : public Module {
   // For maintaining (per-core) FlowState structs
   HashTable per_flow_states_;
 
-  // If true, |this| normal core stops pulling packets from its NIC queue
+  // For debugging
+  uint32_t epoch_drop1_;
+  uint32_t epoch_drop2_;
+  uint32_t epoch_drop3_;
+  uint32_t epoch_drop4_;
+
+  // Other threads can set |disabled_| to be 1 to stop this core.
+  // Once set, this core will set |disabled_| to be 2 to notify others
+  // that this core has stopped successfully.
   rte_atomic16_t disabled_;
-  rte_atomic16_t mark_to_disable_;
 };
 
 #endif // BESS_MODULES_NFV_CORE_H_

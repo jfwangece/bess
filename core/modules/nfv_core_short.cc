@@ -78,7 +78,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
           state->egress_packet_count += 1;
         }
         bess::Packet::Free(pkt);
-        epoch_drop1_ += 1;
+        // epoch_drop1_ += 1;
         continue;
       }
       if (q_state == &system_dump_q1_) {
@@ -87,10 +87,9 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
           state->egress_packet_count += 1;
         }
         bess::Packet::Free(pkt);
-        epoch_drop4_ += 1;
+        // epoch_drop4_ += 1;
         continue;
       }
-
       if (q_state->idle_epoch_count == -1) {
         // Egress 3: drop (idle RCore)
         // Do not offload because RCore is inactive. Reset the offloading.
@@ -100,7 +99,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
           state->egress_packet_count += 1;
         }
         bess::Packet::Free(pkt);
-        epoch_drop2_ += 1;
+        // epoch_drop2_ += 1;
         continue;
       }
 
@@ -151,7 +150,6 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
 
 void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
   FlowState *state = nullptr;
-
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
@@ -191,15 +189,13 @@ void NFVCore::SplitQToSwQ(llring* q) {
     batch.clear();
     int cnt = llring_mc_dequeue_burst(q, (void **)batch.pkts(), 32);
     batch.set_cnt(cnt);
-
-    // bess::Packet::Free(&batch);
     SplitAndEnqueue(&batch);
     curr_cnt += cnt;
   }
   // Debug log
-  if (llring_count(q) > epoch_packet_thresh_) {
-    LOG(INFO) << "splitQ: error (large local_queue=" << llring_count(local_queue_) << ", core=" << core_id_ << ")";
-  }
+  // if (llring_count(q) > epoch_packet_thresh_) {
+  //   LOG(INFO) << "splitQ: error (large local_queue=" << llring_count(local_queue_) << ", core=" << core_id_ << ")";
+  // }
 }
 
 // Split a batch of packets and respect pre-determined flow-affinity
@@ -228,7 +224,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
           state->egress_packet_count += 1;
         }
         bess::Packet::Free(pkt);
-        epoch_drop1_ += 1;
+        // epoch_drop1_ += 1;
         continue;
       }
       if (q_state == &system_dump_q1_) {
@@ -237,10 +233,9 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
           state->egress_packet_count += 1;
         }
         bess::Packet::Free(pkt);
-        epoch_drop4_ += 1;
+        // epoch_drop4_ += 1;
         continue;
       }
-
       if (q_state->idle_epoch_count == -1) {
         // Egress 9: drop (idle RCore)
         // Reset migration and drop |pkt|.
@@ -250,7 +245,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
           state->egress_packet_count += 1;
         }
         bess::Packet::Free(pkt);
-        epoch_drop2_ += 1;
+        // epoch_drop2_ += 1;
         continue;
       }
 
@@ -298,7 +293,7 @@ void NFVCore::BestEffortEnqueue(bess::PacketBatch *batch, llring *q) {
         if (state->ingress_packet_count > state->egress_packet_count) {
           state->egress_packet_count += 1;
         }
-        epoch_drop3_ += 1;
+        // epoch_drop3_ += 1;
       }
       bess::Packet::Free(batch->pkts() + queued, to_drop);
     }
@@ -477,10 +472,10 @@ bool NFVCore::ShortEpochProcess() {
 
     epoch_packet_arrival_ = 0;
     epoch_packet_processed_ = 0;
-    epoch_drop1_ = 0;
-    epoch_drop2_ = 0;
-    epoch_drop3_ = 0;
-    epoch_drop4_ = 0;
+    // epoch_drop1_ = 0;
+    // epoch_drop2_ = 0;
+    // epoch_drop3_ = 0;
+    // epoch_drop4_ = 0;
   }
 
   return true;

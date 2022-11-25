@@ -122,15 +122,14 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   }
 
   // Run!
-  rte_atomic16_set(&mark_to_disable_, 0);
   rte_atomic16_set(&disabled_, 0);
   return CommandSuccess();
 }
 
 void NFVCore::DeInit() {
   // Mark to stop the pipeline and wait until the pipeline stops
-  rte_atomic16_set(&mark_to_disable_, 1);
-  while (rte_atomic16_read(&disabled_) == 0) { usleep(100000); }
+  rte_atomic16_set(&disabled_, 1);
+  while (rte_atomic16_read(&disabled_) != 2) { usleep(100000); }
 
   // Clean the local batch / queue
   if (local_batch_) {
@@ -211,11 +210,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   // For graceful termination
   if (epoch_advanced) {
-    if (rte_atomic16_read(&mark_to_disable_) == 1) {
-      rte_atomic16_set(&disabled_, 1);
-      return {.block = false, .packets = 0, .bits = 0};
-    }
     if (rte_atomic16_read(&disabled_) == 1) {
+      rte_atomic16_set(&disabled_, 2);
       return {.block = false, .packets = 0, .bits = 0};
     }
   }
