@@ -65,7 +65,7 @@ void MetronIngress::DeInit() {
 }
 
 int MetronIngress::GetFreeCore() {
-  for (int i = 0; i < 64; i++) {
+  for (int i = 0; i < 20; i++) {
     if (!in_use_cores_[i]) {
       return i;
     }
@@ -75,12 +75,12 @@ int MetronIngress::GetFreeCore() {
 
 void MetronIngress::ProcessOverloads() {
   uint64_t curr_ts = tsc_to_ns(rdtsc());
-  if (curr_ts - last_update_ts_ < 1500000000) {
+  if (curr_ts - last_update_ts_ < 1000000000) {
     return;
   }
   last_update_ts_ = curr_ts;
 
-  for (int i = 0; i < 64; i++) {
+  for (int i = 0; i < 20; i++) {
     if (per_core_pkt_cnts_[i] > pkt_rate_thresh_) {
       uint32_t left = 0;
       uint32_t mid = 127;
@@ -112,7 +112,9 @@ void MetronIngress::ProcessOverloads() {
         flow_id_to_core_[flow_id] = new_core;
       }
 
-      LOG(INFO) << "core " << i << ": [" << left << ", " << mid << "]";
+      LOG(INFO) << "core " << i << ": " << per_core_pkt_cnts_[i]
+                << "[" << left << ", " << mid << "] / "
+                << "[" << mid + 1 << ", " << right << "]";
     }
   }
 
