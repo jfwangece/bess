@@ -537,8 +537,8 @@ def run_short_profile_under_slos():
 ### Ironside experiments
 ## Single-worker experiment
 def run_worker_exp(slo):
+    exp_duration = 40
     selected_worker_ips = [worker_ip[0]]
-    exp_duration = 30
 
     # Start all bessd
     pids = []
@@ -600,8 +600,7 @@ def run_worker_exp(slo):
 # run nfvctrl/cloud_pcap_replay_mc BESS_NUM_WORKER=4, BESS_IG=3, BESS_PKT_RATE_THRESH=3000000
 # run nfvctrl/cloud_chain4 BESS_SPROFILE="./short.prof", BESS_LPROFILE="./long.prof"
 def run_cluster_exp(num_worker, slo, short_profile, long_profile):
-    exp_duration = 35
-
+    exp_duration = 40
     selected_worker_ips = []
     for i in range(num_worker):
         selected_worker_ips.append(worker_ip[i])
@@ -664,10 +663,10 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     return (avg_cores, total_packets/1000000.0, delay)
 
 def run_metron_exp(num_worker):
+    exp_duration = 40
     selected_worker_ips = []
     for i in range(num_worker):
         selected_worker_ips.append(worker_ip[i])
-    exp_duration = 30
 
     # Start all bessd
     pids = []
