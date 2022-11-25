@@ -224,6 +224,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // int status = rte_eth_rx_descriptor_status(port_id_, qid, large_queue_packet_thresh_);
 
   // Busy pulling from the NIC queue
+  int total_pkts = 0;
   int cnt = 0;
   uint32_t pull_rounds = 0;
   while (pull_rounds++ < 8) {
@@ -231,6 +232,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     cnt = p->RecvPackets(qid, batch->pkts(), 32);
     batch->set_cnt(cnt);
     if (cnt > 0) {
+      total_pkts += cnt;
       // To append |per_flow_states_|
       // Update the number of packets / flows that have arrived:
       // Update |epoch_packet_arrival_| and |epoch_flow_cache_|
@@ -271,23 +273,25 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
   }
 
-  // Process one batch
-  batch->clear();
-  cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
-  batch->set_cnt(cnt);
-
-  uint32_t total_pkts = (uint32_t)cnt;
-  uint64_t total_bytes = 0; // forget about counting bytes
-
-  if (cnt > 0) {
-    // Update |epoch_packet_processed_| and |per_flow_states_|, i.e.
-    // the number of packets and flows processed during the current epoch.
-    UpdateStatsPreProcessBatch(batch);
-
-    if (last_boost_ts_ns_ == 0) {
+  if (last_boost_ts_ns_ == 0) {
+    // Process one batch
+    batch->clear();
+    cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
+    if (cnt > 0) {
+      batch->set_cnt(cnt);
+      // Update |epoch_packet_processed_| and |per_flow_states_|, i.e.
+      // the number of packets and flows processed during the current epoch.
+      UpdateStatsPreProcessBatch(batch);
       ProcessBatch(ctx, batch);
-    } else { // boost!
-      BestEffortEnqueue(batch, local_boost_queue_);
+    }
+  } else { // boost!
+    for (int i = 0; i < 2; i++) {
+      batch->clear();
+      cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
+      if (cnt > 0) {
+        batch->set_cnt(cnt);
+        BestEffortEnqueue(batch, local_boost_queue_);
+      }
     }
   }
 
@@ -318,9 +322,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     last_short_epoch_end_ns_ = now;
   }
 
-  return {.block = false,
-          .packets = total_pkts,
-          .bits = (total_bytes + total_pkts * 24) * 8};
+  return {.block = false, .packets = (uint32_t)total_pkts, .bits = 0};
 }
 
 /* Get a batch from upstream */
