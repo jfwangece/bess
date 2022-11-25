@@ -37,10 +37,12 @@ CommandResponse MetronCore::Init(const bess::pb::MetronCoreArg& arg) {
   }
   LOG(INFO) << "metron: core " << core_id_;
 
-  // Reset
-  rte_atomic64_set(&sum_core_time_ns_, 0);
-
+  // Init
+  if (bess::ctrl::metron_cores[core_id_] == nullptr) {
+    bess::ctrl::metron_cores[core_id_] = this;
+  }
   last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
+  rte_atomic64_set(&sum_core_time_ns_, 0);
 
   return CommandSuccess();
 }

@@ -199,8 +199,8 @@ def parse_latency_result(tip):
     return fields
 
 # For CPU core usage
-def parse_cpu_time_result(wip):
-    cmds = ['command', 'module', 'nfv_core0', 'get_core_time', 'EmptyArg']
+def parse_cpu_time_result(wip, runtime='nfv_core0'):
+    cmds = ['command', 'module', runtime, 'get_core_time', 'EmptyArg']
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
     lines = out.split('\n')
@@ -706,7 +706,7 @@ def run_metron_exp(num_worker):
     delay = measure_results[1:]
     core_usage = []
     for i, wip in enumerate(selected_worker_ips):
-        core_usage.append(parse_cpu_time_result(wip) * 3 / 1000)
+        core_usage.append(parse_cpu_time_result(wip, 'mcore0') * 3 / 1000)
     avg_cores = sum(core_usage) / 1000000.0 / exp_duration
 
     print("---------------------------------------------------------------")
