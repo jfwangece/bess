@@ -75,10 +75,10 @@ pinc0.set_burst(burst=burst_size)
 for i in range(num_cores):
     queue[i].set_burst(burst=burst_size)
 
+## Core Assignment
 socket0_cores = [i for i in range(32)]
 socket1_cores = [32 + i for i in range(32)]
 
-## Core Assignment
 # traffic inc
 bess.add_worker(wid=1, core=socket1_cores[1])
 pinc0.attach_task(wid=1)
