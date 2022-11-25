@@ -3,6 +3,7 @@
 #include "nfv_core.h"
 #include "nfv_rcore.h"
 #include "nfv_monitor.h"
+#include "metron_core.h"
 
 #include "../module_graph.h"
 
@@ -15,6 +16,7 @@ NFVCtrl* nfv_ctrl = nullptr;
 NFVCore* nfv_cores[DEFAULT_INVALID_CORE_ID] = {nullptr};
 NFVRCore* nfv_rcores[DEFAULT_INVALID_CORE_ID] = {nullptr};
 NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID] = {nullptr};
+MetronCore* metron_cores[DEFAULT_INVALID_CORE_ID] = {nullptr};
 
 PMDPort* pmd_port = nullptr;
 

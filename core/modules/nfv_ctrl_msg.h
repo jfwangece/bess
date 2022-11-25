@@ -25,6 +25,7 @@ class NFVCtrl;
 class NFVCore;
 class NFVRCore;
 class NFVMonitor;
+class MetronCore;
 
 namespace bess {
 namespace ctrl {
@@ -52,6 +53,8 @@ extern NFVCore* nfv_cores[DEFAULT_INVALID_CORE_ID];
 extern NFVRCore* nfv_rcores[DEFAULT_INVALID_CORE_ID];
 
 extern NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID];
+
+extern MetronCore* metron_cores[DEFAULT_INVALID_CORE_ID];
 
 extern PMDPort *pmd_port;
 

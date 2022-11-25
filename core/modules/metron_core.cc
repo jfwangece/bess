@@ -1,6 +1,24 @@
 #include <nfv_ctrl_msg.h>
 #include <metron_core.h>
 
+const Commands MetronCore::cmds = {
+    {"get_core_time", "EmptyArg", MODULE_CMD_FUNC(&MetronCore::CommandGetCoreTime),
+     Command::THREAD_SAFE},
+};
+
+CommandResponse MetronCore::CommandGetCoreTime(const bess::pb::EmptyArg &) {
+  uint64_t sum = 0;
+  for (int i = 0; i < bess::ctrl::ncore; i++) {
+    if (bess::ctrl::metron_cores[i] != nullptr) {
+      sum += bess::ctrl::metron_cores[i]->GetSumCoreTime();
+    }
+  }
+
+  bess::pb::MetronCoreCommandGetCoreTimeResponse r;
+  r.set_core_time(sum);
+  return CommandSuccess(r);
+}
+
 CommandResponse MetronCore::Init(const bess::pb::MetronCoreArg& arg) {
   task_id_t tid;
   tid = RegisterTask(nullptr);
@@ -18,6 +36,12 @@ CommandResponse MetronCore::Init(const bess::pb::MetronCoreArg& arg) {
     LOG(INFO) << "metron: core " << core_id_ << " local_mc_q is not ready";
   }
   LOG(INFO) << "metron: core " << core_id_;
+
+  // Reset
+  rte_atomic64_set(&sum_core_time_ns_, 0);
+
+  last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
+
   return CommandSuccess();
 }
 
@@ -47,6 +71,13 @@ struct task_result MetronCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   RunNextModule(ctx, batch);
 
+  uint64_t now = tsc_to_ns(rdtsc());
+  if (now - last_short_epoch_end_ns_ >= 1000000) {
+    uint64_t core_diff = now - last_short_epoch_end_ns_;
+    rte_atomic64_add(&sum_core_time_ns_, core_diff);
+    last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
+  }
+
   return {.block = false,
           .packets = cnt,
           .bits = (total_bytes + cnt * 24) * 8};
@@ -59,6 +90,10 @@ void MetronCore::ProcessBatch(Context *, bess::PacketBatch *batch) {
     int to_drop = batch->cnt() - queued;
     bess::Packet::Free(batch->pkts() + queued, to_drop);
   }
+}
+
+uint64_t MetronCore::GetSumCoreTime() {
+  return rte_atomic64_read(&sum_core_time_ns_);
 }
 
 ADD_MODULE(MetronCore, "mcore",

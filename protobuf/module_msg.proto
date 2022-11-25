@@ -406,6 +406,10 @@ message MetronCoreArg {
   int32 core_id = 1; /// The target CPU core's ID
 }
 
+message MetronCoreCommandGetCoreTimeResponse {
+  uint64 core_time = 1; /// CPU core time in core * ns
+}
+
 message MetronIngressArg {
   message EndhostAddr {
     string mac = 1; /// A worker's MAC addr

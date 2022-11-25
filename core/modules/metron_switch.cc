@@ -10,12 +10,16 @@ CommandResponse MetronSwitch::Init(const bess::pb::MetronSwitchArg& arg) {
   num_cores_ = 1;
   if (arg.ncore() > 0) {
     num_cores_ = int(arg.ncore());
+    bess::ctrl::ncore = num_cores_;
   }
 
   for (int i = 0; i < num_cores_; i++) {
     pkt_batch_[i] = reinterpret_cast<bess::PacketBatch *>
       (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   }
+
+  LOG(INFO) << "total cores " << bess::ctrl::ncore;
+
   return CommandSuccess();
 }
 
