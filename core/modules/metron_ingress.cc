@@ -73,16 +73,18 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     // Send to core
     eth->dst_addr = macs_[dst_worker];
-    be32_t before = ip->dst;
+    // be32_t before = ip->dst;
     be32_t after = ips_[dst_worker];
     ip->dst = after;
     tcp->reserved = dst_core; // encode
 
-    uint32_t l3_increment =
-      ChecksumIncrement32(before.raw_value(), after.raw_value());
-    ip->checksum = UpdateChecksumWithIncrement(ip->checksum, l3_increment);
-    uint32_t l4_increment = l3_increment;
-    tcp->checksum = UpdateChecksumWithIncrement(tcp->checksum, l4_increment);
+    // uint32_t l3_increment =
+    //   ChecksumIncrement32(before.raw_value(), after.raw_value());
+    // ip->checksum = UpdateChecksumWithIncrement(ip->checksum, l3_increment);
+    // uint32_t l4_increment = l3_increment;
+    // tcp->checksum = UpdateChecksumWithIncrement(tcp->checksum, l4_increment);
+    tcp->checksum = CalculateIpv4TcpChecksum(*ip, *tcp);
+    ip->checksum = CalculateIpv4Checksum(*ip);
 
     EmitPacket(ctx, pkt);
   }

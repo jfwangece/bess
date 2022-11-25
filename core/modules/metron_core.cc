@@ -41,15 +41,21 @@ CommandResponse MetronCore::Init(const bess::pb::MetronCoreArg& arg) {
   if (bess::ctrl::metron_cores[core_id_] == nullptr) {
     bess::ctrl::metron_cores[core_id_] = this;
   }
+
+  epoch_packet_count_ = 0;
   last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
   rte_atomic64_set(&sum_core_time_ns_, 0);
+  rte_atomic16_set(&disabled_, 0);
 
   return CommandSuccess();
 }
 
 void MetronCore::DeInit() {
   local_queue_ = nullptr;
-  return;
+  rte_atomic16_set(&disabled_, 0);
+  while (rte_atomic16_read(&disabled_) != 2) {
+    usleep(100000);
+  }
 }
 
 // Get a batch from the 'NIC' queue and send it to downstream
@@ -60,10 +66,25 @@ struct task_result MetronCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     return {.block = false, .packets = 0, .bits = 0};
   }
 
+  if (rte_atomic16_read(&disabled_) == 1) {
+    rte_atomic16_inc(&disabled_);
+    return {.block = false, .packets = 0, .bits = 0};
+  }
+
+  uint64_t now = tsc_to_ns(rdtsc());
+  if (now - last_short_epoch_end_ns_ >= 1000000) {
+    if (epoch_packet_count_ > 32) {
+      uint64_t core_diff = now - last_short_epoch_end_ns_;
+      rte_atomic64_add(&sum_core_time_ns_, core_diff);
+    }
+    last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
+  }
+
   uint32_t cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
   if (cnt == 0) {
     return {.block = false, .packets = 0, .bits = 0};
   }
+  epoch_packet_count_ += cnt;
 
   batch->set_cnt(cnt);
   uint64_t total_bytes = 0;
@@ -72,13 +93,6 @@ struct task_result MetronCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   }
 
   RunNextModule(ctx, batch);
-
-  uint64_t now = tsc_to_ns(rdtsc());
-  if (now - last_short_epoch_end_ns_ >= 1000000) {
-    uint64_t core_diff = now - last_short_epoch_end_ns_;
-    rte_atomic64_add(&sum_core_time_ns_, core_diff);
-    last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
-  }
 
   return {.block = false,
           .packets = cnt,

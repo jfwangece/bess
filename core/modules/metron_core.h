@@ -22,7 +22,11 @@ class MetronCore final : public Module {
   uint64_t GetSumCoreTime();
 
  private:
+  using HashTable = bess::utils::CuckooMap<Flow, FlowState*, FlowHash, Flow::EqualTo>;
+
   uint32_t core_id_;
+
+  uint64_t epoch_packet_count_;
 
   // Timestamps
   // CPU core usage is measured in epochs.
@@ -32,6 +36,9 @@ class MetronCore final : public Module {
 
   // Software queue that holds packets.
   struct llring *local_queue_;
+
+  // Termination
+  rte_atomic16_t disabled_;
 };
 
 #endif  // BESS_MODULES_METRON_CORE_H_
