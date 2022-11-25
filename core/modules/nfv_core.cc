@@ -60,7 +60,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   max_idle_epoch_count_ = 100;
   if (arg.short_epoch_period_ns() > 0) {
     short_epoch_period_ns_ = (uint64_t)arg.short_epoch_period_ns();
-    max_idle_epoch_count_ = 1000000 / arg.short_epoch_period_ns();
+    max_idle_epoch_count_ = 2500000 / arg.short_epoch_period_ns();
   }
   LOG(INFO) << "Core " << core_id_ << ": short-term epoch = " << short_epoch_period_ns_ << " ns, max idle epochs = " << max_idle_epoch_count_;
 
@@ -279,7 +279,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
       ProcessBatch(ctx, batch);
     }
   } else { // boost!
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 3; i++) {
       batch->clear();
       cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
       if (cnt > 0) {
