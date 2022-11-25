@@ -30,6 +30,8 @@ CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
   }
 
   // Init
+  last_update_ts_ = tsc_to_ns(rdtsc());
+
   in_use_cores_[0] = true;
   for (int i = 0; i < 64; i++) {
     per_core_pkt_cnts_[i] = 0;
@@ -105,6 +107,8 @@ void MetronIngress::ProcessOverloads() {
       for (uint32_t flow_id = mid + 1; flow_id <= right; flow_id++) {
         flow_id_to_core_[flow_id] = new_core;
       }
+
+      LOG(INFO) << "core " << i << ": [" << left << ", " << mid << "]";
     }
   }
 
