@@ -402,7 +402,7 @@ bool NFVCore::ShortEpochProcess() {
       } else {
         bool assigned = false;
         for (auto& sw_q_it : sw_q_) {
-          if (sw_q_it.QLenAfterAssignment() + task_size < epoch_packet_thresh_ - 32) {
+          if (sw_q_it.QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
             state->sw_q_state = &sw_q_it;
             sw_q_it.assigned_packet_count += task_size;
             assigned = true;

@@ -299,7 +299,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
 
     bool is_active = false;
-    if (epoch_packet_arrival_ > 10) {
+    if (epoch_packet_arrival_ > 32) {
       is_active = true;
     }
     uint32_t curr_rcore = curr_rcore_;
