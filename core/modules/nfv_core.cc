@@ -246,7 +246,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   // Boost if 1) the core has pulled many packets (i.e. 128) in this round; 2) |local_queue_| is large.
   uint32_t queued_pkts = llring_count(local_queue_);
   if (last_boost_ts_ns_ == 0) {
-    if (epoch_advanced ||
+    if (update_bucket_stats_ ||
+        epoch_advanced ||
         pull_rounds >= busy_pull_round_thresh_ ||
         queued_pkts >= large_queue_packet_thresh_) {
       last_boost_ts_ns_ = tsc_to_ns(rdtsc()); // boost!
@@ -266,12 +267,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
       local_bucket_stats_.per_bucket_packet_counter[i] = 0;
       local_bucket_stats_.per_bucket_flow_cache[i].clear();
     }
-
     bess::ctrl::nfv_ctrl->NotifyLongTermStatsReady();
     update_bucket_stats_ = false;
-    if (last_boost_ts_ns_ == 0) {
-      last_boost_ts_ns_ = tsc_to_ns(rdtsc()); // boost!
-    }
   }
 
   if (last_boost_ts_ns_ == 0) {
