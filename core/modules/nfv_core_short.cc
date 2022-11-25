@@ -156,8 +156,6 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
     // Note: no need to parse |flow| again because we've parsed it first.
     // Update per-flow packet counter.
     state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
-
-    // Egress 6: normal processing
     if (state->ingress_packet_count > state->egress_packet_count) {
       state->egress_packet_count += 1;
     }
@@ -192,7 +190,8 @@ void NFVCore::SplitQToSwQ(llring* q) {
     SplitAndEnqueue(&batch);
     curr_cnt += cnt;
   }
-  // Debug log
+
+  // Debug log (unresolved)
   // if (llring_count(q) > epoch_packet_thresh_) {
   //   LOG(INFO) << "splitQ: error (large local_queue=" << llring_count(local_queue_) << ", core=" << core_id_ << ")";
   // }
@@ -314,19 +313,18 @@ uint32_t GetMaxPktCountFromShortTermProfile(uint32_t fc) {
 
 bool NFVCore::ShortEpochProcess() {
   using bess::utils::all_core_stats_chan;
-
-  uint32_t q_cnt = llring_count(local_queue_);
-  if (q_cnt > large_queue_packet_thresh_) {
-    // This |ncore| observes a large queue, and by default, it hopes that
-    // the following short-term optimization can handle it with aux cores.
-    // However, if it still sees a large queue in the next epoch, it tells
-    // that an on-demand load-balancing is needed immediately ...
-    num_epoch_with_large_queue_ += 1;
-    if (num_epoch_with_large_queue_ > 1) {
-      num_epoch_with_large_queue_ = 0;
-      bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
-    }
-  }
+  // This |ncore| observes a large queue, and by default, it hopes that
+  // the following short-term optimization can handle it with aux cores.
+  // However, if it still sees a large queue in the next epoch, it tells
+  // that an on-demand load-balancing is needed immediately ...
+  // uint32_t q_cnt = llring_count(local_queue_);
+  // if (q_cnt > large_queue_packet_thresh_) {
+  //   num_epoch_with_large_queue_ += 1;
+  //   if (num_epoch_with_large_queue_ > 1) {
+  //     num_epoch_with_large_queue_ = 0;
+  //     bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
+  //   }
+  // }
 
   // At the end of one epoch, NFVCore requests software queues to
   // absorb the existing packet queue in the coming epoch.
@@ -365,30 +363,24 @@ bool NFVCore::ShortEpochProcess() {
 
   // Update |unoffload_flows_|
   unoffload_flows_.clear();
-
-  uint32_t total_pkt_cnt = 0;
-  uint32_t pkt_cnt = 0;
   for (auto it = epoch_flow_cache_.begin(); it != epoch_flow_cache_.end(); ++it) {
     FlowState *state = *it;
     if (state != nullptr) {
       if (state->ingress_packet_count >= state->egress_packet_count) {
         state->queued_packet_count = state->ingress_packet_count - state->egress_packet_count;
       } else {
-        // LOG(ERROR) << "short-term: error. ig=" << state->ingress_packet_count << ", eg=" << state->egress_packet_count;
         state->queued_packet_count = 0;
       }
+
       // Reset so that the flow can be recorded in the next short epoch
       state->enqueued_packet_count = 0;
       state->short_epoch_packet_count = 0;
 
-      total_pkt_cnt += state->queued_packet_count;
+      // Skip flows that have been assigned to migrate to RCores
       if (state->sw_q_state != nullptr) {
-        // Skip flows that have been assigned to migrate to RCores
         continue;
       }
-
       unoffload_flows_.emplace(state);
-      pkt_cnt += state->queued_packet_count;
     } else {
       LOG(FATAL) << "short-term: error (impossible non-flow packet)";
     }
@@ -429,8 +421,8 @@ bool NFVCore::ShortEpochProcess() {
     }
   }
   // Debug log
-  if (false && pkt_cnt > 0) {
-    LOG(INFO) << "short-term: core" << core_id_ << ", tct=" << total_pkt_cnt << ", ct=" << pkt_cnt << ", lf=" << local_large_flow
+  if (false) {
+    LOG(INFO) << "short-term: core" << core_id_ << ", lf=" << local_large_flow
               << ", d1=" << epoch_drop1_ << ", d2=" << epoch_drop2_ << ", d3=" << epoch_drop3_ << ", d4=" << epoch_drop4_;
   }
 
