@@ -140,7 +140,9 @@ def start_traffic(tip, num_worker, mode):
     print("traffic {} starts: worker-scale routing".format(tip))
 
 def start_traffic_core_ingress(tip, num_worker, mode):
-    cmds = ["run", "nfvctrl/cloud_pcap_metron", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
+    pkt_thresh = 1500000
+    cmds = ["run", "nfvctrl/cloud_pcap_metron",
+            "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     if len(out) > 0:
@@ -184,7 +186,7 @@ def start_metron_worker(wip, worker_id):
     print("metron worker {} starts".format(wip))
 
 def parse_latency_result(tip):
-    cmds = ['command', 'module', 'measure0', 'get_summary', 'MeasureCommandGetSummaryArg', '{"latency_percentiles": [50.0, 90.0, 95.0, 98.0, 99.0]}']
+    cmds = ['command', 'module', 'measure0', 'get_summary', 'MeasureCommandGetSummaryArg', '{"latency_percentiles": [50.0, 90.0, 95.0, 98.0, 99.0, 99.9]}']
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     # print(out + "\n")

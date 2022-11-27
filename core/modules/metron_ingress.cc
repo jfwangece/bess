@@ -1,10 +1,29 @@
 #include <metron_ingress.h>
 
+#define LoadBalancePeriodMs 2000
+
+// In Metron and Quadrant, the system ingress collects per-core
+// and per-worker avg packet rates to determine if a CPU core or
+// a worker is overloaded. Then, it updates the flow rule at the
+// ToR switch to re-balance flows to mitigate the overload event.
+// However, the delay of collecting stats and the delay of
+// installing a flow rule can be 100s milliseconds.
+#define HardwareRuleDelayMs 300
+
 CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
   ips_.clear();
   macs_.clear();
   flow_aggregates_.clear();
   flow_to_core_.clear();
+
+  rewrite_ = 0;
+  if (arg.rewrite() > 0) {
+    rewrite_ = arg.rewrite();
+  }
+  if (rewrite_ > 0) {
+    ip_mask_ = be32_t(0x000000f0 << (2 * rewrite_));;
+    tcp_port_mask_ = be16_t(0x1000 << (rewrite_));
+  }
 
   for (const auto &host : arg.endpoints()) {
     macs_.push_back(Ethernet::Address(host.mac()));
@@ -30,6 +49,7 @@ CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
   }
 
   // Init
+  lb_stage_ = 0;
   last_update_ts_ = tsc_to_ns(rdtsc());
 
   in_use_cores_[0] = true;
@@ -67,28 +87,47 @@ void MetronIngress::DeInit() {
 int MetronIngress::GetFreeCore() {
   for (int i = 0; i < 20; i++) {
     if (!in_use_cores_[i]) {
-      LOG(INFO) << i;
       return i;
     }
   }
-  LOG(INFO) << 0;
+  LOG(FATAL) << 0;
   return 0;
 }
 
 void MetronIngress::ProcessOverloads() {
   uint64_t curr_ts = tsc_to_ns(rdtsc());
-  if (curr_ts - last_update_ts_ < 1000000000) {
-    return;
+  uint64_t time_diff_ms = (curr_ts - last_update_ts_) / 1000000;
+
+  if (lb_stage_ == 0) {
+    if (time_diff_ms < LoadBalancePeriodMs) {
+      return;
+    }
+
+    for (int i = 0; i < 20; i++) {
+      if (!in_use_cores_[i]) {
+        continue;
+      }
+      if (per_core_pkt_cnts_[i] * 1000 / time_diff_ms > pkt_rate_thresh_) {
+        is_overloaded_cores_[i] = 1;
+      }
+    }
+    lb_stage_ = 1;
   }
-  last_update_ts_ = curr_ts;
 
-  for (int i = 0; i < 20; i++) {
-    if (per_core_pkt_cnts_[i] > pkt_rate_thresh_) {
-      uint32_t left = 0;
-      uint32_t mid = 127;
-      uint32_t right = 255;
+  if (lb_stage_ == 1) {
+    if (time_diff_ms < LoadBalancePeriodMs + HardwareRuleDelayMs) {
+      return;
+    }
+
+    for (int i = 0; i < 20; i++) {
+      if (!in_use_cores_[i] || !is_overloaded_cores_[i]) {
+        continue;
+      }
+      // Migrate 50% traffic from this core
+      is_overloaded_cores_[i] = false;
+
+      uint32_t left = 0; uint32_t mid = 127; uint32_t right = 255;
       int org_core = i;
-
       // Search for the flow aggregate
       bool found = false;
       for (auto it = flow_aggregates_.begin(); it != flow_aggregates_.end(); it++) {
@@ -109,7 +148,6 @@ void MetronIngress::ProcessOverloads() {
       if (left == mid) {
         continue;
       }
-
       int new_core = GetFreeCore();
       in_use_cores_[new_core] = true;
       flow_aggregates_.emplace_back(left, mid, org_core);
@@ -120,18 +158,25 @@ void MetronIngress::ProcessOverloads() {
         }
         flow_id_to_core_[flow_id] = new_core;
       }
-
       LOG(INFO) << "core " << i << " -> " << new_core << ": " << per_core_pkt_cnts_[i] << " | "
                 << "[" << left << ", " << mid << "] / "
                 << "[" << mid + 1 << ", " << right << "]";
     }
-  }
 
-  for (int i = 0; i < 64; i++) {
-    per_core_pkt_cnts_[i] = 0;
-  }
-  for (int i = 0; i < 256; i++) {
-    per_flow_id_pkt_cnts_[i] = 0;
+    // Reset
+    for (int i = 0; i < 64; i++) {
+      per_core_pkt_cnts_[i] = 0;
+    }
+    for (int i = 0; i < 256; i++) {
+      per_flow_id_pkt_cnts_[i] = 0;
+    }
+
+    // Debug info
+    LOG(INFO) << "total " << flow_aggregates_.size() << " flow aggregates";
+
+    // Next epoch
+    lb_stage_ = 0;
+    last_update_ts_ = tsc_to_ns(rdtsc());
   }
 }
 
@@ -170,16 +215,14 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     // Send to core
     eth->dst_addr = macs_[dst_worker];
-    // be32_t before = ip->dst;
     be32_t after = ips_[dst_worker];
     ip->dst = after;
     tcp->reserved = dst_core; // encode
-
-    // uint32_t l3_increment =
-    //   ChecksumIncrement32(before.raw_value(), after.raw_value());
-    // ip->checksum = UpdateChecksumWithIncrement(ip->checksum, l3_increment);
-    // uint32_t l4_increment = l3_increment;
-    // tcp->checksum = UpdateChecksumWithIncrement(tcp->checksum, l4_increment);
+    if (rewrite_ > 0) {
+      // ip->src = ip->src | ip_mask_;
+      tcp->src_port = tcp->dst_port | tcp_port_mask_;
+      tcp->dst_port = tcp->dst_port | tcp_port_mask_;
+    }
     tcp->checksum = CalculateIpv4TcpChecksum(*ip, *tcp);
     ip->checksum = CalculateIpv4Checksum(*ip);
 

@@ -60,6 +60,14 @@ class MetronIngress final : public Module {
  private:
   int GetFreeCore();
 
+  // 1: in lb (aware of overloads);
+  // 2: in lb (after the new flow rule is effective)
+  uint32_t lb_stage_;
+
+  int rewrite_ = 0;
+  be32_t ip_mask_;
+  be16_t tcp_port_mask_;
+
   uint64_t last_update_ts_;
 
   uint32_t pkt_rate_thresh_;
@@ -77,6 +85,7 @@ class MetronIngress final : public Module {
   std::map<uint32_t, int> flow_to_core_;
 
   bool in_use_cores_[64] = {false};
+  bool is_overloaded_cores_[64] = {false};
 
   // For monitoring
   uint32_t per_core_pkt_cnts_[64];

@@ -13,7 +13,7 @@ macs = ["b8:ce:f6:b0:35:e2", "b8:ce:f6:d2:3a:c2", "b8:ce:f6:cc:8e:cc", "b8:ce:f6
 workers=[{"ip": ips[i], "mac": macs[i]} for i in range(num_workers)]
 
 ig_mode = int($BESS_IG!'0')
-pkt_rate_thresh=int($BESS_PKT_RATE_THRESH!'1700000')
+pkt_rate_thresh=int($BESS_PKT_RATE_THRESH!'1500000')
 per_core_pkt_rate_thresh = pkt_rate_thresh / num_cores
 
 # Backbone
@@ -56,7 +56,7 @@ for i in range(num_cores):
         queue[i] = Queue(size=pow(2,20))
 
     re[i] = Replayer(offset=tag_offset, dynamic_traffic_conf=playback_speed_conf)
-    ig[i] = MetronIngress(mode=ig_mode, endpoints=workers, pkt_rate_thresh=per_core_pkt_rate_thresh)
+    ig[i] = MetronIngress(mode=ig_mode, endpoints=workers, rewrite=i, pkt_rate_thresh=per_core_pkt_rate_thresh)
     qout[i] = QueueOut(port=pmd_port0, qid=i)
 
     queue[i] -> re[i] -> ig[i] -> Timestamp(offset=tag_offset) -> qout[i]
