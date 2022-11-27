@@ -43,7 +43,7 @@ CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
   }
 
   // Initially, all flow aggregates go to core 0.
-  flow_aggregates_.emplace_back(FlowAggregate(0, 255, 0));
+  flow_aggregates_.emplace_back(FlowAggregate());
   for (uint32_t i = 0; i < 256; i++) {
     flow_id_to_core_[i] = 0;
   }
