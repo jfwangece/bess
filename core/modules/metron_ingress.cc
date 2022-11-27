@@ -8,7 +8,7 @@
 // ToR switch to re-balance flows to mitigate the overload event.
 // However, the delay of collecting stats and the delay of
 // installing a flow rule can be 100s milliseconds.
-#define HardwareRuleDelayMs 300
+#define HardwareRuleDelayMs 200
 
 CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
   ips_.clear();
@@ -158,10 +158,13 @@ void MetronIngress::ProcessOverloads() {
         }
         flow_id_to_core_[flow_id] = new_core;
       }
+      // Debug info
       LOG(INFO) << "core " << i << " -> " << new_core << ": " << per_core_pkt_cnts_[i] << " | "
                 << "[" << left << ", " << mid << "] / "
                 << "[" << mid + 1 << ", " << right << "]";
     }
+    // Debug info
+    LOG(INFO) << "total " << flow_aggregates_.size() << " flow aggregates";
 
     // Reset
     for (int i = 0; i < 64; i++) {
@@ -170,9 +173,6 @@ void MetronIngress::ProcessOverloads() {
     for (int i = 0; i < 256; i++) {
       per_flow_id_pkt_cnts_[i] = 0;
     }
-
-    // Debug info
-    LOG(INFO) << "total " << flow_aggregates_.size() << " flow aggregates";
 
     // Next epoch
     lb_stage_ = 0;

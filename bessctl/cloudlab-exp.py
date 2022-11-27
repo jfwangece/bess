@@ -140,7 +140,7 @@ def start_traffic(tip, num_worker, mode):
     print("traffic {} starts: worker-scale routing".format(tip))
 
 def start_traffic_core_ingress(tip, num_worker, mode):
-    pkt_thresh = 1500000
+    pkt_thresh = 1300000
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
     p = run_remote_besscmd(tip, cmds)
