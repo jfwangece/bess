@@ -108,7 +108,7 @@ void MetronIngress::ProcessOverloads() {
         continue;
       }
       if (per_core_pkt_cnts_[i] * 1000 / time_diff_ms > pkt_rate_thresh_) {
-        is_overloaded_cores_[i] = 1;
+        is_overloaded_cores_[i] = true;
       }
     }
     lb_stage_ = 1;
@@ -155,7 +155,7 @@ void MetronIngress::ProcessOverloads() {
       in_use_cores_[new_core] = true;
       flow_aggregates_.emplace_back(left, new_length, org_core);
       flow_aggregates_.emplace_back(new_left, new_length, new_core);
-      for (uint32_t flow_id = new_left; flow_id < new_length; flow_id++) {
+      for (uint32_t flow_id = new_left; flow_id < new_left + new_length; flow_id++) {
         if (flow_id > 255) {
           LOG(INFO) << "incorrect flow_id " << flow_id;
           break;
@@ -172,7 +172,7 @@ void MetronIngress::ProcessOverloads() {
     // Debug info
     LOG(INFO) << "total " << flow_aggregates_.size() << " flow aggregates";
 
-    // Reset
+    // Reset packet counters
     for (int i = 0; i < 64; i++) {
       per_core_pkt_cnts_[i] = 0;
     }
