@@ -1,6 +1,8 @@
 #include <nfv_ctrl_msg.h>
 #include <metron_core.h>
 
+#include "../utils/packet_tag.h"
+
 const Commands MetronCore::cmds = {
     {"get_core_time", "EmptyArg", MODULE_CMD_FUNC(&MetronCore::CommandGetCoreTime),
      Command::THREAD_SAFE},
@@ -42,6 +44,13 @@ CommandResponse MetronCore::Init(const bess::pb::MetronCoreArg& arg) {
     bess::ctrl::metron_cores[core_id_] = this;
   }
 
+  // Quadrant measurements
+  next_packet_delay_idx = 0;
+  for (int i = 0; i < MostRecentPacketDelayCount; i++) {
+    most_recent_packet_delays_[i] = 0;
+  }
+  max_packet_delay_ = 0;
+
   last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
   is_active_ = false;
   idle_epochs_ = 0;
@@ -74,6 +83,7 @@ struct task_result MetronCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     return {.block = false, .packets = 0, .bits = 0};
   }
 
+  // CPU core usage accounting
   uint64_t now = tsc_to_ns(rdtsc());
   if (now - last_short_epoch_end_ns_ >= 1000000) {
     if (epoch_packet_count_ < 100) {
@@ -87,12 +97,12 @@ struct task_result MetronCore::RunTask(Context *ctx, bess::PacketBatch *batch,
       is_active_ = true;
       idle_epochs_ = 0;
     }
-
     if (is_active_) {
       uint64_t core_diff = now - last_short_epoch_end_ns_;
       rte_atomic64_add(&sum_core_time_ns_, core_diff);
     }
 
+    // Reset
     epoch_packet_count_ = 0;
     last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
   }
@@ -105,8 +115,27 @@ struct task_result MetronCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   batch->set_cnt(cnt);
   uint64_t total_bytes = 0;
+  uint64_t enqueue_ts = 0;
   for (uint32_t i = 0; i < cnt; i++) {
-    total_bytes += batch->pkts()[i]->total_len();
+    bess::Packet *pkt = batch->pkts()[i];
+    total_bytes += pkt->total_len();
+
+    // Quadrant gets the per-batch queueing delay
+    if (i == cnt - 1) {
+      bess::utils::GetUint64(pkt, WorkerDelayTsTagOffset, &enqueue_ts);
+      bess::utils::TagUint64(pkt, WorkerDelayTsTagOffset, max_packet_delay_);
+
+      most_recent_packet_delays_[next_packet_delay_idx] = tsc_to_ns(rdtsc()) - enqueue_ts;
+      next_packet_delay_idx = (next_packet_delay_idx + 1) % MostRecentPacketDelayCount;
+      if (next_packet_delay_idx == MostRecentPacketDelayCount - 1) {
+        max_packet_delay_ = 0;
+        for (int j = 0; j < MostRecentPacketDelayCount; j++) {
+          if (max_packet_delay_ < most_recent_packet_delays_[j]) {
+            max_packet_delay_ = most_recent_packet_delays_[j];
+          }
+        }
+      }
+    }
   }
 
   RunNextModule(ctx, batch);

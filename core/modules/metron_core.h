@@ -5,6 +5,8 @@
 #include "../pb/module_msg.pb.h"
 #include "../utils/lock_less_queue.h"
 
+#define MostRecentPacketDelayCount 1024
+
 class MetronCore final : public Module {
  public:
   static const Commands cmds;
@@ -29,6 +31,10 @@ class MetronCore final : public Module {
   uint64_t epoch_packet_count_;
 
   // Timestamps
+  int next_packet_delay_idx;
+  uint64_t most_recent_packet_delays_[MostRecentPacketDelayCount];
+  uint64_t max_packet_delay_;
+
   // CPU core usage is measured in epochs.
   uint64_t last_short_epoch_end_ns_;
   rte_atomic64_t sum_core_time_ns_;

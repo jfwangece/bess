@@ -7,6 +7,9 @@
 #include <mutex>
 #include <vector>
 
+// Quadrant
+#define WorkerDelayTsTagOffset 100
+
 // Number of NFV workers in a cluster
 #define DEFAULT_INVALID_WORKER_ID 10
 

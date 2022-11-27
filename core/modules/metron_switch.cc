@@ -1,6 +1,8 @@
 #include <nfv_ctrl_msg.h>
 #include <metron_switch.h>
 
+#include "../utils/packet_tag.h"
+
 CommandResponse MetronSwitch::Init(const bess::pb::MetronSwitchArg& arg) {
   worker_id_ = 0;
   if (arg.wid() > 0) {
@@ -41,6 +43,9 @@ void MetronSwitch::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
   uint32_t dst_core = 0;
   int cnt = batch->cnt();
+
+  // Tag each packet a current timestamp
+  uint64_t now = tsc_to_ns(rdtsc());
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
 
@@ -51,6 +56,8 @@ void MetronSwitch::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       DropPacket(ctx, pkt);
       continue;
     }
+
+    bess::utils::TagUint64(pkt, WorkerDelayTsTagOffset, now);
     dst_core = tcp->reserved; // decode
     pkt_batch_[dst_core]->add(pkt);
   }

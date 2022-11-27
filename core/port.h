@@ -303,6 +303,7 @@ class Port {
   Conf conf_;
 
  private:
+  // org default: 1024; ironside: 2048; metron / quadrant / dyssect: 4096;
   static const size_t kDefaultIncQueueSize = 4096;
   static const size_t kDefaultOutQueueSize = 4096;
 
