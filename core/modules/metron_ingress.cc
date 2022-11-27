@@ -126,33 +126,36 @@ void MetronIngress::ProcessOverloads() {
       // Migrate 50% traffic from this core
       is_overloaded_cores_[i] = false;
 
-      uint32_t left = 0; uint32_t mid = 127; uint32_t right = 255;
-      int org_core = i;
       // Search for the flow aggregate
+      uint32_t left = 0; uint32_t right = 255; uint32_t length = 256;
+      int org_core = i;
       bool found = false;
       for (auto it = flow_aggregates_.begin(); it != flow_aggregates_.end(); it++) {
         if (it->core == i) {
-          left = it->start;
-          right = it->end;
+          left = it->Left();
+          length = it->length;
+          right = it->Right();
           flow_aggregates_.erase(it);
           found = true;
           break;
         }
       }
       if (!found) {
-        continue;;
+        continue;
       }
 
       // Split
-      mid = (left + right) / 2;
-      if (left == mid) {
+      uint32_t new_length = length / 2;
+      if (new_length == 0) {
         continue;
       }
+
+      uint32_t new_left = left + new_length;
       int new_core = GetFreeCore();
       in_use_cores_[new_core] = true;
-      flow_aggregates_.emplace_back(left, mid, org_core);
-      flow_aggregates_.emplace_back(mid + 1, right, new_core);
-      for (uint32_t flow_id = mid + 1; flow_id <= right; flow_id++) {
+      flow_aggregates_.emplace_back(left, new_length, org_core);
+      flow_aggregates_.emplace_back(new_left, new_length, new_core);
+      for (uint32_t flow_id = new_left; flow_id < new_length; flow_id++) {
         if (flow_id > 255) {
           LOG(INFO) << "incorrect flow_id " << flow_id;
           break;
@@ -162,8 +165,8 @@ void MetronIngress::ProcessOverloads() {
 
       // Debug info
       LOG(INFO) << "core " << i << " -> " << new_core << ": " << per_core_pkt_cnts_[i] << " | "
-                << "[" << left << ", " << mid << "] / "
-                << "[" << mid + 1 << ", " << right << "]";
+                << "[" << left << ", " << new_left - 1 << "] / "
+                << "[" << new_left << ", " << right << "]";
     }
 
     // Debug info

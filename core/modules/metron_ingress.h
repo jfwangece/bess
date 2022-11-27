@@ -29,20 +29,23 @@ class MetronIngress final : public Module {
   // Representing a group of flows
   struct FlowAggregate {
     uint32_t start;
-    uint32_t end;
+    uint32_t length;
     int core;
 
+    inline uint32_t Left() { return this->start; }
+    inline uint32_t Right() { return (this->start + this->length - 1); }
+
     FlowAggregate() {
-      start = 0; end = 255; core = 0;
+      start = 0; length = 256; core = 0;
     }
     FlowAggregate(uint32_t s, uint32_t l, int c) {
-      start = s; end = s + l; core = c;
+      start = s; length = l; core = c;
     }
     FlowAggregate(const FlowAggregate& other) {
-      start = other.start; end = other.end; core = other.core;
+      start = other.start; length = other.length; core = other.core;
     }
     bool operator==(const FlowAggregate& other) const {
-      return (this->start == other.start) && (this->end == other.end);
+      return (this->start == other.start) && (this->length == other.length);
     }
   };
 
