@@ -129,6 +129,9 @@ def start_remote_bessd(ip):
     return
 
 def start_traffic(tip, num_worker, mode):
+    """ Start a traffic generator with the worker-level load balancing scheme
+    (such as Ironside's ingress).
+    """
     pkt_thresh = 2000000
     cmds = ["run", "nfvctrl/cloud_pcap_replay_mc",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
@@ -140,6 +143,10 @@ def start_traffic(tip, num_worker, mode):
     print("traffic {} starts: worker-scale routing".format(tip))
 
 def start_traffic_core_ingress(tip, num_worker, mode):
+    """ Start a traffic generator with the core-level load balancing scheme
+    (such as Metron's and Quadrant's ingress).
+    |mode|: 0 for Metron; 1 for Quadrant;
+    """
     pkt_thresh = 1300000
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]

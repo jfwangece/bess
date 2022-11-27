@@ -10,6 +10,10 @@
 #include <map>
 #include <vector>
 
+#define MaxWorkerCount 3
+#define MaxPerWorkerCoreCount 15
+#define MaxCoreCount (MaxWorkerCount * MaxPerWorkerCoreCount)
+
 using bess::utils::ChecksumIncrement16;
 using bess::utils::ChecksumIncrement32;
 using bess::utils::UpdateChecksumWithIncrement;
@@ -56,12 +60,15 @@ class MetronIngress final : public Module {
   CommandResponse Init(const bess::pb::MetronIngressArg& arg);
   void DeInit() override;
 
-  void ProcessOverloads();
+  void MetronProcessOverloads();
+  void QuadrantProcessOverloads();
 
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
  private:
   int GetFreeCore();
+
+  int mode_;
 
   // 1: in lb (aware of overloads);
   // 2: in lb (after the new flow rule is effective)
@@ -79,6 +86,7 @@ class MetronIngress final : public Module {
   std::vector<Ethernet::Address> macs_;
   std::vector<be32_t> ips_;
 
+  /// Metron
   // All existing flow aggregates in the cluster
   std::vector<FlowAggregate> flow_aggregates_;
 
@@ -87,11 +95,16 @@ class MetronIngress final : public Module {
   int flow_id_to_core_[256];
   std::map<uint32_t, int> flow_to_core_;
 
-  bool in_use_cores_[64] = {false};
-  bool is_overloaded_cores_[64] = {false};
+  // Quadrant
+  int selected_core_id_;
+  std::map<uint32_t, int> flow_cache_;
+
+  // Common
+  bool in_use_cores_[MaxCoreCount] = {false};
+  bool is_overloaded_cores_[MaxCoreCount] = {false};
 
   // For monitoring
-  uint32_t per_core_pkt_cnts_[64];
+  uint32_t per_core_pkt_cnts_[MaxCoreCount];
   uint32_t per_flow_id_pkt_cnts_[256];
 };
 
