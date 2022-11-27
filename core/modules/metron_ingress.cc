@@ -154,15 +154,18 @@ void MetronIngress::ProcessOverloads() {
       flow_aggregates_.emplace_back(mid + 1, right, new_core);
       for (uint32_t flow_id = mid + 1; flow_id <= right; flow_id++) {
         if (flow_id > 255) {
-          LOG(FATAL) << "incorrect flow_id";
+          LOG(INFO) << "incorrect flow_id " << flow_id;
+          break;
         }
         flow_id_to_core_[flow_id] = new_core;
       }
+
       // Debug info
       LOG(INFO) << "core " << i << " -> " << new_core << ": " << per_core_pkt_cnts_[i] << " | "
                 << "[" << left << ", " << mid << "] / "
                 << "[" << mid + 1 << ", " << right << "]";
     }
+
     // Debug info
     LOG(INFO) << "total " << flow_aggregates_.size() << " flow aggregates";
 
