@@ -29,7 +29,7 @@ using bess::utils::FlowHash;
 class MetronIngress final : public Module {
  public:
   // static const Commands cmds;
-  static uint8_t selected_core_id_;
+  static rte_atomic16_t selected_core_id_;
 
   // Representing a group of flows
   struct FlowAggregate {

@@ -16,7 +16,7 @@
 // installing a flow rule can be 100s milliseconds.
 #define HardwareRuleDelayMs 200
 
-uint8_t MetronIngress::selected_core_id_ = 0;
+rte_atomic16_t MetronIngress::selected_core_id_;
 
 CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
   ips_.clear();
@@ -76,7 +76,7 @@ CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
   }
 
   // Quadrant
-  selected_core_id_ = 0;
+  rte_atomic16_set(&selected_core_id_, 0);
 
   // Common
   for (uint8_t i = 0; i < MaxCoreCount; i++) {
@@ -229,6 +229,7 @@ void MetronIngress::QuadrantProcessOverloads() {
 
   uint64_t curr_ts = tsc_to_ns(rdtsc());
   uint64_t time_diff_ms = (curr_ts - last_update_ts_) / 1000000;
+  uint8_t selected_core = rte_atomic16_read(&selected_core_id_);
 
   // Check overloads and make load balancing changes
   if (lb_stage_ == 0) {
@@ -247,7 +248,7 @@ void MetronIngress::QuadrantProcessOverloads() {
         if (max_delay == 0 ||
             max_delay < bess::ctrl::pc_max_batch_delay[i]) {
           max_delay = bess::ctrl::pc_max_batch_delay[i];
-          selected_core_id_ = i;
+          selected_core = i;
         }
       }
       // reset
@@ -255,12 +256,13 @@ void MetronIngress::QuadrantProcessOverloads() {
     }
     bess::ctrl::sys_measure->QuadrantUnpauseUpdates();
 
-    if (!in_use_cores_[selected_core_id_]) {
-      in_use_cores_[selected_core_id_] = true;
-      LOG(INFO) << "core " << (int)selected_core_id_ << " is activated";
+    if (!in_use_cores_[selected_core]) {
+      in_use_cores_[selected_core] = true;
+      LOG(INFO) << "core " << (int)selected_core << " is activated";
     } else {
-      LOG(INFO) << "core " << (int)selected_core_id_ << " is selected";
+      LOG(INFO) << "core " << (int)selected_core << " is selected";
     }
+    rte_atomic16_set(&selected_core_id_, selected_core);
     lb_stage_ = 1;
   }
 
@@ -276,7 +278,7 @@ void MetronIngress::QuadrantProcessOverloads() {
       // Migrate flows from overloaded CPU cores
       uint8_t org_core = i;
       // uint8_t new_core = GetFreeCore();
-      uint8_t new_core = selected_core_id_;
+      uint8_t new_core = selected_core;
       if (new_core == 255) {
         continue;
       }
@@ -321,6 +323,7 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   }
 
   int cnt = batch->cnt();
+  uint8_t selected_core = rte_atomic16_read(&selected_core_id_);
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
 
@@ -351,9 +354,9 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       auto it = flow_cache_.find(flow_id);
       if (it == flow_cache_.end()) {
         // This is a new flow
-        flow_cache_.emplace(flow_id, selected_core_id_);
-        quadrant_per_core_flow_ids_[selected_core_id_].emplace(flow_id);
-        encode = selected_core_id_;
+        flow_cache_.emplace(flow_id, selected_core);
+        quadrant_per_core_flow_ids_[selected_core].emplace(flow_id);
+        encode = selected_core;
       } else {
         encode = it->second;
       }
