@@ -163,7 +163,7 @@ def start_traffic_quadrant_ingress(tip, num_worker, mode, slo=100000):
     """
     pkt_thresh = 900000
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
-            "BESS_SWITCH_CORE=2, BESS_WORKER_CORE=16, BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
+            "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     if len(out) > 0:
@@ -199,7 +199,7 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
 
 def start_metron_worker(wip, worker_id):
     cmds = ["run", "nfvctrl/cloud_metron_chain4"]
-    extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}".format(macs[0], worker_id)
+    extra_cmd = "BESS_EXP_ID=2, TRAFFIC_MAC='{}', BESS_WID={}".format(macs[0], worker_id)
     cmds.append(extra_cmd)
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
@@ -208,7 +208,7 @@ def start_metron_worker(wip, worker_id):
 
 def start_quadrant_worker(wip, worker_id):
     cmds = ["run", "nfvctrl/cloud_metron_chain4"]
-    extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}, BESS_EXP_ID=3".format(macs[0], worker_id)
+    extra_cmd = "BESS_EXP_ID=3, BESS_SWITCH_CORE=2, BESS_WORKER_CORE=20, TRAFFIC_MAC='{}', BESS_WID={}".format(macs[0], worker_id)
     cmds.append(extra_cmd)
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()

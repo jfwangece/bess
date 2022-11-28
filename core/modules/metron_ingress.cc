@@ -16,7 +16,7 @@
 
 #define QuadrantLoadBalancePeriodMs 300
 
-#define RpcCommandDelayMs 50
+#define RpcCommandDelayMs 10
 
 rte_atomic16_t MetronIngress::selected_core_id_;
 
