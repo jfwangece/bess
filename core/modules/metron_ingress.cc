@@ -130,7 +130,8 @@ int MetronIngress::GetFreeCore() {
       return i;
     }
   }
-  LOG(FATAL) << "No free CPU cores in the cluster!";
+
+  LOG(INFO) << "No free CPU cores in the cluster!";
   return 0;
 }
 
@@ -248,6 +249,7 @@ void MetronIngress::QuadrantProcessOverloads() {
         continue;
       }
       if (bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns) {
+        LOG(INFO) << "core " << i << " delay: " << bess::ctrl::pc_max_batch_delay[i];
         is_overloaded_cores_[i] = true;
       } else {
         // pick the core with the highest load among all non-overloaded cores
