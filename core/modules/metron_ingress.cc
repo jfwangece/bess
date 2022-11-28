@@ -245,12 +245,11 @@ void MetronIngress::QuadrantProcessOverloads() {
     bess::ctrl::sys_measure->QuadrantPauseUpdates();
     uint64_t max_delay = 0;
     for (int i = 0; i < MaxCoreCount; i++) {
-      if (!in_use_cores_[i]) {
-        continue;
-      }
       if (bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns) {
-        LOG(INFO) << "core " << i << " delay: " << bess::ctrl::pc_max_batch_delay[i];
-        is_overloaded_cores_[i] = true;
+        if (in_use_cores_[i]) {
+          is_overloaded_cores_[i] = true;
+          LOG(INFO) << "core " << i << " delay: " << bess::ctrl::pc_max_batch_delay[i];
+        }
       } else {
         // pick the core with the highest load among all non-overloaded cores
         if (max_delay < bess::ctrl::pc_max_batch_delay[i]) {
@@ -261,6 +260,10 @@ void MetronIngress::QuadrantProcessOverloads() {
       bess::ctrl::pc_max_batch_delay[i] = 0;
     }
     bess::ctrl::sys_measure->QuadrantUnpauseUpdates();
+
+    if (!in_use_cores_[selected_core_id_]) {
+      in_use_cores_[selected_core_id_] = true;
+    }
     lb_stage_ = 1;
   }
 
@@ -283,6 +286,10 @@ void MetronIngress::QuadrantProcessOverloads() {
       }
 
       size_t target_flow_count = quadrant_per_core_flow_ids_[org_core].size() / 2;
+      if (target_flow_count == 0) {
+        continue;
+      }
+
       std::vector<uint32_t> to_move_flows;
       for (auto it : quadrant_per_core_flow_ids_[org_core]) {
         to_move_flows.emplace_back(it);
@@ -290,10 +297,6 @@ void MetronIngress::QuadrantProcessOverloads() {
           break;
         }
       }
-      if (to_move_flows.size() == 0) {
-        continue;
-      }
-
       for (auto flow_id : to_move_flows) {
         quadrant_per_core_flow_ids_[org_core].erase(flow_id);
         quadrant_per_core_flow_ids_[new_core].emplace(flow_id);
@@ -304,7 +307,7 @@ void MetronIngress::QuadrantProcessOverloads() {
       is_overloaded_cores_[new_core] = false;
 
       // Debug info
-      // LOG(INFO) << "core " << org_core << " is overloaded. Flows are migrated to core " << new_core;
+      LOG(INFO) << "core " << org_core << " is overloaded. Flows are migrated to core " << new_core;
     }
     lb_stage_ = 0;
   }
