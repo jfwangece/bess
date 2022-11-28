@@ -18,7 +18,7 @@ acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 
 switch_core_cnt = 1
-worker_core_cnt = 15
+worker_core_cnt = 19
 total_core_cnt = switch_core_cnt + worker_core_cnt
 
 total_cores = [i for i in range(total_core_cnt)]

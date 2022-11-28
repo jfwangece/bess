@@ -142,14 +142,14 @@ def start_traffic(tip, num_worker, mode):
         print(out)
     print("traffic {} starts: worker-scale routing".format(tip))
 
-def start_traffic_core_ingress(tip, num_worker, mode):
+def start_traffic_core_ingress(tip, num_worker, mode, slo=100000):
     """ Start a traffic generator with the core-level load balancing scheme
     (such as Metron's and Quadrant's ingress).
     |mode|: 0 for Metron; 1 for Quadrant;
     """
     pkt_thresh = 900000
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
-            "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
+            "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     if len(out) > 0:
@@ -730,7 +730,7 @@ def run_metron_exp(num_worker):
     print("---------------------------------------------------------------")
     return (avg_cores, delay)
 
-def run_quadrant_exp(num_worker):
+def run_quadrant_exp(num_worker, slo):
     exp_duration = 40
     selected_worker_ips = []
     for i in range(num_worker):
@@ -761,7 +761,7 @@ def run_quadrant_exp(num_worker):
     # Quadrant
     ig_mode = 1
     for tip in traffic_ip:
-        start_traffic_core_ingress(tip, num_worker, ig_mode)
+        start_traffic_core_ingress(tip, num_worker, ig_mode, slo)
     print("exp: traffic started")
 
     time.sleep(exp_duration)
@@ -845,7 +845,7 @@ def run_compare_exp():
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
     # run_metron_exp(worker_cnt)
-    run_quadrant_exp(worker_cnt)
+    run_quadrant_exp(worker_cnt, target_slos[0])
 
     print("--------    Ironside comparison experiment results    ---------")
     print("---------------------------------------------------------------")

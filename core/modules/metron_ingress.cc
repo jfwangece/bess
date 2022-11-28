@@ -95,7 +95,7 @@ CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
   lb_stage_ = 0;
   last_update_ts_ = tsc_to_ns(rdtsc());
 
-  LOG(INFO) << "metron ingress: pkt thresh " << pkt_rate_thresh_;
+  LOG(INFO) << "metron ingress: pkt thresh " << pkt_rate_thresh_ << ", slo " << bess::utils::slo_ns;
 
   return CommandSuccess();
 }
@@ -247,7 +247,7 @@ void MetronIngress::QuadrantProcessOverloads() {
       if (!in_use_cores_[i]) {
         continue;
       }
-      if (bess::ctrl::pc_max_batch_delay[i] > bess::utils::slo_ns) {
+      if (bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns) {
         is_overloaded_cores_[i] = true;
       } else {
         // pick the core with the highest load among all non-overloaded cores
@@ -276,7 +276,6 @@ void MetronIngress::QuadrantProcessOverloads() {
       // Migrate flows from overloaded CPU cores
       int org_core = i;
       int new_core = GetFreeCore();
-      in_use_cores_[new_core] = true;
 
       size_t target_flow_count = quadrant_per_core_flow_ids_[org_core].size() / 2;
       std::vector<uint32_t> to_move_flows;
@@ -286,13 +285,20 @@ void MetronIngress::QuadrantProcessOverloads() {
           break;
         }
       }
-      for (auto it : to_move_flows) {
-        quadrant_per_core_flow_ids_[org_core].erase(it);
-        quadrant_per_core_flow_ids_[new_core].emplace(it);
+      if (to_move_flows.size() == 0) {
+        continue;
       }
 
+      for (auto flow_id : to_move_flows) {
+        quadrant_per_core_flow_ids_[org_core].erase(flow_id);
+        quadrant_per_core_flow_ids_[new_core].emplace(flow_id);
+      }
+      in_use_cores_[new_core] = true;
       is_overloaded_cores_[org_core] = false;
       is_overloaded_cores_[new_core] = false;
+
+      // Debug info
+      LOG(INFO) << "core " << org_core << " is overloaded. Flows are migrated to core " << new_core;
     }
     lb_stage_ = 0;
   }
