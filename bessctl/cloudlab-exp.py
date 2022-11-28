@@ -870,11 +870,11 @@ def run_compare_exp():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
-    run_metron_exp(worker_cnt)
+    # run_metron_exp(worker_cnt)
 
     run_quadrant_exp(worker_cnt, 1000000)
 
-    run_dyssect_exp(worker_cnt)
+    # run_dyssect_exp(worker_cnt)
 
     print("--------    Ironside comparison experiment results    ---------")
     print("---------------------------------------------------------------")

@@ -6,7 +6,7 @@
 
 #define MetronLoadBalancePeriodMs 2000
 
-#define QuadrantLoadBalancePeriodMs 500
+#define QuadrantLoadBalancePeriodMs 300
 
 // In Metron and Quadrant, the system ingress collects per-core
 // and per-worker avg packet rates to determine if a CPU core or
@@ -124,7 +124,7 @@ uint8_t MetronIngress::GetFreeCore() {
     }
   }
 
-  LOG(INFO) << "No free CPU cores in the cluster!";
+  // LOG(INFO) << "No free CPU cores in the cluster!";
   return 255;
 }
 
@@ -199,7 +199,7 @@ void MetronIngress::MetronProcessOverloads() {
       }
 
       // Debug info
-      LOG(INFO) << "core " << i << " -> " << new_core << ": " << per_core_pkt_cnts_[i] << " | "
+      LOG(INFO) << "core " << (int)i << " -> " << (int)new_core << ": " << per_core_pkt_cnts_[i] << " | "
                 << "[" << left << ", " << new_left - 1 << "] / "
                 << "[" << new_left << ", " << right << "]";
     }
@@ -240,11 +240,12 @@ void MetronIngress::QuadrantProcessOverloads() {
       if (bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns) {
         if (in_use_cores_[i]) {
           is_overloaded_cores_[i] = true;
-          LOG(INFO) << "core " << i << " delay: " << bess::ctrl::pc_max_batch_delay[i];
+          LOG(INFO) << "core " << (int)i << " delay: " << bess::ctrl::pc_max_batch_delay[i];
         }
-      } else {
+      } else if (bess::ctrl::pc_max_batch_delay[i] < (uint64_t)bess::utils::slo_ns / 2) {
         // pick the core with the highest load among all non-overloaded cores
-        if (max_delay == 0 || max_delay < bess::ctrl::pc_max_batch_delay[i]) {
+        if (max_delay == 0 ||
+            max_delay < bess::ctrl::pc_max_batch_delay[i]) {
           max_delay = bess::ctrl::pc_max_batch_delay[i];
           selected_core_id_ = i;
         }
@@ -256,8 +257,10 @@ void MetronIngress::QuadrantProcessOverloads() {
 
     if (!in_use_cores_[selected_core_id_]) {
       in_use_cores_[selected_core_id_] = true;
+      LOG(INFO) << "core " << (int)selected_core_id_ << " is activated";
+    } else {
+      LOG(INFO) << "core " << (int)selected_core_id_ << " is selected";
     }
-    LOG(INFO) << "core " << selected_core_id_ << " is selected";
     lb_stage_ = 1;
   }
 
@@ -272,7 +275,8 @@ void MetronIngress::QuadrantProcessOverloads() {
 
       // Migrate flows from overloaded CPU cores
       uint8_t org_core = i;
-      uint8_t new_core = GetFreeCore();
+      // uint8_t new_core = GetFreeCore();
+      uint8_t new_core = selected_core_id_;
       if (new_core == 255) {
         continue;
       }
@@ -299,7 +303,7 @@ void MetronIngress::QuadrantProcessOverloads() {
       is_overloaded_cores_[new_core] = false;
 
       // Debug info
-      LOG(INFO) << "core " << org_core << " overload. " << to_move_flows.size() << " flows migrated to core " << new_core;
+      LOG(INFO) << "core " << (int)org_core << " overload. " << to_move_flows.size() << " flows migrated to core " << (int)new_core;
     }
 
     lb_stage_ = 0;
