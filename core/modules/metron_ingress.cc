@@ -309,7 +309,9 @@ void MetronIngress::QuadrantProcessOverloads() {
       // Debug info
       LOG(INFO) << "core " << org_core << " is overloaded. Flows are migrated to core " << new_core;
     }
+
     lb_stage_ = 0;
+    last_update_ts_ = tsc_to_ns(rdtsc());
   }
 }
 
