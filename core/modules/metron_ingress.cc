@@ -6,8 +6,6 @@
 
 #define MetronLoadBalancePeriodMs 2000
 
-#define QuadrantLoadBalancePeriodMs 300
-
 // In Metron and Quadrant, the system ingress collects per-core
 // and per-worker avg packet rates to determine if a CPU core or
 // a worker is overloaded. Then, it updates the flow rule at the
@@ -15,6 +13,10 @@
 // However, the delay of collecting stats and the delay of
 // installing a flow rule can be 100s milliseconds.
 #define HardwareRuleDelayMs 200
+
+#define QuadrantLoadBalancePeriodMs 300
+
+#define RpcCommandDelayMs 50
 
 rte_atomic16_t MetronIngress::selected_core_id_;
 
@@ -242,6 +244,8 @@ void MetronIngress::QuadrantProcessOverloads() {
         if (in_use_cores_[i]) {
           is_overloaded_cores_[i] = true;
           LOG(INFO) << "core " << (int)i << " overloaded. delay: " << bess::ctrl::pc_max_batch_delay[i];
+        } else {
+          LOG(INFO) << "core " << (int)i << " is strange. delay: " << bess::ctrl::pc_max_batch_delay[i];
         }
       } else if (bess::ctrl::pc_max_batch_delay[i] < (uint64_t)bess::utils::slo_ns / 2) {
         // pick the core with the highest load among all non-overloaded cores
@@ -270,7 +274,7 @@ void MetronIngress::QuadrantProcessOverloads() {
 
   // Enforce changes
   if (lb_stage_ == 1) {
-    if (time_diff_ms < QuadrantLoadBalancePeriodMs + HardwareRuleDelayMs) { return; }
+    if (time_diff_ms < QuadrantLoadBalancePeriodMs + RpcCommandDelayMs) { return; }
 
     for (uint8_t i = 0; i < MaxCoreCount; i++) {
       if (!in_use_cores_[i] || !is_overloaded_cores_[i]) {
