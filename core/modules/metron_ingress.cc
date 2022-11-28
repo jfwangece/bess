@@ -278,6 +278,9 @@ void MetronIngress::QuadrantProcessOverloads() {
       // Migrate flows from overloaded CPU cores
       int org_core = i;
       int new_core = GetFreeCore();
+      if (new_core == 0) {
+        continue;
+      }
 
       size_t target_flow_count = quadrant_per_core_flow_ids_[org_core].size() / 2;
       std::vector<uint32_t> to_move_flows;
@@ -300,7 +303,7 @@ void MetronIngress::QuadrantProcessOverloads() {
       is_overloaded_cores_[new_core] = false;
 
       // Debug info
-      LOG(INFO) << "core " << org_core << " is overloaded. Flows are migrated to core " << new_core;
+      // LOG(INFO) << "core " << org_core << " is overloaded. Flows are migrated to core " << new_core;
     }
     lb_stage_ = 0;
   }
