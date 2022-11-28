@@ -208,7 +208,7 @@ def start_metron_worker(wip, worker_id):
 
 def start_quadrant_worker(wip, worker_id):
     cmds = ["run", "nfvctrl/cloud_metron_chain4"]
-    extra_cmd = "BESS_EXP_ID=3, BESS_SWITCH_CORE=2, BESS_WORKER_CORE=20, TRAFFIC_MAC='{}', BESS_WID={}".format(macs[0], worker_id)
+    extra_cmd = "BESS_EXP_ID=3, BESS_SWITCH_CORE=2, BESS_WORKER_CORE=15, TRAFFIC_MAC='{}', BESS_WID={}".format(macs[0], worker_id)
     cmds.append(extra_cmd)
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()

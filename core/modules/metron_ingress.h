@@ -11,7 +11,7 @@
 #include <vector>
 
 #define MaxWorkerCount 3
-#define MaxPerWorkerCoreCount 20
+#define MaxPerWorkerCoreCount 15
 #define MaxCoreCount (MaxWorkerCount * MaxPerWorkerCoreCount)
 
 using bess::utils::ChecksumIncrement16;

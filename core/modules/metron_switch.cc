@@ -42,7 +42,7 @@ void MetronSwitch::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     pkt_batch_[i]->clear();
   }
 
-  uint32_t dst_core = 0;
+  uint8_t dst_core = 0;
   int cnt = batch->cnt();
 
   // Tag each packet a current timestamp
@@ -64,9 +64,9 @@ void MetronSwitch::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   }
 
   // Enqueue packet batches
-  for (int i = 0; i < num_cores_; i++) {
-    struct llring* q = bess::ctrl::local_mc_q[i];
+  for (uint8_t i = 0; i < num_cores_; i++) {
     if (pkt_batch_[i]->cnt()) {
+      struct llring* q = bess::ctrl::local_mc_q[i];
       int queued =
           llring_mp_enqueue_burst(q, (void**)pkt_batch_[i]->pkts(), pkt_batch_[i]->cnt());
       if (queued < pkt_batch_[i]->cnt()) {
