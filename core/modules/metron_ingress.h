@@ -29,13 +29,13 @@ using bess::utils::FlowHash;
 class MetronIngress final : public Module {
  public:
   // static const Commands cmds;
-  static int selected_core_id_;
+  static uint8_t selected_core_id_;
 
   // Representing a group of flows
   struct FlowAggregate {
     uint32_t start;
     uint32_t length;
-    int core;
+    uint8_t core;
 
     inline uint32_t Left() { return this->start; }
     inline uint32_t Right() { return (this->start + this->length - 1); }
@@ -43,7 +43,7 @@ class MetronIngress final : public Module {
     FlowAggregate() {
       start = 0; length = 256; core = 0;
     }
-    FlowAggregate(uint32_t s, uint32_t l, int c) {
+    FlowAggregate(uint32_t s, uint32_t l, uint8_t c) {
       start = s; length = l; core = c;
     }
     FlowAggregate(const FlowAggregate& other) {
@@ -67,8 +67,9 @@ class MetronIngress final : public Module {
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
  private:
-  int GetFreeCore();
+  uint8_t GetFreeCore();
 
+  // 0: Metron; 1: Quadrant
   int mode_;
 
   // 1: in lb (aware of overloads);
@@ -93,11 +94,11 @@ class MetronIngress final : public Module {
 
   // Per-flow-aggregate connection table
   // [0, 255] -> cpu core index
-  int flow_id_to_core_[256];
-  std::map<uint32_t, int> flow_to_core_;
+  uint8_t flow_id_to_core_[256];
+  std::map<uint32_t, uint8_t> flow_to_core_;
 
   // Quadrant
-  std::map<uint32_t, int> flow_cache_;
+  std::map<uint32_t, uint8_t> flow_cache_;
   std::set<uint32_t> quadrant_per_core_flow_ids_[MaxCoreCount];
 
   // Common

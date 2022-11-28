@@ -16,7 +16,7 @@
 // installing a flow rule can be 100s milliseconds.
 #define HardwareRuleDelayMs 200
 
-int MetronIngress::selected_core_id_ = 0;
+uint8_t MetronIngress::selected_core_id_ = 0;
 
 CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
   ips_.clear();
@@ -68,25 +68,20 @@ CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
 
   /// Init
   // Metron
-  // Initially, all flow aggregates go to core 0.
   flow_aggregates_.emplace_back(FlowAggregate());
   for (uint32_t i = 0; i < 256; i++) {
+    // Initially, all flow aggregates go to core 0.
     flow_id_to_core_[i] = 0;
-  }
-
-  for (int i = 0; i < 256; i++) {
     per_flow_id_pkt_cnts_[i] = 0;
-  }
-  for (int i = 0; i < MaxCoreCount; i++) {
-    per_core_pkt_cnts_[i] = 0;
   }
 
   // Quadrant
   selected_core_id_ = 0;
 
   // Common
-  for (int i = 0; i < MaxCoreCount; i++) {
+  for (uint8_t i = 0; i < MaxCoreCount; i++) {
     quadrant_per_core_flow_ids_[i].clear();
+    per_core_pkt_cnts_[i] = 0;
     in_use_cores_[i] = false;
     is_overloaded_cores_[i] = false;
   }
@@ -109,30 +104,28 @@ void MetronIngress::DeInit() {
   for (uint32_t i = 0; i < 256; i++) {
     flow_id_to_core_[i] = 0;
   }
-  for (int i = 0; i < MaxCoreCount; i++) {
+  for (uint8_t i = 0; i < MaxCoreCount; i++) {
     quadrant_per_core_flow_ids_[i].clear();
+    per_core_pkt_cnts_[i] = 0;
     in_use_cores_[i] = false;
     is_overloaded_cores_[i] = false;
   }
   in_use_cores_[0] = true;
 
-  for (int i = 0; i < MaxCoreCount; i++) {
-    per_core_pkt_cnts_[i] = 0;
-  }
-  for (int i = 0; i < 256; i++) {
+  for (uint32_t i = 0; i < 256; i++) {
     per_flow_id_pkt_cnts_[i] = 0;
   }
 }
 
-int MetronIngress::GetFreeCore() {
-  for (int i = 0; i < MaxCoreCount; i++) {
+uint8_t MetronIngress::GetFreeCore() {
+  for (uint8_t i = 0; i < MaxCoreCount; i++) {
     if (!in_use_cores_[i]) {
       return i;
     }
   }
 
   LOG(INFO) << "No free CPU cores in the cluster!";
-  return 0;
+  return 255;
 }
 
 void MetronIngress::MetronProcessOverloads() {
@@ -144,7 +137,7 @@ void MetronIngress::MetronProcessOverloads() {
       return;
     }
 
-    for (int i = 0; i < MaxCoreCount; i++) {
+    for (uint8_t i = 0; i < MaxCoreCount; i++) {
       if (!in_use_cores_[i]) {
         continue;
       }
@@ -160,7 +153,7 @@ void MetronIngress::MetronProcessOverloads() {
       return;
     }
 
-    for (int i = 0; i < MaxCoreCount; i++) {
+    for (uint8_t i = 0; i < MaxCoreCount; i++) {
       if (!in_use_cores_[i] || !is_overloaded_cores_[i]) {
         continue;
       }
@@ -169,7 +162,7 @@ void MetronIngress::MetronProcessOverloads() {
 
       // Search for the flow aggregate
       uint32_t left = 0; uint32_t right = 255; uint32_t length = 256;
-      int org_core = i;
+      uint8_t org_core = i;
       bool found = false;
       for (auto it = flow_aggregates_.begin(); it != flow_aggregates_.end(); it++) {
         if (it->core == i) {
@@ -192,7 +185,8 @@ void MetronIngress::MetronProcessOverloads() {
       }
 
       uint32_t new_left = left + new_length;
-      int new_core = GetFreeCore();
+      uint8_t new_core = GetFreeCore();
+
       in_use_cores_[new_core] = true;
       flow_aggregates_.emplace_back(left, new_length, org_core);
       flow_aggregates_.emplace_back(new_left, new_length, new_core);
@@ -214,7 +208,7 @@ void MetronIngress::MetronProcessOverloads() {
     LOG(INFO) << "total " << flow_aggregates_.size() << " flow aggregates";
 
     // Reset packet counters
-    for (int i = 0; i < MaxCoreCount; i++) {
+    for (uint8_t i = 0; i < MaxCoreCount; i++) {
       per_core_pkt_cnts_[i] = 0;
     }
     for (int i = 0; i < 256; i++) {
@@ -242,7 +236,7 @@ void MetronIngress::QuadrantProcessOverloads() {
 
     bess::ctrl::sys_measure->QuadrantPauseUpdates();
     uint64_t max_delay = 0;
-    for (int i = 0; i < MaxCoreCount; i++) {
+    for (uint8_t i = 0; i < MaxCoreCount; i++) {
       if (bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns) {
         if (in_use_cores_[i]) {
           is_overloaded_cores_[i] = true;
@@ -271,15 +265,15 @@ void MetronIngress::QuadrantProcessOverloads() {
   if (lb_stage_ == 1) {
     if (time_diff_ms < QuadrantLoadBalancePeriodMs + HardwareRuleDelayMs) { return; }
 
-    for (int i = 0; i < MaxCoreCount; i++) {
+    for (uint8_t i = 0; i < MaxCoreCount; i++) {
       if (!in_use_cores_[i] || !is_overloaded_cores_[i]) {
         continue;
       }
 
       // Migrate flows from overloaded CPU cores
-      int org_core = i;
-      int new_core = GetFreeCore();
-      if (new_core == 0) {
+      uint8_t org_core = i;
+      uint8_t new_core = GetFreeCore();
+      if (new_core == 255) {
         continue;
       }
 
@@ -334,9 +328,9 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       continue;
     }
 
-    uint32_t encode = 0;
-    uint32_t dst_worker = 0;
-    uint32_t dst_core = 0;
+    uint8_t encode = 0;
+    uint8_t dst_worker = 0;
+    uint8_t dst_core = 0;
     if (mode_ == 0) {
       // |flow_id|: [0, 255]
       uint32_t flow_id = ip->dst.value() & 0xff;
@@ -352,10 +346,6 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       uint32_t flow_id = (ip->src.value() & 0xffff0000) + (ip->dst.value() & 0x0000ffff);
       auto it = flow_cache_.find(flow_id);
       if (it == flow_cache_.end()) {
-        if (selected_core_id_ == -1) {
-          DropPacket(ctx, pkt);
-          continue;
-        }
         // This is a new flow
         flow_cache_.emplace(flow_id, selected_core_id_);
         quadrant_per_core_flow_ids_[selected_core_id_].emplace(flow_id);
