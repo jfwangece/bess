@@ -58,7 +58,7 @@ monitor = {}
 
 # Pipeline
 for i in switch_cores:
-    pinc0[i] = QueueInc(port=port0, qid=i)
+    pinc0[i] = QueueInc(port=port0, qid=i-switch_cores[0])
     switch0[i] = MetronSwitch(wid=wid, ncore=worker_core_cnt) # switches are dumb
     pinc0[i] -> switch0[i]
 
@@ -68,7 +68,7 @@ for i in worker_cores:
     lb[i] = FlowLB(endpoints=nat_hosts)
     monitor[i] = FlowCounter()
     nfvmo[i] = NFVMonitor(core_id=i-worker_cores[0])
-    pout0[i] = QueueOut(port=port0, qid=i)
+    pout0[i] = QueueOut(port=port0, qid=i-worker_cores[0])
 
     worker0[i] -> Bypass(cycles_per_packet=1000) -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 

@@ -213,7 +213,7 @@ def start_quadrant_worker(wip, worker_id):
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
     # print(out)
-    print("metron worker {} starts".format(wip))
+    print("quadrant worker {} starts".format(wip))
 
 def parse_latency_result(tip):
     cmds = ['command', 'module', 'measure0', 'get_summary', 'MeasureCommandGetSummaryArg', '{"latency_percentiles": [50.0, 90.0, 95.0, 98.0, 99.0, 99.9]}']
