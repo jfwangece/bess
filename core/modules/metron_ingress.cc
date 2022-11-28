@@ -6,7 +6,7 @@
 
 #define MetronLoadBalancePeriodMs 2000
 
-#define QuadrantLoadBalancePeriodMs 1000
+#define QuadrantLoadBalancePeriodMs 500
 
 // In Metron and Quadrant, the system ingress collects per-core
 // and per-worker avg packet rates to determine if a CPU core or
@@ -238,9 +238,7 @@ void MetronIngress::QuadrantProcessOverloads() {
 
   // Check overloads and make load balancing changes
   if (lb_stage_ == 0) {
-    if (time_diff_ms < QuadrantLoadBalancePeriodMs) {
-      return;
-    }
+    if (time_diff_ms < QuadrantLoadBalancePeriodMs) { return; }
 
     bess::ctrl::sys_measure->QuadrantPauseUpdates();
     uint64_t max_delay = 0;
@@ -257,21 +255,21 @@ void MetronIngress::QuadrantProcessOverloads() {
           selected_core_id_ = i;
         }
       }
+      // reset
       bess::ctrl::pc_max_batch_delay[i] = 0;
     }
     bess::ctrl::sys_measure->QuadrantUnpauseUpdates();
 
     if (!in_use_cores_[selected_core_id_]) {
       in_use_cores_[selected_core_id_] = true;
+      LOG(INFO) << "core " << selected_core_id_ << " is alive";
     }
     lb_stage_ = 1;
   }
 
   // Enforce changes
   if (lb_stage_ == 1) {
-    if (time_diff_ms < QuadrantLoadBalancePeriodMs + HardwareRuleDelayMs) {
-      return;
-    }
+    if (time_diff_ms < QuadrantLoadBalancePeriodMs + HardwareRuleDelayMs) { return; }
 
     for (int i = 0; i < MaxCoreCount; i++) {
       if (!in_use_cores_[i] || !is_overloaded_cores_[i]) {
@@ -307,7 +305,7 @@ void MetronIngress::QuadrantProcessOverloads() {
       is_overloaded_cores_[new_core] = false;
 
       // Debug info
-      LOG(INFO) << "core " << org_core << " is overloaded. Flows are migrated to core " << new_core;
+      LOG(INFO) << "core " << org_core << " overload. " << to_move_flows.size() << " flows migrated to core " << new_core;
     }
 
     lb_stage_ = 0;
@@ -350,7 +348,8 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       per_flow_id_pkt_cnts_[flow_id] += 1;
       per_core_pkt_cnts_[dst_core] += 1;
     } else if (mode_ == 1) {
-      uint32_t flow_id = (ip->src.value() & 0x0fff000) + (ip->dst.value() & 0x0fff);
+      // Quadrant
+      uint32_t flow_id = (ip->src.value() & 0xffff0000) + (ip->dst.value() & 0x0000ffff);
       auto it = flow_cache_.find(flow_id);
       if (it == flow_cache_.end()) {
         if (selected_core_id_ == -1) {
