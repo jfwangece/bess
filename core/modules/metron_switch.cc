@@ -21,7 +21,7 @@ CommandResponse MetronSwitch::Init(const bess::pb::MetronSwitchArg& arg) {
       (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   }
 
-  LOG(INFO) << "total cores " << bess::ctrl::ncore;
+  LOG(INFO) << "total normal cores " << bess::ctrl::ncore;
 
   return CommandSuccess();
 }
