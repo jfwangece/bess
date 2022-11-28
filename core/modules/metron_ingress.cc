@@ -356,7 +356,7 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       per_core_pkt_cnts_[dst_core] += 1;
     } else if (mode_ == 1) {
       // Quadrant
-      uint32_t flow_id = (ip->src.value() & 0x0fff0000) + (ip->dst.value() & 0x00000fff);
+      uint32_t flow_id = (ip->src.value() & 0xffff0000) + (ip->dst.value() & 0x0000ffff);
       auto it = flow_cache_.find(flow_id);
       if (it == flow_cache_.end()) {
         // This is a new flow

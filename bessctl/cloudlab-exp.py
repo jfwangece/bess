@@ -163,7 +163,7 @@ def start_traffic_quadrant_ingress(tip, num_worker, mode, slo=100000):
     """
     pkt_thresh = 900000
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
-            "BESS_SWITCH_CORE=2, BESS_WORKER_CORE=25, BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
+            "BESS_SWITCH_CORE=2, BESS_WORKER_CORE=16, BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     if len(out) > 0:
