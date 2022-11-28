@@ -241,12 +241,14 @@ void MetronIngress::QuadrantProcessOverloads() {
       if (bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns) {
         if (in_use_cores_[i]) {
           is_overloaded_cores_[i] = true;
-          LOG(INFO) << "core " << (int)i << " delay: " << bess::ctrl::pc_max_batch_delay[i];
+          LOG(INFO) << "core " << (int)i << " overloaded. delay: " << bess::ctrl::pc_max_batch_delay[i];
         }
       } else if (bess::ctrl::pc_max_batch_delay[i] < (uint64_t)bess::utils::slo_ns / 2) {
         // pick the core with the highest load among all non-overloaded cores
-        if (max_delay == 0 ||
-            max_delay < bess::ctrl::pc_max_batch_delay[i]) {
+        if (max_delay == 0) {
+          max_delay = 1;
+          selected_core = i;
+        } else if (max_delay < bess::ctrl::pc_max_batch_delay[i]) {
           max_delay = bess::ctrl::pc_max_batch_delay[i];
           selected_core = i;
         }
