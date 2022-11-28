@@ -404,6 +404,7 @@ message IronsideIngressArg {
 
 message MetronCoreArg {
   int32 core_id = 1; /// The target CPU core's ID
+  int32 mode = 2;
 }
 
 message MetronCoreCommandGetCoreTimeResponse {

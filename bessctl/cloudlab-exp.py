@@ -206,6 +206,15 @@ def start_metron_worker(wip, worker_id):
     # print(out)
     print("metron worker {} starts".format(wip))
 
+def start_quadrant_worker(wip, worker_id):
+    cmds = ["run", "nfvctrl/cloud_metron_chain4"]
+    extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}, BESS_EXP_ID=3".format(macs[0], worker_id)
+    cmds.append(extra_cmd)
+    p = run_remote_besscmd(wip, cmds)
+    out, err = p.communicate()
+    # print(out)
+    print("metron worker {} starts".format(wip))
+
 def parse_latency_result(tip):
     cmds = ['command', 'module', 'measure0', 'get_summary', 'MeasureCommandGetSummaryArg', '{"latency_percentiles": [50.0, 90.0, 95.0, 98.0, 99.0, 99.9]}']
     p = run_remote_besscmd(tip, cmds)
@@ -766,7 +775,7 @@ def run_quadrant_exp(num_worker, slo):
     # Run all workers
     pids = []
     for i, wip in enumerate(selected_worker_ips):
-        p = multiprocessing.Process(target=start_metron_worker, args=(wip, i))
+        p = multiprocessing.Process(target=start_quadrant_worker, args=(wip, i))
         p.start()
         pids.append(p)
     wait_pids(pids)

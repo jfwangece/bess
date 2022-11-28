@@ -33,6 +33,10 @@ CommandResponse MetronCore::Init(const bess::pb::MetronCoreArg& arg) {
     core_id_ = arg.core_id();
   }
 
+  if (arg.mode() > 0) {
+    bess::ctrl::exp_id = 3;
+  }
+
   local_queue_ = bess::ctrl::local_mc_q[core_id_];
   if (local_queue_ == nullptr) {
     LOG(INFO) << "metron: core " << core_id_ << " local_mc_q is not ready";

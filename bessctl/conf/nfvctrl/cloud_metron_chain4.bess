@@ -63,7 +63,7 @@ for i in switch_cores:
     pinc0[i] -> switch0[i]
 
 for i in worker_cores:
-    worker0[i] = MetronCore(core_id=i-worker_cores[0])
+    worker0[i] = MetronCore(core_id=i-worker_cores[0], mode=experiment_index)
     fw[i] = FlowACL(rules=acl_rules)
     lb[i] = FlowLB(endpoints=nat_hosts)
     monitor[i] = FlowCounter()
