@@ -355,10 +355,12 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         // This is a new flow
         flow_cache_.emplace(flow_id, selected_core_id_);
         quadrant_per_core_flow_ids_[selected_core_id_].emplace(flow_id);
-        dst_core = selected_core_id_;
+        encode = selected_core_id_;
       } else {
-        dst_core = it->second;
+        encode = it->second;
       }
+      dst_worker = (encode / MaxPerWorkerCoreCount) % MaxWorkerCount;
+      dst_core = encode % MaxPerWorkerCoreCount;
     }
 
     // Send to core
