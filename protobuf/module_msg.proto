@@ -419,6 +419,7 @@ message MetronIngressArg {
   repeated EndhostAddr endpoints = 2; /// A list of workers in the cluster
   int32 pkt_rate_thresh = 3; /// The normal core threshold for ToR-level scaling
   int32 rewrite = 4;
+  int32 slo_ns = 5; // The target tail latency objective
 }
 
 message MetronSwitchArg {

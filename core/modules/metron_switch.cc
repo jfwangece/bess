@@ -1,5 +1,6 @@
-#include <nfv_ctrl_msg.h>
-#include <metron_switch.h>
+#include "nfv_ctrl_msg.h"
+#include "metron_ingress.h"
+#include "metron_switch.h"
 
 #include "../utils/packet_tag.h"
 
@@ -58,7 +59,7 @@ void MetronSwitch::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     }
 
     bess::utils::TagUint64(pkt, WorkerDelayTsTagOffset, now);
-    dst_core = tcp->reserved; // decode
+    dst_core = tcp->reserved % MaxPerWorkerCoreCount; // decode
     pkt_batch_[dst_core]->add(pkt);
   }
 

@@ -52,6 +52,10 @@ Ethernet::Address INFO_SRC("ec:0d:9a:67:ff:68");
 Ethernet::Address BG_DST("00:00:00:00:00:01");
 
 static bool IsWorkerInfo(bess::Packet *pkt) {
+  if (bess::ctrl::exp_id != -1) {
+    return false;
+  }
+
   Ethernet *eth = pkt->head_data<Ethernet *>();
   if (eth->src_addr != INFO_SRC) {
     return false;
@@ -69,7 +73,6 @@ static bool IsWorkerInfo(bess::Packet *pkt) {
   bess::ctrl::worker_ncore[worker_id] = ncore;
   bess::ctrl::worker_packet_rate[worker_id] = rate;
   bess::ctrl::nfvctrl_worker_mu.unlock();
-  LOG(INFO) << worker_id << ", " << ncore << ", " << rate;
   return true;
 }
 
@@ -101,6 +104,30 @@ const Commands Measure::cmds = {
     {"clear", "EmptyArg", MODULE_CMD_FUNC(&Measure::CommandClear),
      Command::THREAD_SAFE},
 };
+
+void Measure::QuadrantPauseUpdates() {
+  rte_atomic16_inc(&lb_core_pausing_updates_);
+}
+void Measure::QuadrantUnpauseUpdates() {
+  rte_atomic16_dec(&lb_core_pausing_updates_);
+}
+void Measure::IsCoreInfo(bess::Packet *pkt) {
+  if (bess::ctrl::exp_id != 3 ||
+      rte_atomic16_read(&lb_core_pausing_updates_) > 0) {
+    return;
+  }
+
+  Ethernet *eth = pkt->head_data<Ethernet *>();
+  Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
+  Tcp* tcp = reinterpret_cast<Tcp *>(ip + 1);
+  uint32_t core_id = tcp->reserved;
+
+  uint64_t max_delay = 0;
+  bess::utils::GetUint64(pkt, WorkerDelayTsTagOffset, &max_delay);
+  if (bess::ctrl::pc_max_batch_delay[core_id] < max_delay) {
+    bess::ctrl::pc_max_batch_delay[core_id] = max_delay;
+  }
+}
 
 CommandResponse Measure::Init(const bess::pb::MeasureArg &arg) {
   uint64_t latency_ns_max = arg.latency_ns_max();
@@ -147,6 +174,10 @@ CommandResponse Measure::Init(const bess::pb::MeasureArg &arg) {
     bg_dst_filter_ = true;
   }
 
+  rte_atomic16_set(&lb_core_pausing_updates_, 0);
+
+  bess::ctrl::sys_measure = this;
+
   mcs_lock_init(&lock_);
 
   return CommandSuccess();
@@ -167,20 +198,13 @@ void Measure::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     if (IsWorkerInfo(batch->pkts()[i])) {
       continue;
     }
+    IsCoreInfo(batch->pkts()[i]);
 
     uint64_t pkt_time = 0;
     uint64_t qlen = 0;
     if (attr_id_ != -1) {
       pkt_time = get_attr<uint64_t>(this, attr_id_, batch->pkts()[i]);
     }
-
-    // if (bg_dst_filter_) {
-    //   bess::Packet *pkt = batch->pkts()[i];
-    //   Ethernet *eth = pkt->head_data<Ethernet *>();
-    //   if (eth->dst_addr == BG_DST) {
-    //     continue;
-    //   }
-    // }
 
     if (pkt_time ||
         IsTimestamped(batch->pkts()[i], offset, &pkt_time)) {

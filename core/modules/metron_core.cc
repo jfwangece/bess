@@ -120,21 +120,23 @@ struct task_result MetronCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     bess::Packet *pkt = batch->pkts()[i];
     total_bytes += pkt->total_len();
 
-    // Quadrant gets the per-batch queueing delay
-    if (i == cnt - 1) {
-      bess::utils::GetUint64(pkt, WorkerDelayTsTagOffset, &enqueue_ts);
-      bess::utils::TagUint64(pkt, WorkerDelayTsTagOffset, max_packet_delay_);
+    if (bess::ctrl::exp_id == 3) {
+      // Quadrant gets the per-batch queueing delay
+      if (i == cnt - 1) {
+        bess::utils::GetUint64(pkt, WorkerDelayTsTagOffset, &enqueue_ts);
+        most_recent_packet_delays_[next_packet_delay_idx] = tsc_to_ns(rdtsc()) - enqueue_ts;
+        next_packet_delay_idx = (next_packet_delay_idx + 1) % MostRecentPacketDelayCount;
 
-      most_recent_packet_delays_[next_packet_delay_idx] = tsc_to_ns(rdtsc()) - enqueue_ts;
-      next_packet_delay_idx = (next_packet_delay_idx + 1) % MostRecentPacketDelayCount;
-      if (next_packet_delay_idx == MostRecentPacketDelayCount - 1) {
-        max_packet_delay_ = 0;
-        for (int j = 0; j < MostRecentPacketDelayCount; j++) {
-          if (max_packet_delay_ < most_recent_packet_delays_[j]) {
-            max_packet_delay_ = most_recent_packet_delays_[j];
+        if (next_packet_delay_idx == MostRecentPacketDelayCount - 1) {
+          max_packet_delay_ = 0;
+          for (int j = 0; j < MostRecentPacketDelayCount; j++) {
+            if (max_packet_delay_ < most_recent_packet_delays_[j]) {
+              max_packet_delay_ = most_recent_packet_delays_[j];
+            }
           }
         }
       }
+      bess::utils::TagUint64(pkt, WorkerDelayTsTagOffset, max_packet_delay_);
     }
   }
 

@@ -29,6 +29,7 @@ using bess::utils::FlowHash;
 class MetronIngress final : public Module {
  public:
   // static const Commands cmds;
+  static int selected_core_id_;
 
   // Representing a group of flows
   struct FlowAggregate {
@@ -96,8 +97,8 @@ class MetronIngress final : public Module {
   std::map<uint32_t, int> flow_to_core_;
 
   // Quadrant
-  int selected_core_id_;
   std::map<uint32_t, int> flow_cache_;
+  std::set<uint32_t> quadrant_per_core_flow_ids_[MaxCoreCount];
 
   // Common
   bool in_use_cores_[MaxCoreCount] = {false};

@@ -147,7 +147,7 @@ def start_traffic_core_ingress(tip, num_worker, mode):
     (such as Metron's and Quadrant's ingress).
     |mode|: 0 for Metron; 1 for Quadrant;
     """
-    pkt_thresh = 1300000
+    pkt_thresh = 900000
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
     p = run_remote_besscmd(tip, cmds)
@@ -699,6 +699,7 @@ def run_metron_exp(num_worker):
     wait_pids(pids)
     print("exp: all workers started")
 
+    # Metron
     ig_mode = 0
     for tip in traffic_ip:
         start_traffic_core_ingress(tip, num_worker, ig_mode)
@@ -721,6 +722,65 @@ def run_metron_exp(num_worker):
     print("---------------------------------------------------------------")
     print("- Metron rack-scale exp result")
     print("- {} Metron workers".format(num_worker))
+    print("- total packets: {}".format(total_packets))
+    print("- pkt delay (in us): {}".format(delay))
+    print("- core usage (in us): {}".format(core_usage))
+    print("- core usage sum (in us): {}".format(sum(core_usage)))
+    print("- avg core usage (in cores): {}".format(avg_cores))
+    print("---------------------------------------------------------------")
+    return (avg_cores, delay)
+
+def run_quadrant_exp(num_worker):
+    exp_duration = 40
+    selected_worker_ips = []
+    for i in range(num_worker):
+        selected_worker_ips.append(worker_ip[i])
+
+    # Start all bessd
+    pids = []
+    for tip in traffic_ip:
+        p = multiprocessing.Process(target=start_remote_bessd, args=(tip,))
+        p.start()
+        pids.append(p)
+    for wip in worker_ip:
+        p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
+        p.start()
+        pids.append(p)
+    wait_pids(pids)
+    print("exp: all bessd started")
+
+    # Run all workers
+    pids = []
+    for i, wip in enumerate(selected_worker_ips):
+        p = multiprocessing.Process(target=start_metron_worker, args=(wip, i))
+        p.start()
+        pids.append(p)
+    wait_pids(pids)
+    print("exp: all workers started")
+
+    # Quadrant
+    ig_mode = 1
+    for tip in traffic_ip:
+        start_traffic_core_ingress(tip, num_worker, ig_mode)
+    print("exp: traffic started")
+
+    time.sleep(exp_duration)
+
+    measure_results = parse_latency_result(traffic_ip[0])
+    if len(measure_results) == 0:
+        print("- Ironside rack-scale exp: no result - ")
+        return
+
+    total_packets = measure_results[0]
+    delay = measure_results[1:]
+    core_usage = []
+    for i, wip in enumerate(selected_worker_ips):
+        core_usage.append(parse_cpu_time_result(wip, 'mcore0') * 3 / 1000)
+    avg_cores = sum(core_usage) / 1000000.0 / exp_duration
+
+    print("---------------------------------------------------------------")
+    print("- Quadrant rack-scale exp result")
+    print("- {} Quadrant workers".format(num_worker))
     print("- total packets: {}".format(total_packets))
     print("- pkt delay (in us): {}".format(delay))
     print("- core usage (in us): {}".format(core_usage))
@@ -784,7 +844,8 @@ def run_compare_exp():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
-    run_metron_exp(worker_cnt)
+    # run_metron_exp(worker_cnt)
+    run_quadrant_exp(worker_cnt)
 
     print("--------    Ironside comparison experiment results    ---------")
     print("---------------------------------------------------------------")

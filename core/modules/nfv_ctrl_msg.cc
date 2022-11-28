@@ -4,6 +4,7 @@
 #include "nfv_rcore.h"
 #include "nfv_monitor.h"
 #include "metron_core.h"
+#include "measure.h"
 
 #include "../module_graph.h"
 
@@ -18,6 +19,7 @@ NFVRCore* nfv_rcores[DEFAULT_INVALID_CORE_ID] = {nullptr};
 NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID] = {nullptr};
 MetronCore* metron_cores[DEFAULT_INVALID_CORE_ID] = {nullptr};
 
+Measure* sys_measure = nullptr;
 PMDPort* pmd_port = nullptr;
 
 std::shared_mutex nfvctrl_worker_mu;
@@ -45,6 +47,7 @@ SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr}; // sw_q can be assigne
 int ncore = 0;
 int rcore = 0;
 
+uint64_t pc_max_batch_delay[100] = {0};
 uint64_t pcpb_packet_count[DEFAULT_INVALID_CORE_ID][512] = {0};
 uint64_t pcpb_flow_count[DEFAULT_INVALID_CORE_ID][512] = {0};
 

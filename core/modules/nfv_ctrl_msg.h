@@ -29,14 +29,10 @@ class NFVCore;
 class NFVRCore;
 class NFVMonitor;
 class MetronCore;
+class Measure;
 
 namespace bess {
 namespace ctrl {
-// Used in measure, ironside_ingress
-extern std::shared_mutex nfvctrl_worker_mu;
-// Used in nfvctrl, nfv_core
-extern std::shared_mutex nfvctrl_bucket_mu;
-
 // |SoftwareQueue| tracks the mapping of (NFVCore, sw_q, NFVRCore)
 class SoftwareQueue {
  public:
@@ -47,6 +43,11 @@ class SoftwareQueue {
   cpu_core_t up_core_id;
   cpu_core_t down_core_id;
 };
+
+// Used in measure, ironside_ingress
+extern std::shared_mutex nfvctrl_worker_mu;
+// Used in nfvctrl, nfv_core
+extern std::shared_mutex nfvctrl_bucket_mu;
 
 // The only instance of NFVCtrl on this worker
 extern NFVCtrl* nfv_ctrl;
@@ -59,11 +60,15 @@ extern NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID];
 
 extern MetronCore* metron_cores[DEFAULT_INVALID_CORE_ID];
 
-extern PMDPort *pmd_port;
+extern Measure* sys_measure;
+
+extern PMDPort* pmd_port;
 
 // An integer number that identifies an Ironside's experiment.
 // 0: normal run;
 // 1: profiling run;
+// 2: Metron run;
+// 3: Quadrant run;
 extern int exp_id;
 
 // packet rate threshold given the flow count. Values are found using offline profiling
@@ -90,8 +95,10 @@ extern int ncore;
 extern int rcore;
 
 // Performance states
-extern uint64_t pcpb_packet_count[DEFAULT_INVALID_CORE_ID][512];
-extern uint64_t pcpb_flow_count[DEFAULT_INVALID_CORE_ID][512];
+extern uint64_t pc_max_batch_delay[100]; // Quadrant
+
+extern uint64_t pcpb_packet_count[DEFAULT_INVALID_CORE_ID][512]; // Ironside
+extern uint64_t pcpb_flow_count[DEFAULT_INVALID_CORE_ID][512]; // Ironside
 
 // States for maintaining software packet queues, normal and reserved cores.
 extern SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT];

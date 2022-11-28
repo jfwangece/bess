@@ -61,6 +61,10 @@ class Measure final : public Module {
 
   CommandResponse Init(const bess::pb::MeasureArg &arg);
 
+  void QuadrantPauseUpdates();
+  void QuadrantUnpauseUpdates();
+  void IsCoreInfo(bess::Packet *pkt);
+
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;
 
   CommandResponse CommandGetSummary(
@@ -92,7 +96,9 @@ class Measure final : public Module {
   uint64_t pkt_cnt_;
   uint64_t bytes_cnt_;
 
-  bool bg_dst_filter_ = false;
+  bool bg_dst_filter_;
+
+  rte_atomic16_t lb_core_pausing_updates_;
 
   // For latency debug
   std::vector<PerPacketTag> stats_;
