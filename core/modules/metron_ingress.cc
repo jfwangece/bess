@@ -250,7 +250,7 @@ void MetronIngress::QuadrantProcessOverloads() {
         }
       } else {
         // pick the core with the highest load among all non-overloaded cores
-        if (max_delay < bess::ctrl::pc_max_batch_delay[i]) {
+        if (max_delay == 0 || max_delay < bess::ctrl::pc_max_batch_delay[i]) {
           max_delay = bess::ctrl::pc_max_batch_delay[i];
           selected_core_id_ = i;
         }
