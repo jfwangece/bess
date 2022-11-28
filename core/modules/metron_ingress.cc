@@ -262,8 +262,8 @@ void MetronIngress::QuadrantProcessOverloads() {
 
     if (!in_use_cores_[selected_core_id_]) {
       in_use_cores_[selected_core_id_] = true;
-      LOG(INFO) << "core " << selected_core_id_ << " is alive";
     }
+    LOG(INFO) << "core " << selected_core_id_ << " is selected";
     lb_stage_ = 1;
   }
 
