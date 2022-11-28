@@ -297,6 +297,7 @@ void MetronIngress::QuadrantProcessOverloads() {
       for (auto flow_id : to_move_flows) {
         quadrant_per_core_flow_ids_[org_core].erase(flow_id);
         quadrant_per_core_flow_ids_[new_core].emplace(flow_id);
+        flow_cache_[flow_id] = new_core;
       }
       in_use_cores_[new_core] = true;
       is_overloaded_cores_[org_core] = false;
