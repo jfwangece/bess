@@ -142,6 +142,7 @@ def start_traffic(tip, num_worker, mode):
         print(out)
     print("traffic {} starts: worker-scale routing".format(tip))
 
+# run nfvctrl/cloud_pcap_metron BESS_NUM_WORKER=3, BESS_IG=0, BESS_SLO=100000
 def start_traffic_metron_ingress(tip, num_worker, mode, slo=100000):
     """ Start a traffic generator with the core-level load balancing scheme
     (such as Metron's and Quadrant's ingress).
@@ -872,7 +873,7 @@ def run_compare_exp():
 
     # run_metron_exp(worker_cnt)
 
-    run_quadrant_exp(worker_cnt, 500000)
+    run_quadrant_exp(worker_cnt, 100000)
 
     # run_dyssect_exp(worker_cnt)
 
