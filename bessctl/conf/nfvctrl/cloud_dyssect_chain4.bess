@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+
+import math
+import time
+import scapy.all as scapy
+
+################################################################################################
+#
+wid = int($BESS_WID!"0")
+pcie0 = $BESS_DEV!"81:00.0"
+experiment_index = int($BESS_EXP_ID!"0")
+offset0 = 1
+
+# the traffic generator's routing information
+traffic_ip = "10.10.1.1"
+traffic_mac = $TRAFFIC_MAC!"b8:ce:f6:d2:3b:1a"
+
+# org dyssect inputs
+shards              = int($SHARDS"64")
+sfc_length          = int($SFC_LENGTH!"3")
+worker_core_cnt     = 10
+dyssect_ctrl_core   = int($CONTROLLER_CORE!"30")
+pipe_dir            = "."
+#
+################################################################################################
+
+core_list       = [offset0 + i for i in range(worker_core_cnt)]
+queues          = len(core_list)
+
+pincoming       = PMDPort(pci=pcie0, num_inc_q=queues, num_out_q=2*queues)
+
+# Module configurations
+acl_rules = []
+for i in range(acl_cnt / 50):
+    for j in range(50):
+        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
+acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
+
+nat_hosts = []
+for i in range(lb_cnt / 20):
+    for j in range(20):
+        nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
+
+bess.pause_all()
+
+# Module
+controller0::DyssectController(port=pincoming.name, sfc_length=sfc_length, total_shards=shards, pipe_directory=pipe_dir, cores=core_list)
+
+bess.add_worker(wid=dyssect_ctrl_core, core=dyssect_ctrl_core)
+bess.attach_task(module_name=controller0.name, wid=dyssect_ctrl_core)
+
+for i in range(queues):
+    name='w%d' % (i)
+    w=DyssectWorkingCore(name=name, port=pincoming, sfc_length=sfc_length, total_shards=shards, qid=i, id=i)
+
+    w -> \
+        FlowACL(rules=acl_rules) -> \
+        FlowLB(endpoints=nat_hosts) -> \
+        FlowCounter() -> \
+        NFVMonitor(core_id=i) -> \
+        IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> \
+        QueueOut(port=poutgoing, qid=i)
+
+    controller0.add_working(name=w.name, tc='!leaf_' + name + ':0', wid=i)
+
+n = queues/2
+for i in range(n):
+    name='o%d' % (i)
+    o=DyssectOffloadingCore(name=name, id=128+i)
+
+    o -> \
+        FlowACL(rules=acl_rules) -> \
+        FlowLB(endpoints=nat_hosts) -> \
+        FlowCounter() -> \
+        NFVMonitor(core_id=i) -> \
+        IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> \
+        QueueOut(port=poutgoing, qid=queues+i)
+
+    controller0.add_offloading(name=o.name, tc='!leaf_' + name + ':0', wid=queues+i)
+
+bess.resume_worker(dyssect_ctrl_core)
+controller0.start()
