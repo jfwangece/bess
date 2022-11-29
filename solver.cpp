@@ -99,11 +99,13 @@ void long_solver(int fdIN)
 	ret = from_pipe(fdIN, (uint8_t*) V, SHARDS * sizeof(double));
 
 	uint32_t Aold[SHARDS * MAXCORES];
-        uint32_t Oold[MAXCORES * MAXCORES];
-        ret = from_pipe(fdIN, (uint8_t*) Aold, SHARDS * MAXCORES        * sizeof(uint32_t));
-        ret = from_pipe(fdIN, (uint8_t*) Oold, MAXCORES * MAXCORES      * sizeof(uint32_t));
+	uint32_t Oold[MAXCORES * MAXCORES];
+	ret = from_pipe(fdIN, (uint8_t*) Aold, SHARDS * MAXCORES        * sizeof(uint32_t));
+	ret = from_pipe(fdIN, (uint8_t*) Oold, MAXCORES * MAXCORES      * sizeof(uint32_t));
 
 	close(fdIN);
+
+	cout << "long: slo=" << SLOr << endl;
 	uint32_t vsize = SHARDS * MAXCORES + MAXCORES * MAXCORES + SHARDS;
 
 	double lb1[vsize];
@@ -325,10 +327,10 @@ void long_solver(int fdIN)
 				printf("error: %s\n", strerror(errno));
 				return;
 			}
-				
+
 			int value = 0;
 			ret = write(fdOUT, &value, sizeof(int));
-				
+
 			close(fdOUT);
 		}
 	} catch(GRBException e) 
@@ -679,33 +681,32 @@ void short_solver(int fdIN)
 	}
 }
 
+// g++ -m64 -O2 -o solver solver.cpp -I${GUROBI_HOME}/include -L${GUROBI_HOME}/lib -lgurobi_c++ -lgurobi91 -lm -Wall
 int main(int argc, char **argv) 
 {
         int __attribute__((unused)) ret;
         
 	int status = mkfifo(solver_IN, 0755);
-        if(status < 0) 
+    if(status < 0) 
 	{
-                unlink(solver_IN);
-                status = mkfifo(solver_IN, 0755);
-        }
+		unlink(solver_IN);
+		status = mkfifo(solver_IN, 0755);
+	}
 
 	while(1) 
 	{
 		int fdIN = open((const char*) solver_IN, O_RDONLY);
-                if(fdIN == -1) 
+        if(fdIN == -1) 
 		{
+			cout << "pipe terminated" << endl;
 			return -1;
 		}
 
 		uint32_t mode;
-
 		ret = read(fdIN, &mode, sizeof(uint32_t));
-		if(mode == 0) 
-		{
+		if(mode == 0) {
 			long_solver(fdIN);
-		} else 
-		{
+		} else {
 			short_solver(fdIN);
 		}
 	}
