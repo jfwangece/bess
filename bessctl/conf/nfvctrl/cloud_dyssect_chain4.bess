@@ -25,6 +25,7 @@ sfc_length          = int($SFC_LENGTH!"3")
 worker_core_cnt     = 20
 dyssect_ctrl_core   = int($CONTROLLER_CORE!"28")
 pipe_dir            = "."
+input_para          = 10.0
 #
 ################################################################################################
 
@@ -83,9 +84,10 @@ for i in range(n):
 
     controller0.add_offloading(name=o.name, tc='!leaf_' + name + ':0', wid=queues+i)
 
+controller0.set_ca_p(cv=input_para)
+controller0.set_cs_p(cv=input_para)
+controller0.set_ca_r(cv=input_para)
+controller0.set_cs_r(cv=input_para)
+
 bess.resume_worker(dyssect_ctrl_core)
-controller0.set_ca_p(10.0)
-controller0.set_cs_p(10.0)
-controller0.set_ca_r(10.0)
-controller0.set_cs_r(10.0)
 controller0.start()
