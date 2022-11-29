@@ -17,4 +17,4 @@ echo "Running the optimizer..."
 taskset -c ${SOLVER_CORE} ./solver 1>/dev/null 2>/dev/null &
 
 echo "Running the Dyssect..."
-sudo SHARDS=${SHARDS} SFC_LENGTH=${SFC_LENGTH} CONTROLLER_CORE=${CONTROLLER_CORE} ./bessctl/bessctl run ${SCRIPT_NAME} 1>/dev/null 2>/dev/null
+sudo SHARDS=${SHARDS} SFC_LENGTH=${SFC_LENGTH} CONTROLLER_CORE=${CONTROLLER_CORE} ./bessctl/bessctl run nfvctrl/${SCRIPT_NAME}

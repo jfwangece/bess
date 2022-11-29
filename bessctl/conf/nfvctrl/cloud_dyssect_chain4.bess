@@ -15,8 +15,12 @@ offset0 = 1
 traffic_ip = "10.10.1.1"
 traffic_mac = $TRAFFIC_MAC!"b8:ce:f6:d2:3b:1a"
 
+# NF-specific
+acl_cnt=int($BESS_ACL!'2000')
+lb_cnt=int($BESS_LB!'100')
+
 # org dyssect inputs
-shards              = int($SHARDS"64")
+shards              = int($SHARDS!"64")
 sfc_length          = int($SFC_LENGTH!"3")
 worker_core_cnt     = 10
 dyssect_ctrl_core   = int($CONTROLLER_CORE!"30")
@@ -28,6 +32,7 @@ core_list       = [offset0 + i for i in range(worker_core_cnt)]
 queues          = len(core_list)
 
 pincoming       = PMDPort(pci=pcie0, num_inc_q=queues, num_out_q=2*queues)
+poutgoing       = pincoming
 
 # Module configurations
 acl_rules = []
