@@ -752,7 +752,7 @@ def run_metron_exp(num_worker):
     print("- core usage sum (in us): {}".format(sum(core_usage)))
     print("- avg core usage (in cores): {}".format(avg_cores))
     print("---------------------------------------------------------------")
-    return (avg_cores, delay)
+    return (avg_cores, total_packets/1000000.0, delay)
 
 def run_quadrant_exp(num_worker, slo):
     exp_duration = 40
@@ -811,7 +811,7 @@ def run_quadrant_exp(num_worker, slo):
     print("- core usage sum (in us): {}".format(sum(core_usage)))
     print("- avg core usage (in cores): {}".format(avg_cores))
     print("---------------------------------------------------------------")
-    return (avg_cores, delay)
+    return (avg_cores, total_packets/1000000.0, delay)
 
 def run_dyssect_exp(num_worker):
     return
@@ -871,13 +871,23 @@ def run_compare_exp():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
-    # run_metron_exp(worker_cnt)
+    metron_r = run_metron_exp(worker_cnt)
+    print("--------        Comparison experiment: Metron         ---------")
+    print("{} us - {:0.2f}, {:0.2f}, {}".format(1000, metron_r[0], metron_r[1], metron_r[2]))
 
-    run_quadrant_exp(worker_cnt, 100000)
+    quadrant_results = []
+    for slo in target_slos:
+        r = run_quadrant_exp(worker_cnt, slo)
+        quadrant_results.append(r)
 
-    # run_dyssect_exp(worker_cnt)
+    print("--------        Comparison experiment: Quadrant      ----------")
+    for i, slo in enumerate(target_slos):
+        slo_us = slo / 1000
+        r = quadrant_results[i]
+        print("{} us - {:0.2f}, {:0.2f}, {}".format(slo_us, r[0], r[1], r[2]))
 
-    print("--------    Ironside comparison experiment results    ---------")
+    dyssect_r = run_dyssect_exp(worker_cnt)
+    print("--------        Comparison experiment: Dyssect       ----------")
     print("---------------------------------------------------------------")
     return
 

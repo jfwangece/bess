@@ -146,6 +146,9 @@ class PMDPort final : public Port {
     return node_placement_;
   }
 
+  dpdk_port_t get_port_id() {
+    return dpdk_port_id_;
+  }
   dpdk_port_t get_dpdk_port_id() {
     return dpdk_port_id_;
   }

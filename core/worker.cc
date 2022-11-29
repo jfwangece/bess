@@ -361,6 +361,23 @@ void launch_worker(int wid, int core,
   num_workers++;
 }
 
+void launch_worker2(int wid, int core, bess::TrafficClass *c) {
+        struct thread_arg arg = {.wid = wid, .core = core, .scheduler = nullptr};
+
+        arg.scheduler = new DefaultScheduler(c);
+        worker_threads[wid] = std::thread(run_worker, &arg);
+        worker_threads[wid].detach();
+
+        INST_BARRIER();
+
+        /* spin until it becomes ready and fully paused */
+        while(!is_worker_active(wid) || workers[wid]->status() != WORKER_PAUSED) {
+                continue;
+        }
+
+        num_workers++;
+}
+
 Worker *get_next_active_worker() {
   static int prev_wid = 0;
   if (num_workers == 0) {

@@ -189,6 +189,8 @@ inline bool is_worker_running(int wid) {
 // scheduler to use.
 void launch_worker(int wid, int core, const std::string &scheduler = "");
 
+void launch_worker2(int wid, int core, bess::TrafficClass *c);
+
 Worker *get_next_active_worker();
 
 // Add 'c' to the list of orphan traffic classes.
