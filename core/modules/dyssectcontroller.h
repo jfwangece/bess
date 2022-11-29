@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <vector>
 
 #include "dyssectworking.h"
 #include "dyssectworkingcore.h"
@@ -32,6 +33,14 @@ private:
 	uint32_t total_cores;
 	uint32_t total_packets;
 	struct rte_eth_rss_reta_entry64 reta_conf[RETA_CONF_SIZE];
+
+	// For flow rss
+	rte_eth_conf* dpdk_port_conf = nullptr;
+	uint32_t rte_flow_id = 0;
+	rte_flow* reta_flows[3] = {nullptr};
+	uint64_t reta_flow_rss_type = 0;
+	std::vector<uint16_t> reta_table_;
+	void UpdateRssFlow();
 
 	std::deque<uint32_t> availables;
 	std::vector<std::tuple<DyssectWorking*, bess::TrafficClass*, uint32_t> > working_cores;
@@ -80,24 +89,24 @@ private:
 
 public:
 
-        static const Commands cmds;
-        static const gate_idx_t kNumIGates = 0;
-        static const gate_idx_t kNumOGates = 0;
+	static const Commands cmds;
+	static const gate_idx_t kNumIGates = 0;
+	static const gate_idx_t kNumOGates = 0;
 
-        DyssectController() : Controller() { }
+	DyssectController() : Controller() { }
 
 	CommandResponse CommandSetCAp(const bess::pb::CVArg&);
 	CommandResponse CommandSetCSp(const bess::pb::CVArg&);
 	CommandResponse CommandSetCAr(const bess::pb::CVArg&);
 	CommandResponse CommandSetCSr(const bess::pb::CVArg&);
-        CommandResponse CommandStart(const bess::pb::EmptyArg&);
+	CommandResponse CommandStart(const bess::pb::EmptyArg&);
 	CommandResponse CommandSetSLOr(const bess::pb::SLOArg&);
 	CommandResponse CommandSetSLOp(const bess::pb::SLOArg&);
-        CommandResponse Init(const bess::pb::DyssectControllerArg&);
-        CommandResponse CommandAddDyssectWorkingCore(const bess::pb::AddCoreArg&);
-        CommandResponse CommandAddDyssectOffloadingCore(const bess::pb::AddCoreArg&);
+	CommandResponse Init(const bess::pb::DyssectControllerArg&);
+	CommandResponse CommandAddDyssectWorkingCore(const bess::pb::AddCoreArg&);
+	CommandResponse CommandAddDyssectOffloadingCore(const bess::pb::AddCoreArg&);
 
-        struct task_result RunTask(Context *ctx, bess::PacketBatch *, void *);
+	struct task_result RunTask(Context *ctx, bess::PacketBatch *, void *);
 };
 
 #endif // _BESS_MODULES_CONTROLLERPRIORITY_H_

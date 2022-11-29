@@ -152,6 +152,9 @@ class PMDPort final : public Port {
   dpdk_port_t get_dpdk_port_id() {
     return dpdk_port_id_;
   }
+  uint64_t get_rss_type() {
+    return dpdk_port_conf_->rx_adv_conf.rss_conf.rss_hf;
+  }
 
   /*
    * Converts NIC ticks to CPU cylces.

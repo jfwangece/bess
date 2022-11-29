@@ -118,6 +118,128 @@ CommandResponse DyssectController::CommandSetCSr(const bess::pb::CVArg& arg)
 	return CommandSuccess();
 }
 
+namespace {
+struct rte_flow_item ETH_ITEM = {
+	RTE_FLOW_ITEM_TYPE_ETH,
+  nullptr, nullptr, nullptr,
+};
+struct rte_flow_item IPV4_ITEM = {
+	RTE_FLOW_ITEM_TYPE_IPV4,
+	nullptr, nullptr, nullptr,
+};
+struct rte_flow_item END_ITEM = {
+	RTE_FLOW_ITEM_TYPE_END,
+	nullptr, nullptr, nullptr,
+};
+
+// Helper func for installing a flow redirection rule
+inline rte_flow* AddFlowRedirectRule(int port_id, int from, int to, int priority = 0) {
+  struct rte_flow_attr attr;
+  memset((void*)&attr, 0, sizeof(struct rte_flow_attr));
+  attr.ingress = 1;
+  attr.group = from;
+  attr.priority = priority;
+
+  struct rte_flow_action_jump jump;
+  memset((void*)&jump, 0, sizeof(struct rte_flow_action_jump));
+  jump.group = to;
+
+  struct rte_flow_action action[2];
+  memset(action, 0, sizeof(struct rte_flow_action) * 2);
+  action[0].type = RTE_FLOW_ACTION_TYPE_JUMP;
+  action[0].conf = &jump;
+  action[1].type = RTE_FLOW_ACTION_TYPE_END;
+
+  std::vector<rte_flow_item> pattern;
+  pattern.push_back(ETH_ITEM);
+  pattern.push_back(END_ITEM);
+
+  struct rte_flow_error error;
+  int ret = rte_flow_validate(port_id, &attr, pattern.data(), action, &error);
+  if (ret == 0) {
+    struct rte_flow *flow = rte_flow_create(port_id, &attr, pattern.data(), action, &error);
+    return flow;
+  } else {
+    LOG(ERROR) << "Flow rule (redir) cannot be validated";
+  }
+  return nullptr;
+}
+}
+
+void DyssectController::UpdateRssFlow() {
+  if (reta_table_.size() == 0) {
+	for (uint32_t i = 0; i < reta_size; i++) {
+		reta_table_.emplace_back(0);
+	}
+  }
+  for (uint32_t i = 0; i < reta_size; i++) {
+	reta_table_[i] = reta_conf[i/RETA_CONF_SIZE].reta[i%RTE_RETA_GROUP_SIZE];
+  }
+
+  struct rte_flow_attr attr;
+  memset(&attr, 0, sizeof(struct rte_flow_attr));
+  attr.ingress = 1;
+  attr.group = 1 + (rte_flow_id % 2);
+
+  struct rte_flow_action action[3];
+  memset(action, 0, sizeof(struct rte_flow_action) * 3);
+
+  int aid = 0;
+  action[0].type = RTE_FLOW_ACTION_TYPE_MARK;
+  struct rte_flow_action_mark mark;
+  memset((void*)&mark, 0, sizeof(struct rte_flow_action_mark));
+  mark.id = rte_flow_id;
+  action[0].conf = &mark;
+  ++aid;
+
+  action[aid].type = RTE_FLOW_ACTION_TYPE_RSS;
+  struct rte_flow_action_rss rss;
+  memset((void*)&rss, 0, sizeof(rss));
+  rss.key = nullptr;
+  rss.key_len = 0;
+  rss.types = reta_flow_rss_type;
+  rss.queue_num = reta_size;
+  rss.queue = reta_table_.data();
+  rss.level = 0;
+  rss.func = RTE_ETH_HASH_FUNCTION_DEFAULT;
+  action[aid].conf = &rss;
+  ++aid;
+
+  action[aid].type = RTE_FLOW_ACTION_TYPE_END;
+  ++aid;
+
+  std::vector<rte_flow_item> pattern;
+  pattern.push_back(ETH_ITEM);
+  pattern.push_back(IPV4_ITEM);
+  pattern.push_back(END_ITEM);
+
+  struct rte_flow_error error;
+  int ret = rte_flow_validate(port_id, &attr, pattern.data(), action, &error);
+  if (ret == 0) {
+    // Delete the previous RSS rule (i.e. 2-update ago)
+    rte_flow* &prev = reta_flows[1 + (rte_flow_id % 2)];
+    if (prev != nullptr) {
+      rte_flow_destroy(port_id, prev, &error);
+    }
+    struct rte_flow *flow = rte_flow_create(port_id, &attr, pattern.data(), action, &error);
+    if (flow) {
+      prev = flow;
+
+      // Update the flow group redirection rule
+      rte_flow* re_dir = AddFlowRedirectRule(
+          port_id, 0,  1 + (rte_flow_id % 2), 1 + (rte_flow_id % 2));
+      if (reta_flows[0] != nullptr) {
+        rte_flow_destroy(port_id, reta_flows[0], &error);
+      }
+      reta_flows[0] = re_dir;
+
+      // Set the next flow RSS rule's ID
+      rte_flow_id = (rte_flow_id + 1) % 2;
+    }
+  } else {
+    LOG(ERROR) << "Flow rule (rss) cannot be validated. Error msg: " << error.message;
+  }
+}
 
 CommandResponse DyssectController::Init(const bess::pb::DyssectControllerArg &arg) 
 {
@@ -151,18 +273,19 @@ CommandResponse DyssectController::Init(const bess::pb::DyssectControllerArg &ar
 
 	reta_size = dev_info.reta_size;
 	memset(reta_conf, 0, sizeof(reta_conf));
+	reta_flow_rss_type = ((PMDPort*)(it->second))->get_rss_type();
 
 	for(uint32_t i = 0; i < reta_size; i++)
 	{
 		reta_conf[i / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
 	}
 
-	status = rte_eth_dev_rss_reta_update(port_id, reta_conf, reta_size);
-
-	if(status != 0)
-	{
-		return CommandFailure(EINVAL, "Could not set reta table: %s", rte_strerror(status));
-	}
+	UpdateRssFlow();
+	// status = rte_eth_dev_rss_reta_update(port_id, reta_conf, reta_size);
+	// if(status != 0)
+	// {
+	// 	return CommandFailure(EINVAL, "Could not set reta table: %s", rte_strerror(status));
+	// }
 
 	task_id_t tid = RegisterTask(nullptr);
 
@@ -265,12 +388,12 @@ CommandResponse DyssectController::CommandStart(const bess::pb::EmptyArg &)
 		A[s*total_cores + (s % W)] = 1;
 	}
 
-	int status = rte_eth_dev_rss_reta_update(port_id, reta_conf, reta_size);
-
-	if(status != 0)
-	{
-		return CommandFailure(EINVAL, "Could not set reta table: %s", rte_strerror(status));
-	}
+	UpdateRssFlow();
+	// int status = rte_eth_dev_rss_reta_update(port_id, reta_conf, reta_size);
+	// if(status != 0)
+	// {
+	// 	return CommandFailure(EINVAL, "Could not set reta table: %s", rte_strerror(status));
+	// }
 
 	for(uint32_t j = 0; j < W; j++) 
 	{
@@ -652,7 +775,8 @@ void DyssectController::update_reta()
 	if(transfers != 0) 
 	{
 		LOG(INFO) << "MIGRATIONS=" << transfers;
-		int __attribute__((unused)) ret = rte_eth_dev_rss_reta_update(port_id, reta_conf, reta_size);
+		// int __attribute__((unused)) ret = rte_eth_dev_rss_reta_update(port_id, reta_conf, reta_size);
+		UpdateRssFlow();
 	}
 }
 
