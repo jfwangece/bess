@@ -55,26 +55,25 @@ double processingtime_p(uint32_t, uint32_t)
 	return 1 * 1e-6;
 }
 
-
 const Commands DyssectController::cmds = {
-        {"add_working", "AddCoreArg",
-                MODULE_CMD_FUNC(&DyssectController::CommandAddDyssectWorkingCore), Command::THREAD_UNSAFE},
-        {"add_offloading", "AddCoreArg",
-                MODULE_CMD_FUNC(&DyssectController::CommandAddDyssectOffloadingCore), Command::THREAD_UNSAFE},
-        {"start", "EmptyArg",
-                MODULE_CMD_FUNC(&DyssectController::CommandStart), Command::THREAD_UNSAFE},
-        {"set_slo_p", "SLOArg",
-                MODULE_CMD_FUNC(&DyssectController::CommandSetSLOp), Command::THREAD_SAFE},
-        {"set_slo_r", "SLOArg",
-                MODULE_CMD_FUNC(&DyssectController::CommandSetSLOr), Command::THREAD_SAFE},
-        {"set_ca_p", "RArg",
-                MODULE_CMD_FUNC(&DyssectController::CommandSetCAp), Command::THREAD_SAFE},
-        {"set_cs_p", "RArg",
-                MODULE_CMD_FUNC(&DyssectController::CommandSetCSp), Command::THREAD_SAFE},
-        {"set_ca_r", "RArg",
-                MODULE_CMD_FUNC(&DyssectController::CommandSetCAr), Command::THREAD_SAFE},
-        {"set_cs_r", "RArg",
-                MODULE_CMD_FUNC(&DyssectController::CommandSetCSr), Command::THREAD_SAFE},
+	{"add_working", "AddCoreArg",
+			MODULE_CMD_FUNC(&DyssectController::CommandAddDyssectWorkingCore), Command::THREAD_UNSAFE},
+	{"add_offloading", "AddCoreArg",
+			MODULE_CMD_FUNC(&DyssectController::CommandAddDyssectOffloadingCore), Command::THREAD_UNSAFE},
+	{"start", "EmptyArg",
+			MODULE_CMD_FUNC(&DyssectController::CommandStart), Command::THREAD_UNSAFE},
+	{"set_slo_p", "SLOArg",
+			MODULE_CMD_FUNC(&DyssectController::CommandSetSLOp), Command::THREAD_SAFE},
+	{"set_slo_r", "SLOArg",
+			MODULE_CMD_FUNC(&DyssectController::CommandSetSLOr), Command::THREAD_SAFE},
+	{"set_ca_p", "CVArg",
+			MODULE_CMD_FUNC(&DyssectController::CommandSetCAp), Command::THREAD_SAFE},
+	{"set_cs_p", "CVArg",
+			MODULE_CMD_FUNC(&DyssectController::CommandSetCSp), Command::THREAD_SAFE},
+	{"set_ca_r", "CVArg",
+			MODULE_CMD_FUNC(&DyssectController::CommandSetCAr), Command::THREAD_SAFE},
+	{"set_cs_r", "CVArg",
+			MODULE_CMD_FUNC(&DyssectController::CommandSetCSr), Command::THREAD_SAFE},
 };
 
 CommandResponse DyssectController::CommandSetSLOp(const bess::pb::SLOArg& arg) 
@@ -123,53 +122,53 @@ CommandResponse DyssectController::CommandSetCSr(const bess::pb::CVArg& arg)
 CommandResponse DyssectController::Init(const bess::pb::DyssectControllerArg &arg) 
 {
 	const auto &it = PortBuilder::all_ports().find(arg.port().c_str());
-        if(it == PortBuilder::all_ports().end())
+	if(it == PortBuilder::all_ports().end())
 	{
-                return CommandFailure(ENODEV, "Port %s not found", arg.port().c_str());
+		return CommandFailure(ENODEV, "Port %s not found", arg.port().c_str());
 	}
 
 	start = false;
 	port = it->second;
 	sfc_length = arg.sfc_length();
 	total_shards = arg.total_shards();
-        port_id = ((PMDPort*)(it->second))->get_port_id();
+	port_id = ((PMDPort*)(it->second))->get_port_id();
 
 	total_cores = arg.cores().size();
-        for(auto &c : arg.cores()) 
+	for(auto &c : arg.cores()) 
 	{
 		availables.push_back(c);
 	}
 
 	last_totalpackets = 0;
 
-        struct rte_eth_dev_info dev_info;
-        int status = rte_eth_dev_info_get(port_id, &dev_info);
+	struct rte_eth_dev_info dev_info;
+	int status = rte_eth_dev_info_get(port_id, &dev_info);
 
-        if(status)
+	if(status)
 	{
-                return CommandFailure(EINVAL, "Could not get device info.");
+		return CommandFailure(EINVAL, "Could not get device info.");
 	}
 
-        reta_size = dev_info.reta_size;
-        memset(reta_conf, 0, sizeof(reta_conf));
+	reta_size = dev_info.reta_size;
+	memset(reta_conf, 0, sizeof(reta_conf));
 
-        for(uint32_t i = 0; i < reta_size; i++)
+	for(uint32_t i = 0; i < reta_size; i++)
 	{
-                reta_conf[i / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
+		reta_conf[i / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
 	}
 
 	status = rte_eth_dev_rss_reta_update(port_id, reta_conf, reta_size);
 
-        if(status != 0)
+	if(status != 0)
 	{
-               	return CommandFailure(EINVAL, "Could not set reta table: %s", rte_strerror(status));
+		return CommandFailure(EINVAL, "Could not set reta table: %s", rte_strerror(status));
 	}
 
-        task_id_t tid = RegisterTask(nullptr);
+	task_id_t tid = RegisterTask(nullptr);
 
-        if(tid == INVALID_TASK_ID)
+	if(tid == INVALID_TASK_ID)
 	{
-                return CommandFailure(ENOMEM, "Context creation failed");
+		return CommandFailure(ENOMEM, "Context creation failed");
 	}
 
 	next_long = 0;
@@ -190,13 +189,13 @@ CommandResponse DyssectController::Init(const bess::pb::DyssectControllerArg &ar
 
 	strcat(solver_IN, "/solver_IN");
 	strcat(solver_OUT, "/solver_OUT");
-	
+
 	status = mkfifo(solver_OUT, 0755);
-        if(status < 0) 
+	if(status < 0) 
 	{
-                unlink(solver_OUT);
-                status = mkfifo(solver_OUT, 0755);
-        }
+		unlink(solver_OUT);
+		status = mkfifo(solver_OUT, 0755);
+	}
 
 	char buff[128];
 	int __attribute__((unused)) ret = sprintf(buff, "chmod 777 %s 1>/dev/null 2>/dev/null", solver_OUT);
@@ -214,10 +213,10 @@ CommandResponse DyssectController::CommandStart(const bess::pb::EmptyArg &)
 
 	DyssectFlow *flow_empty = (DyssectFlow*) rte_zmalloc(NULL, sizeof(DyssectFlow), 64);
 	DyssectFlow *flow_deleted = (DyssectFlow*) rte_zmalloc(NULL, sizeof(DyssectFlow), 64);
-        flow_empty->src_port = flow_deleted->src_port = (0);
-        flow_empty->dst_port = flow_deleted->dst_port = (0);
-        flow_empty->src_addr = flow_deleted->src_addr = (0);
-        flow_empty->dst_addr = flow_deleted->dst_addr = (0);
+	flow_empty->src_port = flow_deleted->src_port = (0);
+	flow_empty->dst_port = flow_deleted->dst_port = (0);
+	flow_empty->src_addr = flow_deleted->src_addr = (0);
+	flow_empty->dst_addr = flow_deleted->dst_addr = (0);
 
 	W = 1;
 	E = 0;
@@ -362,143 +361,141 @@ CommandResponse DyssectController::CommandAddDyssectOffloadingCore(const bess::p
 inline
 void DyssectController::enable_working_cores(uint32_t from, uint32_t to) 
 {
-        for(uint32_t i = from; i < to; i++) 
+	for(uint32_t i = from; i < to; i++) 
 	{
-                uint32_t wid = std::get<2>(working_cores[i]);
+		uint32_t wid = std::get<2>(working_cores[i]);
 
-                if(!is_worker_active(wid)) 
+		if(!is_worker_active(wid)) 
 		{
-                        if(availables.empty())
+			if(availables.empty())
 			{
-                                return;
+				return;
 			}
 
-                        DyssectWorkingCore *w = reinterpret_cast<DyssectWorkingCore*>(std::get<0>(working_cores[i]));
-                        rte_atomic32_clear(&w->disabled);
-                        rte_atomic32_clear(&w->mark_to_disable);
+			DyssectWorkingCore *w = reinterpret_cast<DyssectWorkingCore*>(std::get<0>(working_cores[i]));
+			rte_atomic32_clear(&w->disabled);
+			rte_atomic32_clear(&w->mark_to_disable);
 
-                        rte_atomic32_clear(&w->transfer_shard);
-                        rte_atomic32_clear(&w->transfer_offloading);
+			rte_atomic32_clear(&w->transfer_shard);
+			rte_atomic32_clear(&w->transfer_offloading);
 			rte_atomic32_clear(&w->controller_signal);
 
 			w->myown = false;
 			w->old_offloading = 0;
 
-                        uint32_t core = availables.front();
-                        availables.pop_front();
-                        w->core = core;
+			uint32_t core = availables.front();
+			availables.pop_front();
+			w->core = core;
 
-                        launch_worker2(wid, core, std::get<1>(working_cores[i]));
-                        resume_worker(wid);
-                }
-        }
+			launch_worker2(wid, core, std::get<1>(working_cores[i]));
+			resume_worker(wid);
+		}
+	}
 }
 
 inline
 void DyssectController::enable_offloading_cores(uint32_t from, uint32_t to) 
 {
-        for(uint32_t i = from; i < to; i++) 
+	for(uint32_t i = from; i < to; i++) 
 	{
-                uint32_t wid = std::get<2>(offloading_cores[i]);
+		uint32_t wid = std::get<2>(offloading_cores[i]);
 
-                if(!is_worker_active(wid)) 
+		if(!is_worker_active(wid)) 
 		{
-                        if(availables.empty()) {
-                                return;
+			if(availables.empty()) {
+				return;
 			}
-                        
+        
 			DyssectOffloadingCore *e = std::get<0>(offloading_cores[i]);
-                	rte_atomic32_clear(&e->disabled);
-                	rte_atomic32_clear(&e->mark_to_disable);
+			rte_atomic32_clear(&e->disabled);
+			rte_atomic32_clear(&e->mark_to_disable);
 
-                        uint32_t core = availables.front();
-                        availables.pop_front();
-                        e->core = core;
+			uint32_t core = availables.front();
+			availables.pop_front();
+			e->core = core;
 
-                        launch_worker2(wid, core, std::get<1>(offloading_cores[i]));
-                        resume_worker(wid);
-                }
-        }
+			launch_worker2(wid, core, std::get<1>(offloading_cores[i]));
+			resume_worker(wid);
+		}
+	}
 }
 
 inline
 void DyssectController::mark_to_disable_offloading_cores(uint32_t from, uint32_t to) 
 {
-        for(int32_t i = (int32_t)from-1; i >= (int32_t)to; i--) 
+	for(int32_t i = (int32_t)from-1; i >= (int32_t)to; i--) 
 	{
-                DyssectOffloadingCore *e = std::get<0>(offloading_cores[i]);
-                rte_atomic32_set(&e->mark_to_disable, 1);
-        }
+		DyssectOffloadingCore *e = std::get<0>(offloading_cores[i]);
+		rte_atomic32_set(&e->mark_to_disable, 1);
+	}
 }
 
 inline
 void DyssectController::mark_to_disable_working_cores(uint32_t from, uint32_t to) 
 {
-        for(int32_t i = (int32_t)from-1; i >= (int32_t)to; i--) 
+	for(int32_t i = (int32_t)from-1; i >= (int32_t)to; i--) 
 	{
-                DyssectWorkingCore *w = reinterpret_cast<DyssectWorkingCore*>(std::get<0>(working_cores[i]));
-                rte_atomic32_set(&w->mark_to_disable, 1);
-        }
+		DyssectWorkingCore *w = reinterpret_cast<DyssectWorkingCore*>(std::get<0>(working_cores[i]));
+		rte_atomic32_set(&w->mark_to_disable, 1);
+	}
 }
 
 inline
 void DyssectController::disable_working_cores(uint32_t from, uint32_t to) 
 {
-        for(int32_t i = (int32_t)from-1; i >= (int32_t)to; i--) 
+	for(int32_t i = (int32_t)from-1; i >= (int32_t)to; i--) 
 	{
-                DyssectWorkingCore *w = reinterpret_cast<DyssectWorkingCore*>(std::get<0>(working_cores[i]));
+		DyssectWorkingCore *w = reinterpret_cast<DyssectWorkingCore*>(std::get<0>(working_cores[i]));
 
-                while(rte_atomic32_read(&w->disabled) != 2) 
+		while(rte_atomic32_read(&w->disabled) != 2) 
 		{
 		}
 
-                uint32_t wid = std::get<2>(working_cores[i]);
-                uint32_t core = w->core;
+		uint32_t wid = std::get<2>(working_cores[i]);
+		uint32_t core = w->core;
 
-                availables.push_back(core);
-                detach_tc(std::get<1>(working_cores[i]));
-                destroy_worker(wid);
-        }
+		availables.push_back(core);
+		detach_tc(std::get<1>(working_cores[i]));
+		destroy_worker(wid);
+	}
 }
 
 inline
 void DyssectController::disable_offloading_cores(uint32_t from, uint32_t to) 
 {
-        for(int32_t i = (int32_t)from-1; i >= (int32_t)to; i--) 
+	for(int32_t i = (int32_t)from-1; i >= (int32_t)to; i--) 
 	{
-                DyssectOffloadingCore *e = std::get<0>(offloading_cores[i]);
+		DyssectOffloadingCore *e = std::get<0>(offloading_cores[i]);
                 
 		while(rte_atomic32_read(&e->disabled) != 1) 
 		{
 		}
 
-                uint32_t wid = std::get<2>(offloading_cores[i]);
-                uint32_t core = e->core;
+		uint32_t wid = std::get<2>(offloading_cores[i]);
+		uint32_t core = e->core;
 
-                availables.push_back(core);
-                detach_tc(std::get<1>(offloading_cores[i]));
-                destroy_worker(wid);
-        }
+		availables.push_back(core);
+		detach_tc(std::get<1>(offloading_cores[i]));
+		destroy_worker(wid);
+	}
 }
 
 inline
 void DyssectController::migration_shard(uint32_t s, uint32_t w, bool send_signal) 
 {
-        DyssectWorkingCore *new_working = reinterpret_cast<DyssectWorkingCore*>(std::get<0>(working_cores[w]));
+	DyssectWorkingCore *new_working = reinterpret_cast<DyssectWorkingCore*>(std::get<0>(working_cores[w]));
 
-        if(shards[s].owner == new_working)
+	if(shards[s].owner == new_working)
 	{
-                return;
+		return;
 	}
 
-        if(!send_signal) 
-	{
-                shards[s].owner_new = new_working;
-                rte_atomic32_set(&shards[s].pause, 1);
-        } else 
-	{
-                rte_atomic32_set(&shards[s].owner->transfer_shard, 1);
-        }
+	if(!send_signal) {
+		shards[s].owner_new = new_working;
+		rte_atomic32_set(&shards[s].pause, 1);
+	} else {
+		rte_atomic32_set(&shards[s].owner->transfer_shard, 1);
+	}
 }
 
 inline
@@ -732,7 +729,7 @@ bool DyssectController::order_shards()
 }
 
 inline
-bool DyssectController::volume_shards() 
+bool DyssectController::volume_shards()
 {
 	if(!last_totalpackets)
 	{
@@ -993,13 +990,17 @@ bool DyssectController::run_long_solver()
 	n = write(fd, &total_cores, sizeof(uint32_t));
 	n = write(fd, &total_shards, sizeof(uint32_t));
 
+	// Prioritized
 	n = write(fd, &Cap,  sizeof(double));
 	n = write(fd, &Csp,  sizeof(double));
 	n = write(fd, &SLOp, sizeof(double));
+
+	// Regular
 	n = write(fd, &Car,  sizeof(double));
 	n = write(fd, &Csr,  sizeof(double));
 	n = write(fd, &SLOr, sizeof(double));
 
+	// Mean processing time
 	n = write(fd, &Tr, sizeof(double));
 	n = write(fd, &Tp, sizeof(double));
 

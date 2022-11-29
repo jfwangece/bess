@@ -1616,11 +1616,11 @@ message dyIDSArg {
 }
 
 message SLOArg {
-	double slo = 1;
+  double slo = 1;
 }
 
 message CVArg {
-	double cv = 1;
+  double cv = 1;
 }
 
 message AddCoreArg {
@@ -1645,6 +1645,6 @@ message DyssectControllerArg {
   string port = 1;
   uint32 total_shards = 2;
   uint32 sfc_length = 3;
-	string pipe_directory = 4;
+  string pipe_directory = 4;
   repeated uint32 cores = 5;
 }

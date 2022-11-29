@@ -105,7 +105,7 @@ void long_solver(int fdIN)
 
 	close(fdIN);
 
-	cout << "long: SLOp=" << SLOp << ", SLOr=" << SLOr << endl;
+	cout << "long: SLOp=" << SLOp << ", SLOr=" << SLOr << "Cap=" << Cap << endl;
 	uint32_t vsize = SHARDS * MAXCORES + MAXCORES * MAXCORES + SHARDS;
 
 	double lb1[vsize];
