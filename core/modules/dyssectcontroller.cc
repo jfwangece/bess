@@ -79,7 +79,7 @@ const Commands DyssectController::cmds = {
 CommandResponse DyssectController::CommandSetSLOp(const bess::pb::SLOArg& arg) 
 {
 	SLOp = arg.slo();
-
+	LOG(INFO) << "SLOp" << SLOp;
 	return CommandSuccess();
 }
 
@@ -93,7 +93,7 @@ CommandResponse DyssectController::CommandSetSLOr(const bess::pb::SLOArg& arg)
 CommandResponse DyssectController::CommandSetCAp(const bess::pb::CVArg& arg) 
 {
 	Cap = arg.cv();
-
+	LOG(INFO) << "Cap" << Cap;
 	return CommandSuccess();
 }
 
