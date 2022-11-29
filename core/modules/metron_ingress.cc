@@ -26,7 +26,7 @@ CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
   flow_aggregates_.clear();
   flow_to_core_.clear();
 
-  // 0: metron; 1: quadrant;
+  // 0: metron; 1: quadrant; 2: dyssect;
   mode_ = 0;
   if (arg.mode() > 0) {
     mode_ = arg.mode();
@@ -324,6 +324,8 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     MetronProcessOverloads();
   } else if (mode_ == 1) {
     QuadrantProcessOverloads();
+  } else if (mode_ == 2) {
+    ;
   } else {
     LOG(FATAL) << "unknown core-level ingress mode " << mode_;
   }
@@ -369,6 +371,9 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
       dst_worker = (encode / MaxPerWorkerCoreCount) % MaxWorkerCount;
       dst_core = encode % MaxPerWorkerCoreCount;
+    } else if (mode_ == 2) {
+      dst_worker = 0;
+      dst_core = 0;
     }
 
     // Send to core

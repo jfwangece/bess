@@ -814,7 +814,54 @@ def run_quadrant_exp(num_worker, slo):
     return (avg_cores, delay)
 
 def run_dyssect_exp(num_worker):
-    return
+    exp_duration = 40
+    selected_worker_ips = []
+    for i in range(num_worker):
+        selected_worker_ips.append(worker_ip[i])
+
+    # Start all bessd
+    pids = []
+    for tip in traffic_ip:
+        p = multiprocessing.Process(target=start_remote_bessd, args=(tip,))
+        p.start()
+        pids.append(p)
+    for wip in worker_ip:
+        p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
+        p.start()
+        pids.append(p)
+    wait_pids(pids)
+    print("exp: all bessd started")
+
+    # Dyssect
+    ig_mode = 2
+    for tip in traffic_ip:
+        start_traffic_metron_ingress(tip, num_worker, ig_mode)
+    print("exp: traffic started")
+
+    time.sleep(exp_duration)
+
+    measure_results = parse_latency_result(traffic_ip[0])
+    if len(measure_results) == 0:
+        print("- Ironside rack-scale exp: no result - ")
+        return
+
+    total_packets = measure_results[0]
+    delay = measure_results[1:]
+    core_usage = []
+    for i, wip in enumerate(selected_worker_ips):
+        core_usage.append(parse_cpu_time_result(wip, 'mcore0') * 3 / 1000)
+    avg_cores = sum(core_usage) / 1000000.0 / exp_duration
+
+    print("---------------------------------------------------------------")
+    print("- Metron rack-scale exp result")
+    print("- {} Metron workers".format(num_worker))
+    print("- total packets: {}".format(total_packets))
+    print("- pkt delay (in us): {}".format(delay))
+    print("- core usage (in us): {}".format(core_usage))
+    print("- core usage sum (in us): {}".format(sum(core_usage)))
+    print("- avg core usage (in cores): {}".format(avg_cores))
+    print("---------------------------------------------------------------")
+    return (avg_cores, delay)
 
 # Main experiment
 def run_test_exp():
@@ -873,9 +920,9 @@ def run_compare_exp():
 
     # run_metron_exp(worker_cnt)
 
-    run_quadrant_exp(worker_cnt, 100000)
+    # run_quadrant_exp(worker_cnt, 100000)
 
-    # run_dyssect_exp(worker_cnt)
+    run_dyssect_exp(1)
 
     print("--------    Ironside comparison experiment results    ---------")
     print("---------------------------------------------------------------")
