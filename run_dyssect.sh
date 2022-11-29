@@ -5,6 +5,7 @@ SFC_LENGTH=3                        # The length of the Service Function Chain
 CONTROLLER_CORE=30                  # The core to assign to Dyssect Controller
 SOLVER_CORE=31                      # The core to assign to optimizer process
 SCRIPT_NAME="cloud_dyssect_chain4"  # The name of BESS configuration script (in the bessctl/conf/ directory)
+PARA="1.0"
 
 echo "Killing previous processes..."
 pkill -9 bessd 1>/dev/null 2>/dev/null
@@ -17,4 +18,4 @@ echo "Running the optimizer..."
 taskset -c ${SOLVER_CORE} ./solver 1>/dev/null 2>/dev/null &
 
 echo "Running the Dyssect..."
-sudo SHARDS=${SHARDS} SFC_LENGTH=${SFC_LENGTH} CONTROLLER_CORE=${CONTROLLER_CORE} ./bessctl/bessctl run nfvctrl/${SCRIPT_NAME}
+sudo SHARDS=${SHARDS} SFC_LENGTH=${SFC_LENGTH} CONTROLLER_CORE=${CONTROLLER_CORE} ./bessctl/bessctl run nfvctrl/${SCRIPT_NAME} INPUT_PARA=${PARA}
