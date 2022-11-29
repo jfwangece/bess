@@ -25,7 +25,7 @@ sfc_length          = int($SFC_LENGTH!"3")
 worker_core_cnt     = 20
 dyssect_ctrl_core   = int($CONTROLLER_CORE!"28")
 pipe_dir            = "."
-input_para          = 10.0
+input_para          = float($INPUT_PARA!"10.0")
 #
 ################################################################################################
 
