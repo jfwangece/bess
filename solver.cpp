@@ -105,7 +105,7 @@ void long_solver(int fdIN)
 
 	close(fdIN);
 
-	cout << "long: slo=" << SLOr << endl;
+	cout << "long: SLOp=" << SLOp << ", SLOr=" << SLOr << endl;
 	uint32_t vsize = SHARDS * MAXCORES + MAXCORES * MAXCORES + SHARDS;
 
 	double lb1[vsize];
@@ -144,7 +144,7 @@ void long_solver(int fdIN)
 		GRBVar *e = model.addVars(MAXCORES, GRB_BINARY);
 		GRBVar *A = model.addVars(SHARDS * MAXCORES, GRB_BINARY);
 		GRBVar *O = model.addVars(MAXCORES * MAXCORES, GRB_BINARY);
-			
+
 		GRBVar *temp_w1 = model.addVars(lb1, ub1, NULL, NULL, NULL, NULL, MAXCORES);
 		GRBVar *temp_w2 = model.addVars(lb1, ub1, NULL, NULL, NULL, NULL, MAXCORES);
 		GRBVar *temp_e1 = model.addVars(lb1, ub1, NULL, NULL, NULL, NULL, MAXCORES);
@@ -294,7 +294,7 @@ void long_solver(int fdIN)
 		}
 
 		model.optimize();
-                        
+
 		if(model.get(GRB_IntAttr_Status) == GRB_OPTIMAL) 
 		{
 			uint32_t workings = 0;
@@ -319,8 +319,7 @@ void long_solver(int fdIN)
 			ret = write(fdOUT, &offloadings, sizeof(uint32_t));
 
 			close(fdOUT);
-		} else 
-		{
+		} else {
 			int fdOUT = open((const char*) solver_OUT, O_CREAT | O_WRONLY, 0777);
 			if(fdOUT == -1) 
 			{
@@ -356,7 +355,7 @@ void short_solver(int fdIN)
 	ret = read(fdIN, &E, sizeof(uint32_t));
 	ret = read(fdIN, &MAXCORES, sizeof(uint32_t));
 	ret = read(fdIN, &SHARDS, sizeof(uint32_t));
-                
+
 	double Cap, Csp, SLOp;
 	ret = read(fdIN, &Cap,  sizeof(double));
 	ret = read(fdIN, &Csp,  sizeof(double));
@@ -391,14 +390,14 @@ void short_solver(int fdIN)
 	ret = from_pipe(fdIN, (uint8_t*) Oold, MAXCORES * MAXCORES      * sizeof(uint32_t));
 
 	close(fdIN);
-		
+
 	uint32_t vsize = SHARDS * MAXCORES + MAXCORES * MAXCORES;
-                
+
 	double lb1[vsize];
 	double lb0[vsize];
 	double ub1[vsize];
 	double ub09[vsize];
-	for(uint32_t i = 0; i < vsize; i++) 
+	for (uint32_t i = 0; i < vsize; i++) 
 	{
 		lb0[i] =  0.0;
 		lb1[i] = -1.0;
@@ -406,26 +405,26 @@ void short_solver(int fdIN)
 		ub09[i] = +0.9;
 	}
 
-	try 
+	try
 	{
 		//Create the environment
 		GRBEnv env = GRBEnv(false);
 		env.start();
-                        
+
 		//Create the model
 		GRBModel model = GRBModel(env);
-                        
+
 		//Set up the model
 		model.set(GRB_IntParam_Threads, 10);
 		model.set(GRB_IntParam_OutputFlag, 0);
 		model.set(GRB_IntParam_MIPFocus, 1);
-                        
+
 		//Setting the 1 second time limit
 		model.set(GRB_DoubleParam_TimeLimit, 0.1);
 
 		//Setting the NonConvex mode
 		model.set(GRB_IntParam_NonConvex, 2);
-                        
+
 		//Create the variables
 		GRBVar *A = model.addVars(SHARDS * MAXCORES, GRB_BINARY);
 		GRBVar *O = model.addVars(MAXCORES * MAXCORES, GRB_BINARY);
@@ -434,7 +433,7 @@ void short_solver(int fdIN)
 		GRBVar *load_w  = model.addVars(lb0, ub09, NULL, NULL, NULL, NULL, MAXCORES);
 		GRBVar *load_e  = model.addVars(lb0, ub09, NULL, NULL, NULL, NULL, MAXCORES);
 		GRBVar *load_we  = model.addVars(lb0, ub09, NULL, NULL, NULL, NULL, MAXCORES);
-	
+
 		GRBVar *vars_w = model.addVars(MAXCORES);
 		GRBVar *vars_e = model.addVars(MAXCORES);
 		GRBVar *avg_w = model.addVars(MAXCORES);
@@ -445,7 +444,7 @@ void short_solver(int fdIN)
 
 		//Setting the objective
 		GRBQuadExpr obj = 0;
-                        
+
 		GRBVar *diff = model.addVars(lb1, ub1, NULL, NULL, NULL, NULL, vsize);
 		GRBVar *temp = model.addVars(lb1, ub1, NULL, NULL, NULL, NULL, vsize);
 
@@ -455,16 +454,16 @@ void short_solver(int fdIN)
 		{
 			model.addConstr(temp[i], GRB_EQUAL, (A[j] - Aold[j]));
 			model.addGenConstrAbs(diff[i], temp[i]);
-                                
+
 			obj += (diff[i]);
 			i++;
 		}
-		
+
 		for(uint32_t j = 0; j < MAXCORES * MAXCORES; j++) 
 		{
 			model.addConstr(temp[i], GRB_EQUAL, (O[j] - Oold[j]));
 			model.addGenConstrAbs(diff[i], temp[i]);
-                                
+
 			obj += (diff[i]);
 			i++;
 		}
@@ -486,8 +485,7 @@ void short_solver(int fdIN)
 			{
 				model.addConstr(r[s], GRB_EQUAL, 0);
 			}
-		} else 
-		{
+		} else {
 			for(uint32_t i = 0; i < W; i++) 
 			{
 				GRBLinExpr lhs1 = 0;
@@ -684,8 +682,8 @@ void short_solver(int fdIN)
 // g++ -m64 -O2 -o solver solver.cpp -I${GUROBI_HOME}/include -L${GUROBI_HOME}/lib -lgurobi_c++ -lgurobi91 -lm -Wall
 int main(int argc, char **argv) 
 {
-        int __attribute__((unused)) ret;
-        
+	int __attribute__((unused)) ret;
+
 	int status = mkfifo(solver_IN, 0755);
     if(status < 0) 
 	{
@@ -693,10 +691,9 @@ int main(int argc, char **argv)
 		status = mkfifo(solver_IN, 0755);
 	}
 
-	while(1) 
-	{
+	while (1) {
 		int fdIN = open((const char*) solver_IN, O_RDONLY);
-        if(fdIN == -1) 
+        if (fdIN == -1) 
 		{
 			cout << "pipe terminated" << endl;
 			return -1;

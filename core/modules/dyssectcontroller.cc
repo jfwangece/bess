@@ -2,41 +2,41 @@
 
 static inline int from_pipe(int fd, uint8_t* addr, int len) 
 {
-        int n;
-        int i = 0;
+	int n;
+	int i = 0;
 
-        while(i != len) 
+	while(i != len)
 	{
-                n = read(fd, addr + i, len - i);
-                if(n <= 0)
+		n = read(fd, addr + i, len - i);
+		if(n <= 0)
 		{
-                        return i;
+			return i;
 		}
 
-                i += n;
-        }
+		i += n;
+	}
 
-        return i;
+	return i;
 }
 
 static inline 
 int to_pipe(int fd, uint8_t* addr, int len) 
 {
-        int n;
-        int i = 0;
+	int n;
+	int i = 0;
 
-        while(i != len) 
+	while(i != len) 
 	{
-                n = write(fd, addr + i, len - i);
-                if(n <= 0)
+		n = write(fd, addr + i, len - i);
+		if(n <= 0)
 		{
-                        return i;
+			return i;
 		}
 
-                i += n;
-        }
+		i += n;
+	}
 
-        return i;
+	return i;
 }
 
 static inline 
@@ -176,7 +176,7 @@ CommandResponse DyssectController::Init(const bess::pb::DyssectControllerArg &ar
 	next_short = 0;
 
 	Tr = Tp = 1 * 1e-6;
-	SLOp = SLOr = 100 * 1e-9;
+	SLOp = SLOr = 100 * 1e-6;
 	Cap = Csp = Car = Csr = 1;
 
 	solver_IN  = (char*) malloc(1024);
@@ -738,18 +738,16 @@ bool DyssectController::volume_shards()
 	{
 		return false;
 	}
-	
-	if(total_packets) 
-	{
+
+	if(total_packets) {
 		Tr = processingtime_r(total_flows, W);
 		Tp = processingtime_p(total_flows, W);
 
 		for(uint32_t s = 0; s < total_shards; s++)
 		{
-			shards[s].V = (double)shards[s].old_packets * Tp * 1e6/SHORT_TIME; 
+			shards[s].V = (double)shards[s].old_packets * Tp * 1e6 / SHORT_TIME; 
 		}
-	} else 
-	{
+	} else {
 		for(uint32_t s = 0; s < total_shards; s++)
 		{
 			shards[s].V = 0;
@@ -912,11 +910,11 @@ void DyssectController::update_short_epoch(bool solver) {
 
 bool DyssectController::run_short_solver(uint32_t w, uint32_t e) 
 {
-        int fd = open((const char*) solver_IN, O_CREAT | O_WRONLY, 0777);
+	int fd = open((const char*) solver_IN, O_CREAT | O_WRONLY, 0777);
 
-        if(fd == -1)
+	if(fd == -1)
 	{
-                return false;
+		return false;
 	}
         
 	uint32_t mode = SHORT;
@@ -925,115 +923,115 @@ bool DyssectController::run_short_solver(uint32_t w, uint32_t e)
 	n = write(fd, &mode, sizeof(uint32_t));
 	n = write(fd, &w, sizeof(uint32_t));
 	n = write(fd, &e, sizeof(uint32_t));
-        n = write(fd, &total_cores, sizeof(uint32_t));
-        n = write(fd, &total_shards, sizeof(uint32_t));
+	n = write(fd, &total_cores, sizeof(uint32_t));
+	n = write(fd, &total_shards, sizeof(uint32_t));
 
-        n = write(fd, &Cap,  sizeof(double));
-        n = write(fd, &Csp,  sizeof(double));
-        n = write(fd, &SLOp, sizeof(double));
-        n = write(fd, &Car,  sizeof(double));
-        n = write(fd, &Csr,  sizeof(double));
-        n = write(fd, &SLOr, sizeof(double));
+	n = write(fd, &Cap,  sizeof(double));
+	n = write(fd, &Csp,  sizeof(double));
+	n = write(fd, &SLOp, sizeof(double));
+	n = write(fd, &Car,  sizeof(double));
+	n = write(fd, &Csr,  sizeof(double));
+	n = write(fd, &SLOr, sizeof(double));
 
-        n = write(fd, &Tr, sizeof(double));
-        n = write(fd, &Tp, sizeof(double));
+	n = write(fd, &Tr, sizeof(double));
+	n = write(fd, &Tp, sizeof(double));
        
 	for(uint32_t s = 0; s < total_shards; s++)
 	{
-                n = write(fd, &shards[s].V, sizeof(double));
+		n = write(fd, &shards[s].V, sizeof(double));
 	}
 
-        for(uint32_t s = 0; s < total_shards; s++)
+	for(uint32_t s = 0; s < total_shards; s++)
 	{
-                n = write(fd, &shards[s].r, sizeof(double));
+		n = write(fd, &shards[s].r, sizeof(double));
 	}
 
-        n = to_pipe(fd, (uint8_t*) A, total_shards * total_cores * sizeof(uint32_t));
-        n = to_pipe(fd, (uint8_t*) O, total_cores  * total_cores * sizeof(uint32_t));
+	n = to_pipe(fd, (uint8_t*) A, total_shards * total_cores * sizeof(uint32_t));
+	n = to_pipe(fd, (uint8_t*) O, total_cores  * total_cores * sizeof(uint32_t));
 
-        close(fd);
+	close(fd);
 
-        fd = open((const char*) solver_OUT, O_RDONLY);
+	fd = open((const char*) solver_OUT, O_RDONLY);
 
-        if(fd == -1)
+	if(fd == -1)
 	{
-                return false;
+		return false;
 	}
 
-        int value;
-        n = read(fd, &value, sizeof(int));
+	int value;
+	n = read(fd, &value, sizeof(int));
 
-        if(value == 1) 
+	if(value == 1) 
 	{
-                for(uint32_t s = 0; s < total_shards; s++) 
+		for(uint32_t s = 0; s < total_shards; s++) 
 		{
 			n = read(fd, &shards[s].r_new, sizeof(double));
 		}
                 
 		n = from_pipe(fd, (uint8_t*) newA, total_shards * total_cores * sizeof(uint32_t));
-                n = from_pipe(fd, (uint8_t*) newO, total_cores  * total_cores * sizeof(uint32_t));
+		n = from_pipe(fd, (uint8_t*) newO, total_cores  * total_cores * sizeof(uint32_t));
 	}
 
-        close(fd);
+	close(fd);
         
 	return value == 1;
 }
 
 bool DyssectController::run_long_solver() 
 {
-        int fd = open((const char*) solver_IN, O_CREAT | O_WRONLY, 0777);
+	int fd = open((const char*) solver_IN, O_CREAT | O_WRONLY, 0777);
 
-        if(fd == -1)
+	if(fd == -1)
 	{
-                return false;
+		return false;
 	}
         
 	uint32_t mode = LONG;
 	int __attribute__((unused)) n;
 
 	n = write(fd, &mode, sizeof(uint32_t));
-        n = write(fd, &total_cores, sizeof(uint32_t));
-        n = write(fd, &total_shards, sizeof(uint32_t));
+	n = write(fd, &total_cores, sizeof(uint32_t));
+	n = write(fd, &total_shards, sizeof(uint32_t));
 
-        n = write(fd, &Cap,  sizeof(double));
-        n = write(fd, &Csp,  sizeof(double));
-        n = write(fd, &SLOp, sizeof(double));
-        n = write(fd, &Car,  sizeof(double));
-        n = write(fd, &Csr,  sizeof(double));
-        n = write(fd, &SLOr, sizeof(double));
+	n = write(fd, &Cap,  sizeof(double));
+	n = write(fd, &Csp,  sizeof(double));
+	n = write(fd, &SLOp, sizeof(double));
+	n = write(fd, &Car,  sizeof(double));
+	n = write(fd, &Csr,  sizeof(double));
+	n = write(fd, &SLOr, sizeof(double));
 
-        n = write(fd, &Tr, sizeof(double));
-        n = write(fd, &Tp, sizeof(double));
+	n = write(fd, &Tr, sizeof(double));
+	n = write(fd, &Tp, sizeof(double));
 
-        for(uint32_t s = 0; s < total_shards; s++)
+	for(uint32_t s = 0; s < total_shards; s++)
 	{
-                n = write(fd, &shards[s].V, sizeof(double));
+		n = write(fd, &shards[s].V, sizeof(double));
 	}
 
-        n = to_pipe(fd, (uint8_t*) A, total_shards * total_cores * sizeof(uint32_t));
-        n = to_pipe(fd, (uint8_t*) O, total_cores  * total_cores * sizeof(uint32_t));
+	n = to_pipe(fd, (uint8_t*) A, total_shards * total_cores * sizeof(uint32_t));
+	n = to_pipe(fd, (uint8_t*) O, total_cores  * total_cores * sizeof(uint32_t));
 
-        close(fd);
+	close(fd);
 
-        fd = open((const char*) solver_OUT, O_RDONLY);
+	fd = open((const char*) solver_OUT, O_RDONLY);
 
-        if(fd == -1)
+	if(fd == -1)
 	{
-                return false;
+		return false;
 	}
 
-        int value;
-        n = read(fd, &value, sizeof(int));
+	int value;
+	n = read(fd, &value, sizeof(int));
 
-        if(value == 1) 
+	if(value == 1) 
 	{
 		n = read(fd, &newW, sizeof(uint32_t));
 		n = read(fd, &newE, sizeof(uint32_t));
-        }
+	}
 
-        close(fd);
+	close(fd);
 
-        return value == 1;
+	return value == 1;
 }
 
 struct task_result DyssectController::RunTask(Context *, bess::PacketBatch *, void *) 
