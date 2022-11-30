@@ -80,7 +80,8 @@ const Commands DyssectController::cmds = {
 
 CommandResponse DyssectController::CommandGetCoreTime(const bess::pb::EmptyArg &) {
 	bess::pb::MetronCoreCommandGetCoreTimeResponse r;
-	r.set_core_time(rte_atomic64_read(&sum_core_time_ns_));
+	uint64_t sum = (uint64_t)rte_atomic64_read(&sum_core_time_ns_);
+	r.set_core_time(sum);
 	return CommandSuccess(r);
 }
 
