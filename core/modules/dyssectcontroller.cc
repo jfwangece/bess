@@ -1,6 +1,9 @@
 #include "nfv_ctrl_msg.h"
 #include "dyssectcontroller.h"
 
+#include <iostream>
+#include <fstream>
+
 static inline int from_pipe(int fd, uint8_t* addr, int len) 
 {
 	int n;
@@ -1211,6 +1214,10 @@ struct task_result DyssectController::RunTask(Context *, bess::PacketBatch *, vo
 		next_long = now + LONG_TIME;
 		update_short_epoch(false);
 		next_short = tsc_to_us(rdtsc()) + SHORT_TIME;
+
+		std::ofstream core_usage_log ("dyssect_usage.dat");
+		core_usage_log << rte_atomic64_read(&sum_core_time_ns_) << std::endl;
+		core_usage_log.close();
 	}
 
 	return {.block = true, .packets = 0, .bits = 0};
