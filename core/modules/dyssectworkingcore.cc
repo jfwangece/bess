@@ -488,6 +488,12 @@ struct task_result DyssectWorkingCore::RunTask(Context *ctx, bess::PacketBatch *
 	return {.block = false, .packets = cnt, .bits = (received_bytes + cnt * pkt_overhead) * 8};
 }
 
+// Core usage measurement
+const Commands DyssectWorkingCore::cmds = {
+	{"get_core_time", "EmptyArg",
+			MODULE_CMD_FUNC(&DyssectController::CommandGetCoreTime), Command::THREAD_SAFE},
+};
+
 CommandResponse DyssectWorkingCore::CommandGetCoreTime(const bess::pb::EmptyArg &) {
 	bess::pb::MetronCoreCommandGetCoreTimeResponse r;
 	uint64_t sum = 0;

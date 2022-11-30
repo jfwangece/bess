@@ -27,6 +27,7 @@ class DyssectWorkingCore final : public DyssectWorking {
 	public:
 		static const gate_idx_t kNumIGates = 0;
 		static const gate_idx_t kNumOGates = 1;
+		static const Commands cmds;
 
 		DyssectWorkingCore() : DyssectWorking() { }
 
