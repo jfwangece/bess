@@ -24,16 +24,19 @@ using bess::utils::Ipv4;
 using bess::utils::Ethernet;
 
 class DyssectWorkingCore final : public DyssectWorking {
-        public:
-                static const gate_idx_t kNumIGates = 0;
-                static const gate_idx_t kNumOGates = 1;
+	public:
+		static const gate_idx_t kNumIGates = 0;
+		static const gate_idx_t kNumOGates = 1;
 
-                DyssectWorkingCore() : DyssectWorking() { }
+		DyssectWorkingCore() : DyssectWorking() { }
 
-                DyssectState* ExtractState(bess::Packet *);
-                CommandResponse Init(const bess::pb::DyssectWorkingCoreArg&);
-                struct task_result RunTask(Context*, bess::PacketBatch*, void*) override;
-	
+		DyssectState* ExtractState(bess::Packet *);
+		CommandResponse Init(const bess::pb::DyssectWorkingCoreArg&);
+		struct task_result RunTask(Context*, bess::PacketBatch*, void*) override;
+
+		// Report CPU core usage
+		CommandResponse CommandGetCoreTime(const bess::pb::EmptyArg &);
+
 	private:
 		uint32_t qsize;
 		llring *mypackets;

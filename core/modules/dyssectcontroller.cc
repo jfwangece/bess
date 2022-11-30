@@ -1,3 +1,4 @@
+#include "nfv_ctrl_msg.h"
 #include "dyssectcontroller.h"
 
 static inline int from_pipe(int fd, uint8_t* addr, int len) 
@@ -336,6 +337,10 @@ CommandResponse DyssectController::Init(const bess::pb::DyssectControllerArg &ar
 
 	last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
 	rte_atomic64_set(&sum_core_time_ns_, 0);
+
+	if (bess::ctrl::dyssect_ctrl == nullptr) {
+		bess::ctrl::dyssect_ctrl = this;
+	}
 
 	return CommandSuccess();
 }

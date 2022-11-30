@@ -1,3 +1,5 @@
+#include "nfv_ctrl_msg.h"
+#include "dyssectcontroller.h"
 #include "dyssectworkingcore.h"
 
 static inline
@@ -484,6 +486,16 @@ struct task_result DyssectWorkingCore::RunTask(Context *ctx, bess::PacketBatch *
 	uint32_t cnt = process(ctx, batch, queue_offloading_);
 	
 	return {.block = false, .packets = cnt, .bits = (received_bytes + cnt * pkt_overhead) * 8};
+}
+
+CommandResponse DyssectWorkingCore::CommandGetCoreTime(const bess::pb::EmptyArg &) {
+	bess::pb::MetronCoreCommandGetCoreTimeResponse r;
+	uint64_t sum = 0;
+	if (bess::ctrl::dyssect_ctrl != nullptr) {
+		sum = bess::ctrl::dyssect_ctrl->get_sum_core_time();
+	}
+	r.set_core_time(sum);
+	return CommandSuccess(r);
 }
 
 ADD_MODULE(DyssectWorkingCore, "dyssectworkingcore", "Working Core of Dyssect")

@@ -14,7 +14,6 @@
 class DyssectController final : public Controller 
 {
 private:
-
 	bool start;
 	Port *port;
 	uint32_t W;
@@ -91,7 +90,6 @@ private:
 	void mark_to_disable_offloading_cores(uint32_t from, uint32_t to);
 
 public:
-
 	static const Commands cmds;
 	static const gate_idx_t kNumIGates = 0;
 	static const gate_idx_t kNumOGates = 0;
@@ -111,6 +109,7 @@ public:
 
 	// Report CPU core usage
 	CommandResponse CommandGetCoreTime(const bess::pb::EmptyArg &);
+	inline uint64_t get_sum_core_time() { return rte_atomic64_read(&sum_core_time_ns_); }
 
 	struct task_result RunTask(Context *ctx, bess::PacketBatch *, void *);
 };

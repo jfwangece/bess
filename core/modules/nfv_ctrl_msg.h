@@ -30,6 +30,7 @@ class NFVRCore;
 class NFVMonitor;
 class MetronCore;
 class Measure;
+class DyssectController;
 
 namespace bess {
 namespace ctrl {
@@ -59,6 +60,8 @@ extern NFVRCore* nfv_rcores[DEFAULT_INVALID_CORE_ID];
 extern NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID];
 
 extern MetronCore* metron_cores[DEFAULT_INVALID_CORE_ID];
+
+extern DyssectController* dyssect_ctrl;
 
 extern Measure* sys_measure;
 
