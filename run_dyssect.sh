@@ -40,8 +40,8 @@ SOLVER_CORE=31                      # The core to assign to optimizer process
 SCRIPT_NAME="cloud_dyssect_chain4"  # The name of BESS configuration script (in the bessctl/conf/ directory)
 
 echo "Killing previous processes..."
-sudo pkill -9 bessd 1>/dev/null 2>/dev/null
-sudo pkill -9 solver 1>/dev/null 2>/dev/null
+pkill -9 bessd 1>/dev/null 2>/dev/null
+pkill -9 solver 1>/dev/null 2>/dev/null
 
 echo "Starting BESS daemon..."
 sudo ./bessctl/bessctl daemon start
@@ -50,4 +50,4 @@ echo "Running the optimizer..."
 taskset -c ${SOLVER_CORE} ./solver 1>/dev/null 2>/dev/null &
 
 echo "Running the Dyssect..."
-sudo ./bessctl/bessctl run nfvctrl/${SCRIPT_NAME} BESS_SLO=${TARGET_SLO} SHARDS=${SHARDS} SFC_LENGTH=${SFC_LENGTH} CONTROLLER_CORE=${CONTROLLER_CORE} INPUT_PARA=${TARGET_PARA}
+sudo ./bessctl/bessctl run nfvctrl/${SCRIPT_NAME} BESS_SLO=${TARGET_SLO}, SHARDS=${SHARDS}, SFC_LENGTH=${SFC_LENGTH}, CONTROLLER_CORE=${CONTROLLER_CORE}, INPUT_PARA=${TARGET_PARA}"
