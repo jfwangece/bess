@@ -20,6 +20,7 @@ acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 
 # org dyssect inputs
+slo                 = int($BESS_SLO!"100000")
 shards              = int($SHARDS!"64")
 sfc_length          = int($SFC_LENGTH!"3")
 worker_core_cnt     = 20
