@@ -338,8 +338,9 @@ CommandResponse DyssectController::Init(const bess::pb::DyssectControllerArg &ar
 	int __attribute__((unused)) ret = sprintf(buff, "chmod 777 %s 1>/dev/null 2>/dev/null", solver_OUT);
 	ret = system(buff);
 
-	last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
 	rte_atomic64_set(&sum_core_time_ns_, 0);
+	last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
+	local_sum_core_time_ns_ = 0;
 
 	if (bess::ctrl::dyssect_ctrl == nullptr) {
 		bess::ctrl::dyssect_ctrl = this;
@@ -1201,9 +1202,9 @@ struct task_result DyssectController::RunTask(Context *, bess::PacketBatch *, vo
 		next_short = now + SHORT_TIME;
 
 		uint64_t now_ns = tsc_to_ns(rdtsc());
-		uint64_t time_diff = now_ns - last_short_epoch_end_ns_;
-		uint64_t core = W + E;
-    	rte_atomic64_add(&sum_core_time_ns_, core * time_diff);
+		uint64_t core = (W + E) * (now_ns - last_short_epoch_end_ns_);
+		rte_atomic64_add(&sum_core_time_ns_, core);
+		local_sum_core_time_ns_ += core;
 		last_short_epoch_end_ns_ = now_ns;
 	}
 
@@ -1215,8 +1216,8 @@ struct task_result DyssectController::RunTask(Context *, bess::PacketBatch *, vo
 		update_short_epoch(false);
 		next_short = tsc_to_us(rdtsc()) + SHORT_TIME;
 
-		std::ofstream core_usage_log ("dyssect_usage.dat");
-		core_usage_log << rte_atomic64_read(&sum_core_time_ns_) << std::endl;
+		std::ofstream core_usage_log ("/tmp/dyssect_usage.dat");
+		core_usage_log << local_sum_core_time_ns_ << std::endl;
 		core_usage_log.close();
 	}
 

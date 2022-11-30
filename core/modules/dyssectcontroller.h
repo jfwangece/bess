@@ -62,6 +62,7 @@ private:
 
 	uint64_t last_short_epoch_end_ns_;
 	rte_atomic64_t sum_core_time_ns_;
+	uint64_t local_sum_core_time_ns_;
 
 	void update_reta();
 	void update_long_epoch();
