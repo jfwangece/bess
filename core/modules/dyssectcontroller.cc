@@ -1192,11 +1192,11 @@ struct task_result DyssectController::RunTask(Context *, bess::PacketBatch *, vo
 		update_short_epoch(true);
 		next_short = now + SHORT_TIME;
 
-		now = tsc_to_us(rdtsc());
-		uint64_t time_diff = now - last_short_epoch_end_ns_;
+		uint64_t now_ns = tsc_to_ns(rdtsc());
+		uint64_t time_diff = now_ns - last_short_epoch_end_ns_;
 		uint64_t core = W + E;
     	rte_atomic64_add(&sum_core_time_ns_, core * time_diff);
-		last_short_epoch_end_ns_ = now;
+		last_short_epoch_end_ns_ = now_ns;
 	}
 
 	if(now > next_long) 
