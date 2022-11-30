@@ -216,6 +216,12 @@ def start_quadrant_worker(wip, worker_id):
     # print(out)
     print("quadrant worker {} starts".format(wip))
 
+def start_dyssect_worker(wip, worker_id, slo):
+    cmd = "/users/uscnsl/bess/run_dyssect.sh -s {} -p 1000.0".format(slo)
+    # run_remote_command_with_output(wip, cmd)
+    run_remote_command(wip, cmd)
+    print("dyssect worker {} starts".format(wip))
+
 def parse_latency_result(tip):
     cmds = ['command', 'module', 'measure0', 'get_summary', 'MeasureCommandGetSummaryArg', '{"latency_percentiles": [50.0, 90.0, 95.0, 98.0, 99.0, 99.9]}']
     p = run_remote_besscmd(tip, cmds)
@@ -233,13 +239,20 @@ def parse_latency_result(tip):
 
 # For CPU core usage
 def parse_cpu_time_result(wip, runtime='nfv_core0'):
-    cmds = ['command', 'module', runtime, 'get_core_time', 'EmptyArg']
-    p = run_remote_besscmd(wip, cmds)
-    out, err = p.communicate()
-    lines = out.split('\n')
-    for line in lines:
-        if 'core_time' in line:
-            return int(line.split(':')[2].strip())
+    if runtime == "dyssect":
+        cmds = ["ssh", "uscnsl@{}".format(wip), "cat", "/tmp/dyssect_usage.dat", "&"]
+        p = subprocess.Popen(cmds, universal_newlines=True,
+                        stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = p.communicate()
+        return int(out)
+    else:
+        cmds = ['command', 'module', runtime, 'get_core_time', 'EmptyArg']
+        p = run_remote_besscmd(wip, cmds)
+        out, err = p.communicate()
+        lines = out.split('\n')
+        for line in lines:
+            if 'core_time' in line:
+                return int(line.split(':')[2].strip())
     return 0
 
 # For short-term profiling
@@ -752,7 +765,7 @@ def run_metron_exp(num_worker):
     print("- core usage sum (in us): {}".format(sum(core_usage)))
     print("- avg core usage (in cores): {}".format(avg_cores))
     print("---------------------------------------------------------------")
-    return (avg_cores, delay)
+    return (avg_cores, total_packets/1000000.0, delay)
 
 def run_quadrant_exp(num_worker, slo):
     exp_duration = 40
@@ -811,9 +824,9 @@ def run_quadrant_exp(num_worker, slo):
     print("- core usage sum (in us): {}".format(sum(core_usage)))
     print("- avg core usage (in cores): {}".format(avg_cores))
     print("---------------------------------------------------------------")
-    return (avg_cores, delay)
+    return (avg_cores, total_packets/1000000.0, delay)
 
-def run_dyssect_exp(num_worker):
+def run_dyssect_exp(num_worker, slo):
     exp_duration = 40
     selected_worker_ips = []
     for i in range(num_worker):
@@ -825,12 +838,17 @@ def run_dyssect_exp(num_worker):
         p = multiprocessing.Process(target=start_remote_bessd, args=(tip,))
         p.start()
         pids.append(p)
-    for wip in worker_ip:
-        p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
+    wait_pids(pids)
+    print("exp: all bessd started")
+
+    # Run all workers
+    pids = []
+    for i, wip in enumerate(selected_worker_ips):
+        p = multiprocessing.Process(target=start_dyssect_worker, args=(wip, i, slo))
         p.start()
         pids.append(p)
     wait_pids(pids)
-    print("exp: all bessd started")
+    print("exp: all workers started")
 
     # Dyssect
     ig_mode = 2
@@ -842,26 +860,27 @@ def run_dyssect_exp(num_worker):
 
     measure_results = parse_latency_result(traffic_ip[0])
     if len(measure_results) == 0:
-        print("- Ironside rack-scale exp: no result - ")
+        print("- Dyssect rack-scale exp: no result - ")
         return
 
     total_packets = measure_results[0]
     delay = measure_results[1:]
     core_usage = []
     for i, wip in enumerate(selected_worker_ips):
-        core_usage.append(parse_cpu_time_result(wip, 'mcore0') * 3 / 1000)
+        core_usage.append(parse_cpu_time_result(wip, 'dyssect') * 3 / 1000)
     avg_cores = sum(core_usage) / 1000000.0 / exp_duration
 
     print("---------------------------------------------------------------")
-    print("- Metron rack-scale exp result")
-    print("- {} Metron workers".format(num_worker))
+    print("- Dyssect rack-scale exp result")
+    print("- {} Dyssect workers".format(num_worker))
     print("- total packets: {}".format(total_packets))
     print("- pkt delay (in us): {}".format(delay))
     print("- core usage (in us): {}".format(core_usage))
     print("- core usage sum (in us): {}".format(sum(core_usage)))
     print("- avg core usage (in cores): {}".format(avg_cores))
     print("---------------------------------------------------------------")
-    return (avg_cores, delay)
+    return (avg_cores, total_packets/1000000.0, delay)
+
 
 # Main experiment
 def run_test_exp():
@@ -918,13 +937,40 @@ def run_compare_exp():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
-    # run_metron_exp(worker_cnt)
+    run_metron = False
+    run_quadrant = False
+    run_dyssect = True
 
-    # run_quadrant_exp(worker_cnt, 100000)
+    metron_results = []
+    dyssect_results = []
+    quadrant_results = []
 
-    run_dyssect_exp(1)
+    if run_metron:
+        metron_results.append(run_metron_exp(worker_cnt))
+    if run_quadrant:
+        for slo in target_slos:
+            r = run_quadrant_exp(worker_cnt, slo)
+            quadrant_results.append(r)
+    if run_dyssect:
+        dyssect_results.append(run_dyssect_exp(1, target_slos[0]))
 
-    print("--------    Ironside comparison experiment results    ---------")
+    if len(metron_results) > 0:
+        print("--------        Comparison experiment: Metron         ---------")
+        metron_r = metron_results[0]
+        print("{} us - {:0.2f}, {:0.2f}, {}".format(1000, metron_r[0], metron_r[1], metron_r[2]))
+
+    if len(quadrant_results) > 5:
+        print("--------        Comparison experiment: Quadrant      ----------")
+        for i, slo in enumerate(target_slos):
+            slo_us = slo / 1000
+            r = quadrant_results[i]
+            print("{} us - {:0.2f}, {:0.2f}, {}".format(slo_us, r[0], r[1], r[2]))
+
+    if len(dyssect_results) > 0:
+        print("--------        Comparison experiment: Dyssect       ----------")
+        dyssect_r = dyssect_results[0]
+        print("{} us - {:0.2f}, {:0.2f}, {}".format(1000, dyssect_r[0], dyssect_r[1], dyssect_r[2]))
+
     print("---------------------------------------------------------------")
     return
 
@@ -1024,7 +1070,7 @@ def main():
     # install_mlnx_for_all()
     # get_macs_for_all()
     # fetch_bess_for_all()
-    install_bess_for_all()
+    # install_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()
