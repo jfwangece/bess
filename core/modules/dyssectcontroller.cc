@@ -74,12 +74,20 @@ const Commands DyssectController::cmds = {
 			MODULE_CMD_FUNC(&DyssectController::CommandSetCAr), Command::THREAD_SAFE},
 	{"set_cs_r", "CVArg",
 			MODULE_CMD_FUNC(&DyssectController::CommandSetCSr), Command::THREAD_SAFE},
+	{"get_core_time", "EmptyArg",
+			MODULE_CMD_FUNC(&DyssectController::CommandGetCoreTime), Command::THREAD_SAFE},
 };
+
+CommandResponse DyssectController::CommandGetCoreTime(const bess::pb::EmptyArg &) {
+	bess::pb::MetronCoreCommandGetCoreTimeResponse r;
+	r.set_core_time(rte_atomic64_read(&sum_core_time_ns_));
+	return CommandSuccess(r);
+}
 
 CommandResponse DyssectController::CommandSetSLOp(const bess::pb::SLOArg& arg) 
 {
 	SLOp = arg.slo();
-	LOG(INFO) << "SLOp" << SLOp;
+	LOG(INFO) << "SLOp = " << SLOp;
 	return CommandSuccess();
 }
 
@@ -324,6 +332,9 @@ CommandResponse DyssectController::Init(const bess::pb::DyssectControllerArg &ar
 	char buff[128];
 	int __attribute__((unused)) ret = sprintf(buff, "chmod 777 %s 1>/dev/null 2>/dev/null", solver_OUT);
 	ret = system(buff);
+
+	last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
+	rte_atomic64_set(&sum_core_time_ns_, 0);
 
 	return CommandSuccess();
 }
@@ -943,7 +954,8 @@ void DyssectController::update_long_epoch()
 					}
 				}
 			}
-		} else 
+		}
+		else
 		{
 			ret = run_short_solver(newW, newE);
 			if(ret) 
@@ -1178,6 +1190,12 @@ struct task_result DyssectController::RunTask(Context *, bess::PacketBatch *, vo
 	{
 		update_short_epoch(true);
 		next_short = now + SHORT_TIME;
+
+		now = tsc_to_us(rdtsc());
+		uint64_t time_diff = now - last_short_epoch_end_ns_;
+		uint64_t core = W + E;
+    	rte_atomic64_add(&sum_core_time_ns_, core * time_diff);
+		last_short_epoch_end_ns_ = now;
 	}
 
 	if(now > next_long) 

@@ -61,6 +61,9 @@ private:
 	uint32_t *newA;
 	uint32_t *newO;
 
+	uint64_t last_short_epoch_end_ns_;
+	rte_atomic64_t sum_core_time_ns_;
+
 	void update_reta();
 	void update_long_epoch();
 	void update_short_epoch(bool);
@@ -105,6 +108,9 @@ public:
 	CommandResponse Init(const bess::pb::DyssectControllerArg&);
 	CommandResponse CommandAddDyssectWorkingCore(const bess::pb::AddCoreArg&);
 	CommandResponse CommandAddDyssectOffloadingCore(const bess::pb::AddCoreArg&);
+
+	// Report CPU core usage
+	CommandResponse CommandGetCoreTime(const bess::pb::EmptyArg &);
 
 	struct task_result RunTask(Context *ctx, bess::PacketBatch *, void *);
 };
