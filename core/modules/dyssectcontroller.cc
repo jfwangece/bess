@@ -93,14 +93,14 @@ CommandResponse DyssectController::CommandSetSLOr(const bess::pb::SLOArg& arg)
 CommandResponse DyssectController::CommandSetCAp(const bess::pb::CVArg& arg) 
 {
 	Cap = arg.cv();
-	LOG(INFO) << "Cap" << Cap;
+	LOG(INFO) << "Cap = " << Cap;
 	return CommandSuccess();
 }
 
 CommandResponse DyssectController::CommandSetCSp(const bess::pb::CVArg& arg) 
 {
 	Csp = arg.cv();
-
+	LOG(INFO) << "Csp = " << Csp;
 	return CommandSuccess();
 }
 
@@ -119,6 +119,7 @@ CommandResponse DyssectController::CommandSetCSr(const bess::pb::CVArg& arg)
 }
 
 namespace {
+// reta_flow installation
 struct rte_flow_item ETH_ITEM = {
 	RTE_FLOW_ITEM_TYPE_ETH,
   nullptr, nullptr, nullptr,
@@ -164,7 +165,7 @@ inline rte_flow* AddFlowRedirectRule(int port_id, int from, int to, int priority
   }
   return nullptr;
 }
-}
+} // namespace
 
 void DyssectController::UpdateRssFlow() {
   if (reta_table_.size() == 0) {
@@ -173,7 +174,7 @@ void DyssectController::UpdateRssFlow() {
 	}
   }
   for (uint32_t i = 0; i < reta_size; i++) {
-	reta_table_[i] = reta_conf[i/RETA_CONF_SIZE].reta[i%RTE_RETA_GROUP_SIZE];
+	reta_table_[i] = reta_conf[i / RTE_RETA_GROUP_SIZE].reta[i % RTE_RETA_GROUP_SIZE];
   }
 
   struct rte_flow_attr attr;
@@ -446,11 +447,11 @@ CommandResponse DyssectController::CommandStart(const bess::pb::EmptyArg &)
 
 CommandResponse DyssectController::CommandAddDyssectWorkingCore(const bess::pb::AddCoreArg &arg) 
 {
-        const auto &it = ModuleGraph::GetAllModules().find(arg.name());
+	const auto &it = ModuleGraph::GetAllModules().find(arg.name());
 
-        if(it == ModuleGraph::GetAllModules().end())
+	if(it == ModuleGraph::GetAllModules().end())
 	{
-                return CommandFailure(-EINVAL, "Could not add the working");
+		return CommandFailure(-EINVAL, "Could not add the working");
 	}
 
 	DyssectWorkingCore *working = reinterpret_cast<DyssectWorkingCore*>(it->second);
@@ -460,16 +461,16 @@ CommandResponse DyssectController::CommandAddDyssectWorkingCore(const bess::pb::
 	detach_tc(tc);
 	working_cores.push_back(std::make_tuple(working, tc, arg.wid()));
 
-        return CommandSuccess();
+	return CommandSuccess();
 }
 
 CommandResponse DyssectController::CommandAddDyssectOffloadingCore(const bess::pb::AddCoreArg &arg) 
 {
-        const auto &it = ModuleGraph::GetAllModules().find(arg.name());
+	const auto &it = ModuleGraph::GetAllModules().find(arg.name());
 
-        if(it == ModuleGraph::GetAllModules().end())
+	if(it == ModuleGraph::GetAllModules().end())
 	{
-                return CommandFailure(-EINVAL, "Could not add the offloading");
+		return CommandFailure(-EINVAL, "Could not add the offloading");
 	}
 
 	DyssectOffloadingCore *offloading = reinterpret_cast<DyssectOffloadingCore*>(it->second);
@@ -478,7 +479,7 @@ CommandResponse DyssectController::CommandAddDyssectOffloadingCore(const bess::p
 	detach_tc(tc);
 	offloading_cores.push_back(std::make_tuple(offloading, tc, arg.wid()));
 
-        return CommandSuccess();
+	return CommandSuccess();
 }
 
 inline
@@ -608,15 +609,18 @@ void DyssectController::migration_shard(uint32_t s, uint32_t w, bool send_signal
 {
 	DyssectWorkingCore *new_working = reinterpret_cast<DyssectWorkingCore*>(std::get<0>(working_cores[w]));
 
-	if(shards[s].owner == new_working)
+	if (shards[s].owner == new_working)
 	{
 		return;
 	}
 
-	if(!send_signal) {
+	if (!send_signal)
+	{
 		shards[s].owner_new = new_working;
 		rte_atomic32_set(&shards[s].pause, 1);
-	} else {
+	}
+	else
+	{
 		rte_atomic32_set(&shards[s].owner->transfer_shard, 1);
 	}
 }
@@ -626,28 +630,28 @@ bool DyssectController::update_ratio()
 {
 	bool changed = false;
 
-	for(uint32_t s = 0; s < total_shards; s++) 
+	for (uint32_t s = 0; s < total_shards; s++) 
 	{
-		if(Controller::shards[s].r_new != 0.0) 
+		if (Controller::shards[s].r_new != 0.0) 
 		{
-                        double accum = 0.0;
-                        std::vector<DyssectState*> *vec = Controller::shards[s].ordered_flows;
+			double accum = 0.0;
+			std::vector<DyssectState*> *vec = Controller::shards[s].ordered_flows;
 
-                        for(auto it = vec->begin(); it != vec->end(); it++) 
+			for (auto it = vec->begin(); it != vec->end(); it++) 
 			{
-                                accum += (*it)->prob2;
-                                if(accum >= Controller::shards[s].r_new) 
+				accum += (*it)->prob2;
+				if (accum >= Controller::shards[s].r_new) 
 				{
-                                        if(accum < Controller::shards[s].r_new * SCALE)
+					if (accum < Controller::shards[s].r_new * SCALE)
 					{
-                                                Controller::shards[s].r_new = accum + EPSILON;
+						Controller::shards[s].r_new = accum + EPSILON;
 					}
-                                        break;
-                                }
-                        }
-                }
+					break;
+				}
+			}
+		}
 
-		if(Controller::shards[s].r != Controller::shards[s].r_new) 
+		if (Controller::shards[s].r != Controller::shards[s].r_new) 
 		{
 			DyssectWorkingCore *working = reinterpret_cast<DyssectWorkingCore*>(Controller::shards[s].owner);
 			rte_atomic32_set(&working->transfer_r, 1);
@@ -662,28 +666,29 @@ bool DyssectController::update_ratio()
 inline
 bool DyssectController::update_relationship() 
 {
-	if(memcmp(newO, O, total_cores * total_cores * sizeof(uint32_t)) == 0) 
+	if (memcmp(newO, O, total_cores * total_cores * sizeof(uint32_t)) == 0) 
 	{
 		return false;
 	}
 	
-	for(uint32_t w = 0; w < total_cores; w++) 
+	for (uint32_t w = 0; w < total_cores; w++) 
 	{
-		for(uint32_t e = 0; e < total_cores; e++) 
+		for (uint32_t e = 0; e < total_cores; e++) 
 		{
-			if(O[e*total_cores + w] == 0 && newO[e*total_cores + w] == 1) 
+			if (O[e*total_cores + w] == 0 && newO[e*total_cores + w] == 1) 
 			{
 				DyssectWorkingCore *working = reinterpret_cast<DyssectWorkingCore*>(std::get<0>(working_cores[w]));
 				DyssectOffloadingCore *new_offloading = std::get<0>(offloading_cores[e]);
 				
-				if(!working->old_offloading) 
+				if (!working->old_offloading) 
 				{
 					new_offloading->add_queue(working->get_queue());
 					working->old_offloading = new_offloading;
-				} else 
+				}
+				else 
 				{
 					DyssectOffloadingCore *old_offloading = working->old_offloading;
-					if(old_offloading == new_offloading) 
+					if (old_offloading == new_offloading) 
 					{
 						continue;
 					}
@@ -693,12 +698,12 @@ bool DyssectController::update_relationship()
 				}
 			}
 
-			if(O[e*total_cores + w] == 1 && newO[e*total_cores + w] == 0) 
+			if (O[e*total_cores + w] == 1 && newO[e*total_cores + w] == 0) 
 			{
 				DyssectWorkingCore *working = reinterpret_cast<DyssectWorkingCore*>(std::get<0>(working_cores[w]));
 				DyssectOffloadingCore *offloading = std::get<0>(offloading_cores[e]);
 
-				if(working->old_offloading) 
+				if (working->old_offloading) 
 				{
 					offloading->remove_queue(working->get_queue());
 				}
@@ -714,36 +719,36 @@ bool DyssectController::update_relationship()
 inline
 bool DyssectController::update_shards() 
 {
-        if(memcmp(A, newA, total_shards * total_cores * sizeof(uint32_t)) == 0) 
+	if (memcmp(A, newA, total_shards * total_cores * sizeof(uint32_t)) == 0) 
 	{
-                return false;
+		return false;
 	}
 
-        for(uint32_t s = 0; s < total_shards; s++) 
+	for (uint32_t s = 0; s < total_shards; s++) 
 	{
-                for(uint32_t w = 0; w < total_cores; w++) 
+		for (uint32_t w = 0; w < total_cores; w++) 
 		{
-                        if(newA[s*total_cores + w] == 1 && A[s*total_cores + w] == 0) 
+			if (newA[s*total_cores + w] == 1 && A[s*total_cores + w] == 0) 
 			{
-                                migration_shard(s, w, false);
-                        }
-                }
-        }
+				migration_shard(s, w, false);
+			}
+		}
+	}
 
-        update_reta();
+	update_reta();
 
-        for(uint32_t s = 0; s < total_shards; s++) 
+	for (uint32_t s = 0; s < total_shards; s++) 
 	{
-                for(uint32_t w = 0; w < total_cores; w++) 
+		for (uint32_t w = 0; w < total_cores; w++) 
 		{
-                        if(newA[s*total_cores + w] == 1 && A[s*total_cores + w] == 0) 
+			if (newA[s*total_cores + w] == 1 && A[s*total_cores + w] == 0) 
 			{
-                                migration_shard(s, w, true);
-                        }
-                }
-        }
+				migration_shard(s, w, true);
+			}
+		}
+	}
 
-        rte_memcpy(A, newA, total_shards * total_cores * sizeof(uint32_t));
+	rte_memcpy(A, newA, total_shards * total_cores * sizeof(uint32_t));
 
 	return true;
 }
@@ -751,18 +756,18 @@ bool DyssectController::update_shards()
 void DyssectController::update_reta() 
 {
 	uint32_t transfers = 0;
-	for(uint32_t s = 0; s < total_shards; s++) 
+	for (uint32_t s = 0; s < total_shards; s++) 
 	{
-		for(uint32_t w = 0; w < total_cores; w++) 
+		for (uint32_t w = 0; w < total_cores; w++) 
 		{
-			if(A[s*total_cores + w] != newA[s*total_cores + w])
+			if (A[s*total_cores + w] != newA[s*total_cores + w])
 			{
 				transfers++;
 			}
 
-			if(newA[s*total_cores + w] == 1) 
+			if (newA[s*total_cores + w] == 1) 
 			{
-				for(uint32_t k = s; k < reta_size; k += total_shards)
+				for (uint32_t k = s; k < reta_size; k += total_shards)
 				{
 					reta_conf[k / RTE_RETA_GROUP_SIZE].reta[k % RTE_RETA_GROUP_SIZE] = w;
 				}
@@ -772,7 +777,7 @@ void DyssectController::update_reta()
 
 	transfers /= 2;
 
-	if(transfers != 0) 
+	if (transfers != 0) 
 	{
 		LOG(INFO) << "MIGRATIONS=" << transfers;
 		// int __attribute__((unused)) ret = rte_eth_dev_rss_reta_update(port_id, reta_conf, reta_size);
@@ -868,7 +873,8 @@ bool DyssectController::volume_shards()
 		{
 			shards[s].V = (double)shards[s].old_packets * Tp * 1e6 / SHORT_TIME; 
 		}
-	} else {
+	}
+	else {
 		for(uint32_t s = 0; s < total_shards; s++)
 		{
 			shards[s].V = 0;
@@ -889,7 +895,8 @@ bool DyssectController::clear_flows()
 			{
 			}
 			Controller::shards[s].flows3->clear();
-		} else 
+		}
+		else 
 		{
 			while(rte_atomic32_read(&shards[s].ref_count_2) != 0) 
 			{
