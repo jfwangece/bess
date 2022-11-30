@@ -35,8 +35,8 @@ fi
 
 SHARDS=64                           # The number of shards
 SFC_LENGTH=3                        # The length of the Service Function Chain
-CONTROLLER_CORE=30                  # The core to assign to Dyssect Controller
-SOLVER_CORE=31                      # The core to assign to optimizer process
+CONTROLLER_CORE=28                  # The core to assign to Dyssect Controller
+SOLVER_CORE=30                      # The core to assign to optimizer process
 SCRIPT_NAME="cloud_dyssect_chain4"  # The name of BESS configuration script (in the bessctl/conf/ directory)
 
 echo "Killing previous processes..."
