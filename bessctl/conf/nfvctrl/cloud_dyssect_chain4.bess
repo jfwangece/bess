@@ -20,7 +20,7 @@ acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 
 # org dyssect inputs
-slo                 = int($BESS_SLO!"100000")
+slo_ns              = float($BESS_SLO!"100000") # 100 us
 shards              = int($SHARDS!"64")
 sfc_length          = int($SFC_LENGTH!"3")
 worker_core_cnt     = 20
@@ -85,6 +85,9 @@ for i in range(n):
 
     controller0.add_offloading(name=o.name, tc='!leaf_' + name + ':0', wid=queues+i)
 
+slo = slo_ns * 1e-9
+controller0.set_slo_p(slo=slo_ns)
+controller0.set_slo_r(slo=slo_ns)
 controller0.set_ca_p(cv=input_para)
 controller0.set_cs_p(cv=input_para)
 controller0.set_ca_r(cv=input_para)
