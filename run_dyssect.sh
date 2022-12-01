@@ -52,4 +52,4 @@ taskset -c ${SOLVER_CORE} ./solver 1>/dev/null 2>/dev/null &
 echo "Running the Dyssect..."
 sudo /users/uscnsl/bess/bessctl/bessctl run nfvctrl/${SCRIPT_NAME} BESS_SLO=${TARGET_SLO}, SHARDS=${SHARDS}, SFC_LENGTH=${SFC_LENGTH}, CONTROLLER_CORE=${CONTROLLER_CORE}, INPUT_PARA=${TARGET_PARA}
 echo ${TARGET_SLO}
-echo $TARGET_PARA
+echo ${TARGET_PARA}

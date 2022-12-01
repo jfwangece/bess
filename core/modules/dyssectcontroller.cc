@@ -1216,9 +1216,15 @@ struct task_result DyssectController::RunTask(Context *, bess::PacketBatch *, vo
 		update_short_epoch(false);
 		next_short = tsc_to_us(rdtsc()) + SHORT_TIME;
 
-		std::ofstream core_usage_log ("./dyssect_usage.dat");
-		core_usage_log << local_sum_core_time_ns_ << std::endl;
-		core_usage_log.close();
+		std::ofstream core_usage_log;
+		core_usage_log.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+		try {
+			core_usage_log.open("./dyssect_usage.dat");
+			core_usage_log << local_sum_core_time_ns_ << std::endl;
+			core_usage_log.close();
+		} catch (std::system_error& e) {
+			LOG(INFO) << e.code().message() << std::endl;
+		}
 	}
 
 	return {.block = true, .packets = 0, .bits = 0};
