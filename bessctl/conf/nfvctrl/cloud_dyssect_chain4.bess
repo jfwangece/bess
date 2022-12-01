@@ -86,8 +86,8 @@ for i in range(n):
     controller0.add_offloading(name=o.name, tc='!leaf_' + name + ':0', wid=queues+i)
 
 slo = slo_ns * 1e-9
-controller0.set_slo_p(slo=slo_ns)
-controller0.set_slo_r(slo=slo_ns)
+controller0.set_slo_p(slo=slo)
+controller0.set_slo_r(slo=slo)
 controller0.set_ca_p(cv=input_para)
 controller0.set_cs_p(cv=input_para)
 controller0.set_ca_r(cv=input_para)
