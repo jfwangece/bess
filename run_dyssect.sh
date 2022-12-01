@@ -38,16 +38,22 @@ CONTROLLER_CORE=28                  # The core to assign to Dyssect Controller
 SOLVER_CORE=30                      # The core to assign to optimizer process
 SCRIPT_NAME="cloud_dyssect_chain4"  # The name of BESS configuration script (in the bessctl/conf/ directory)
 
+export GUROBI_HOME="/users/uscnsl/gurobi912/linux64"
+export PATH="${PATH}:${GUROBI_HOME}/bin"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${GUROBI_HOME}/lib"
+
 echo "Killing previous processes..."
 sudo pkill -9 bessd 1>/dev/null 2>/dev/null &
 sudo pkill -9 solver 1>/dev/null 2>/dev/null &
 
-cd /user/uscnsl/bess
+cd /users/uscnsl/bess
 echo "Starting BESS daemon..."
 sudo ./bessctl/bessctl daemon start
+sleep 1
 
 echo "Running the optimizer..."
 taskset -c ${SOLVER_CORE} ./solver 1>/dev/null 2>/dev/null &
+sleep 1
 
 echo "Running the Dyssect..."
 sudo ./bessctl/bessctl run nfvctrl/${SCRIPT_NAME} BESS_SLO=${TARGET_SLO}, SHARDS=${SHARDS}, SFC_LENGTH=${SFC_LENGTH}, CONTROLLER_CORE=${CONTROLLER_CORE}, INPUT_PARA=${TARGET_PARA}
