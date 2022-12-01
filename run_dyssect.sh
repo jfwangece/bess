@@ -1,7 +1,6 @@
 #!/bin/bash
 
 set -e
-
 usage() {
         echo "run_dyssect.sh -s <SLO> -p <PARA>"
 }
@@ -43,13 +42,14 @@ echo "Killing previous processes..."
 sudo pkill -9 bessd 1>/dev/null 2>/dev/null &
 sudo pkill -9 solver 1>/dev/null 2>/dev/null &
 
+cd /user/uscnsl/bess
 echo "Starting BESS daemon..."
-sudo /users/uscnsl/bess/bessctl/bessctl daemon start
+sudo ./bessctl/bessctl daemon start
 
 echo "Running the optimizer..."
 taskset -c ${SOLVER_CORE} ./solver 1>/dev/null 2>/dev/null &
 
 echo "Running the Dyssect..."
-sudo /users/uscnsl/bess/bessctl/bessctl run nfvctrl/${SCRIPT_NAME} BESS_SLO=${TARGET_SLO}, SHARDS=${SHARDS}, SFC_LENGTH=${SFC_LENGTH}, CONTROLLER_CORE=${CONTROLLER_CORE}, INPUT_PARA=${TARGET_PARA}
+sudo ./bessctl/bessctl run nfvctrl/${SCRIPT_NAME} BESS_SLO=${TARGET_SLO}, SHARDS=${SHARDS}, SFC_LENGTH=${SFC_LENGTH}, CONTROLLER_CORE=${CONTROLLER_CORE}, INPUT_PARA=${TARGET_PARA}
 echo ${TARGET_SLO}
 echo ${TARGET_PARA}
