@@ -62,6 +62,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
     short_epoch_period_ns_ = (uint64_t)arg.short_epoch_period_ns();
     max_idle_epoch_count_ = 3000000 / arg.short_epoch_period_ns();
   }
+  max_idle_epoch_count_ = 10;
   LOG(INFO) << "Core " << core_id_ << ": short-term epoch = " << short_epoch_period_ns_ << " ns, max idle epochs = " << max_idle_epoch_count_;
 
   curr_ts_ns_ = tsc_to_ns(rdtsc());

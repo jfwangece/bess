@@ -118,7 +118,7 @@ def setup_cpu_memory(ip):
     run_remote_command(ip, cmd2)
     return
 
-def start_remote_bessd(ip):
+def start_remote_bessd(ip, runtime="bess"):
     # kill the old one
     cmd = "sudo pkill -f bessd"
     run_remote_command(ip, cmd)
@@ -217,10 +217,26 @@ def start_quadrant_worker(wip, worker_id):
     print("quadrant worker {} starts".format(wip))
 
 def start_dyssect_worker(wip, worker_id, slo):
-    cmd = "/users/uscnsl/bess/run_dyssect.sh -s {} -p 1000.0".format(slo)
-    # run_remote_command_with_output(wip, cmd)
+    cmd = "sudo pkill -f bessd"
     run_remote_command(wip, cmd)
+    cmd = "sudo pkill -f solver"
+    run_remote_command(wip, cmd)
+
+    bessd = "/users/uscnsl/bess/core/bessd"
+    bessd_cmd = "sudo {} --dpdk=true --buffers=1048576 -k".format(bessd)
+    run_remote_command(wip, bessd_cmd)
+
+    cmd = "/users/uscnsl/bess/solver 1>/dev/null 2>/dev/null &"
+    run_remote_command_with_output(wip, cmd)
+
+    cmds = ["run", "nfvctrl/cloud_dyssect_chain4",
+            "CONTROLLER_CORE=28," "SHARDS=64,", "BESS_SLO={},".format(slo), "INPUT_PARA=10000,"]
+    extra_cmd = ' '.join(cmds)
+    cmd = "/users/uscnsl/bess/bessctl/bessctl {}".format(extra_cmd)
+    run_remote_command(wip, cmd)
+
     print("dyssect worker {} starts".format(wip))
+    return
 
 def parse_latency_result(tip):
     cmds = ['command', 'module', 'measure0', 'get_summary', 'MeasureCommandGetSummaryArg', '{"latency_percentiles": [50.0, 90.0, 95.0, 98.0, 99.0, 99.9]}']
@@ -240,7 +256,7 @@ def parse_latency_result(tip):
 # For CPU core usage
 def parse_cpu_time_result(wip, runtime='nfv_core0'):
     if runtime == "dyssect":
-        cmds = ["ssh", "uscnsl@{}".format(wip), "cat", "/tmp/dyssect_usage.dat", "&"]
+        cmds = ["ssh", "uscnsl@{}".format(wip), "cat", "/users/uscnsl/dyssect_usage.dat"]
         p = subprocess.Popen(cmds, universal_newlines=True,
                         stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
@@ -696,7 +712,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     avg_cores = sum(core_usage) / 1000000.0 / exp_duration
 
     print("---------------------------------------------------------------")
-    print("- Ironside rack-scale exp result")
+    print("- Ironside rack-scale exp result {}".format(slo))
     print("- {} Ironside workers".format(num_worker))
     print("- ingress mode: {} '{}'".format(ig_mode, ig_mode_text[ig_mode]))
     print("- total packets: {}".format(total_packets))
@@ -706,9 +722,9 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     print("- avg core usage (in cores): {}".format(avg_cores))
     print("---------------------------------------------------------------")
     # 50, 90, 95, 98, 99
-    return (avg_cores, total_packets/1000000.0, delay)
+    return (slo/1000, avg_cores, total_packets/1000000.0, delay)
 
-def run_metron_exp(num_worker):
+def run_metron_exp(num_worker, slo=1000000):
     exp_duration = 40
     selected_worker_ips = []
     for i in range(num_worker):
@@ -757,7 +773,7 @@ def run_metron_exp(num_worker):
     avg_cores = sum(core_usage) / 1000000.0 / exp_duration
 
     print("---------------------------------------------------------------")
-    print("- Metron rack-scale exp result")
+    print("- Metron rack-scale exp result {}".format(slo))
     print("- {} Metron workers".format(num_worker))
     print("- total packets: {}".format(total_packets))
     print("- pkt delay (in us): {}".format(delay))
@@ -765,7 +781,7 @@ def run_metron_exp(num_worker):
     print("- core usage sum (in us): {}".format(sum(core_usage)))
     print("- avg core usage (in cores): {}".format(avg_cores))
     print("---------------------------------------------------------------")
-    return (avg_cores, total_packets/1000000.0, delay)
+    return (slo/1000, avg_cores, total_packets/1000000.0, delay)
 
 def run_quadrant_exp(num_worker, slo):
     exp_duration = 40
@@ -816,7 +832,7 @@ def run_quadrant_exp(num_worker, slo):
     avg_cores = sum(core_usage) / 1000000.0 / exp_duration
 
     print("---------------------------------------------------------------")
-    print("- Quadrant rack-scale exp result")
+    print("- Quadrant rack-scale exp result {}".format(slo))
     print("- {} Quadrant workers".format(num_worker))
     print("- total packets: {}".format(total_packets))
     print("- pkt delay (in us): {}".format(delay))
@@ -824,7 +840,7 @@ def run_quadrant_exp(num_worker, slo):
     print("- core usage sum (in us): {}".format(sum(core_usage)))
     print("- avg core usage (in cores): {}".format(avg_cores))
     print("---------------------------------------------------------------")
-    return (avg_cores, total_packets/1000000.0, delay)
+    return (slo/1000, avg_cores, total_packets/1000000.0, delay)
 
 def run_dyssect_exp(num_worker, slo):
     exp_duration = 40
@@ -839,7 +855,7 @@ def run_dyssect_exp(num_worker, slo):
         p.start()
         pids.append(p)
     wait_pids(pids)
-    print("exp: all bessd started")
+    print("exp: all bessd (only traffic) started")
 
     # Run all workers
     pids = []
@@ -871,7 +887,7 @@ def run_dyssect_exp(num_worker, slo):
     avg_cores = sum(core_usage) / 1000000.0 / exp_duration
 
     print("---------------------------------------------------------------")
-    print("- Dyssect rack-scale exp result")
+    print("- Dyssect rack-scale exp result {}".format(slo))
     print("- {} Dyssect workers".format(num_worker))
     print("- total packets: {}".format(total_packets))
     print("- pkt delay (in us): {}".format(delay))
@@ -879,7 +895,7 @@ def run_dyssect_exp(num_worker, slo):
     print("- core usage sum (in us): {}".format(sum(core_usage)))
     print("- avg core usage (in cores): {}".format(avg_cores))
     print("---------------------------------------------------------------")
-    return (avg_cores, total_packets/1000000.0, delay)
+    return (slo/1000, avg_cores, total_packets/1000000.0, delay)
 
 
 # Main experiment
@@ -890,7 +906,6 @@ def run_test_exp():
     exp_results = []
     for slo in target_slos:
         slo_us = slo / 1000
-        # short_prof = "./nf_profiles/short_term_base.pro"
         short_prof = "./nf_profiles/short_{}_safe.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
@@ -901,10 +916,8 @@ def run_test_exp():
         return
 
     print("----------     Ironside test experiment results      ----------")
-    for i, slo in enumerate(target_slos):
-        slo_us = slo / 1000
-        r = exp_results[i]
-        print("{} us - {:0.2f}, {:0.2f}, {}".format(slo_us, r[0], r[1], r[2]))
+    for r in exp_results:
+        print("{} us - {:0.2f}, {:0.2f}, {}".format(r[0], r[1], r[2], r[3]))
     print("---------------------------------------------------------------")
     return
 
@@ -912,30 +925,29 @@ def run_main_exp():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
-    exp_results = []
+    ironside_results = []
     for slo in target_slos:
         slo_us = slo / 1000
         short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         # long_prof = "./nf_profiles/long_{}_p90.pro".format(slo_us)
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
-        exp_results.append(r)
+        ironside_results.append(r)
 
-    if len(exp_results) == 0:
+    if len(ironside_results) == 0:
         print("----------       Ironside exp: no results        ----------")
         return
 
     print("----------     Ironside main experiment results      ----------")
-    for i, slo in enumerate(target_slos):
-        slo_us = slo / 1000
-        r = exp_results[i]
-        print("{} us - {:0.2f}, {:0.2f}, {}".format(slo_us, r[0], r[1], r[2]))
+    for r in ironside_results:
+        print("{} us - {:0.2f}, {:0.2f}, {}".format(r[0], r[1], r[2], r[3]))
     print("---------------------------------------------------------------")
     return
 
 def run_compare_exp():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
+    target_slos = [200000, 500000]
 
     run_metron = False
     run_quadrant = False
@@ -952,24 +964,31 @@ def run_compare_exp():
             r = run_quadrant_exp(worker_cnt, slo)
             quadrant_results.append(r)
     if run_dyssect:
-        dyssect_results.append(run_dyssect_exp(1, target_slos[0]))
+        for slo in target_slos:
+            # Dyssect is unstable sometimes, in which case its controller
+            # stops working and stops updating core usage info.
+            total_trials = 0
+            while total_trials < 10:
+                r = run_dyssect_exp(1, slo)
+                if r[1] > 24:
+                    dyssect_results.append(r)
+                    break
+                total_trials += 1
 
     if len(metron_results) > 0:
         print("--------        Comparison experiment: Metron         ---------")
-        metron_r = metron_results[0]
-        print("{} us - {:0.2f}, {:0.2f}, {}".format(1000, metron_r[0], metron_r[1], metron_r[2]))
+        for r in metron_results:
+            print("{} us - {:0.2f}, {:0.2f}, {}".format(r[0], r[1], r[2], r[3]))
 
     if len(quadrant_results) > 5:
         print("--------        Comparison experiment: Quadrant      ----------")
-        for i, slo in enumerate(target_slos):
-            slo_us = slo / 1000
-            r = quadrant_results[i]
-            print("{} us - {:0.2f}, {:0.2f}, {}".format(slo_us, r[0], r[1], r[2]))
+        for r in quadrant_results:
+            print("{} us - {:0.2f}, {:0.2f}, {}".format(r[0], r[1], r[2], r[3]))
 
     if len(dyssect_results) > 0:
         print("--------        Comparison experiment: Dyssect       ----------")
-        dyssect_r = dyssect_results[0]
-        print("{} us - {:0.2f}, {:0.2f}, {}".format(1000, dyssect_r[0], dyssect_r[1], dyssect_r[2]))
+        for r in dyssect_results:
+            print("{} us - {:0.2f}, {:0.2f}, {}".format(r[0], r[1], r[2], r[3]))
 
     print("---------------------------------------------------------------")
     return
@@ -1008,13 +1027,13 @@ def run_ablation_server_mapper():
         return
 
     print("-------         Ablation experiment results          ----------")
-    for i, slo in enumerate(target_slos):
-        slo_us = slo / 1000
+    for i in range(len(exp_results)):
         r1, r2, r3 = exp_results[i]
+        slo_us = r1[0]
         print("SLO: {} us".format(slo_us))
-        print("      - ironside       {:0.2f}, {:0.2f}, {}".format(r1[0], r1[1], r1[2]))
-        print("      - safe           {:0.2f}, {:0.2f}, {}".format(r2[0], r2[1], r2[2]))
-        print("      - unsafe         {:0.2f}, {:0.2f}, {}".format(r3[0], r3[1], r3[2]))
+        print("      - ironside       {:0.2f}, {:0.2f}, {}".format(r1[1], r1[2], r1[3]))
+        print("      - safe           {:0.2f}, {:0.2f}, {}".format(r2[1], r2[2], r2[3]))
+        print("      - unsafe         {:0.2f}, {:0.2f}, {}".format(r3[1], r3[2], r3[3]))
     print("---------------------------------------------------------------")
     return
 
@@ -1053,14 +1072,14 @@ def run_ablation_core_mapper():
         return
 
     print("-------         Ablation experiment results          ----------")
-    for i, slo in enumerate(target_slos):
-        slo_us = slo / 1000
+    for i in range(len(exp_results)):
         r1, r2, r3, r4 = exp_results[i]
+        slo_us = r1[0]
         print("SLO: {} us".format(slo_us))
-        print("      - ironside       {:0.2f}, {:0.2f}, {}".format(r1[0], r1[1], r1[2]))
-        print("      - safe           {:0.2f}, {:0.2f}, {}".format(r2[0], r2[1], r2[2]))
-        print("      - unsafe         {:0.2f}, {:0.2f}, {}".format(r3[0], r3[1], r3[2]))
-        print("      - no core-mapper {:0.2f}, {:0.2f}, {}".format(r4[0], r4[1], r4[2]))
+        print("      - ironside       {:0.2f}, {:0.2f}, {}".format(r1[1], r1[2], r1[3]))
+        print("      - safe           {:0.2f}, {:0.2f}, {}".format(r2[1], r2[2], r2[3]))
+        print("      - unsafe         {:0.2f}, {:0.2f}, {}".format(r3[1], r3[2], r3[3]))
+        print("      - no core-mapper {:0.2f}, {:0.2f}, {}".format(r4[1], r4[2], r4[3]))
     print("---------------------------------------------------------------")
     return
 
