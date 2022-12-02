@@ -925,7 +925,8 @@ def run_test_exp():
 
 def run_main_exp():
     worker_cnt = 3
-    target_slos = [100000, 200000, 300000, 400000, 500000]
+    # target_slos = [100000, 200000, 300000, 400000, 500000]
+    target_slos = [100000, 200000]
 
     ironside_results = []
     for slo in target_slos:

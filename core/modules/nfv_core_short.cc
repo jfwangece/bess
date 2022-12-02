@@ -387,6 +387,7 @@ bool NFVCore::ShortEpochProcess() {
       if (state->ingress_packet_count >= state->egress_packet_count) {
         state->queued_packet_count = state->ingress_packet_count - state->egress_packet_count;
       } else {
+        LOG(INFO) << "ig: " << state->ingress_packet_count << ", eg: " << state->egress_packet_count;
         state->queued_packet_count = 0;
       }
 
