@@ -95,6 +95,8 @@ def install_bess(recompile, ip):
     if recompile:
         cmd = "sudo pkill -f bessd"
         run_remote_command(ip, cmd)
+        cmd = "sudo pkill -f solver"
+        run_remote_command(ip, cmd)
         cmd = "sudo apt install -y htop git && git clone https://github.com/jwangee/FaaS-Setup.git"
         run_remote_command(ip, cmd)
         cmd = "cd ./FaaS-Setup && git pull && ./ironside-install.sh"
@@ -930,7 +932,6 @@ def run_main_exp():
         slo_us = slo / 1000
         short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
-        # long_prof = "./nf_profiles/long_{}_p90.pro".format(slo_us)
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
         ironside_results.append(r)
 
@@ -947,7 +948,6 @@ def run_main_exp():
 def run_compare_exp():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
-    target_slos = [200000, 500000]
 
     run_metron = False
     run_quadrant = False
@@ -979,12 +979,10 @@ def run_compare_exp():
         print("--------        Comparison experiment: Metron         ---------")
         for r in metron_results:
             print("{} us - {:0.2f}, {:0.2f}, {}".format(r[0], r[1], r[2], r[3]))
-
-    if len(quadrant_results) > 5:
+    if len(quadrant_results) > 0:
         print("--------        Comparison experiment: Quadrant      ----------")
         for r in quadrant_results:
             print("{} us - {:0.2f}, {:0.2f}, {}".format(r[0], r[1], r[2], r[3]))
-
     if len(dyssect_results) > 0:
         print("--------        Comparison experiment: Dyssect       ----------")
         for r in dyssect_results:
@@ -1089,7 +1087,7 @@ def main():
     # install_mlnx_for_all()
     # get_macs_for_all()
     # fetch_bess_for_all()
-    # install_bess_for_all()
+    install_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()
@@ -1104,8 +1102,8 @@ def main():
 
     # Main: latency-efficiency comparisons
     # run_test_exp()
-    # run_main_exp()
-    run_compare_exp()
+    run_main_exp()
+    # run_compare_exp()
 
     # Ablation: the server mapper
     # run_ablation_server_mapper()
