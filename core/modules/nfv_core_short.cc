@@ -74,18 +74,20 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     if (q_state != nullptr) {
       if (q_state == &system_dump_q0_) {
         // Egress 1: drop (no sw_q)
-        if (state->ingress_packet_count > state->egress_packet_count) {
-          state->egress_packet_count += 1;
-        }
+        // if (state->ingress_packet_count > state->egress_packet_count) {
+        //   state->egress_packet_count += 1;
+        // }
+        state->egress_packet_count += 1;
         bess::Packet::Free(pkt);
         // epoch_drop1_ += 1;
         continue;
       }
       if (q_state == &system_dump_q1_) {
         // Egress 2: drop (super flow)
-        if (state->ingress_packet_count > state->egress_packet_count) {
-          state->egress_packet_count += 1;
-        }
+        // if (state->ingress_packet_count > state->egress_packet_count) {
+        //   state->egress_packet_count += 1;
+        // }
+        state->egress_packet_count += 1;
         bess::Packet::Free(pkt);
         // epoch_drop4_ += 1;
         continue;
@@ -93,13 +95,14 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       if (q_state->idle_epoch_count == -1) {
         /// Option 1: drop
         // Egress 3: drop (idle RCore)
-        // Do not offload because RCore is inactive. Reset the offloading.
+        // Do not offload because RCore is inactive.
         // state->sw_q_state = &system_dump_q1_;
         // if (state->ingress_packet_count > state->egress_packet_count) {
         //   state->egress_packet_count += 1;
         // }
         // bess::Packet::Free(pkt);
         // epoch_drop2_ += 1;
+
         /// Option 2: go back to ncore
         state->sw_q_state = nullptr;
         local_batch_->add(pkt);
@@ -119,9 +122,10 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
 
       // Egress 4: normal offloading
       // This flow is redirected only if an active RCore works on |sw_q|
-      if (state->ingress_packet_count > state->egress_packet_count) {
-        state->egress_packet_count += 1;
-      }
+      // if (state->ingress_packet_count > state->egress_packet_count) {
+      //   state->egress_packet_count += 1;
+      // }
+      state->egress_packet_count += 1;
       q_state->sw_batch->add(pkt);
       continue;
     }
@@ -159,9 +163,10 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
     // Note: no need to parse |flow| again because we've parsed it first.
     // Update per-flow packet counter.
     state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
-    if (state->ingress_packet_count > state->egress_packet_count) {
-      state->egress_packet_count += 1;
-    }
+    // if (state->ingress_packet_count > state->egress_packet_count) {
+    //   state->egress_packet_count += 1;
+    // }
+    state->egress_packet_count += 1;
   }
 
   // Update for NFVMonitor (the current epoch info)
@@ -222,48 +227,57 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
     if (q_state != nullptr) {
       if (q_state == &system_dump_q0_) {
         // Egress 7: drop (no sw_q)
-        if (state->ingress_packet_count > state->egress_packet_count) {
-          state->egress_packet_count += 1;
-        }
+        // if (state->ingress_packet_count > state->egress_packet_count) {
+        //   state->egress_packet_count += 1;
+        // }
+        state->egress_packet_count += 1;
         bess::Packet::Free(pkt);
         // epoch_drop1_ += 1;
         continue;
       }
       if (q_state == &system_dump_q1_) {
         // Egress 8: drop (super flow)
-        if (state->ingress_packet_count > state->egress_packet_count) {
-          state->egress_packet_count += 1;
-        }
+        // if (state->ingress_packet_count > state->egress_packet_count) {
+        //   state->egress_packet_count += 1;
+        // }
+        state->egress_packet_count += 1;
         bess::Packet::Free(pkt);
         // epoch_drop4_ += 1;
         continue;
       }
       if (q_state->idle_epoch_count == -1) {
+        /// Option 1: drop
         // Egress 9: drop (idle RCore)
-        // Reset migration and drop |pkt|.
-        state->sw_q_state = &system_dump_q1_;
-
-        if (state->ingress_packet_count > state->egress_packet_count) {
-          state->egress_packet_count += 1;
-        }
-        bess::Packet::Free(pkt);
+        // state->sw_q_state = &system_dump_q1_;
+        // if (state->ingress_packet_count > state->egress_packet_count) {
+        //   state->egress_packet_count += 1;
+        // }
+        // bess::Packet::Free(pkt);
         // epoch_drop2_ += 1;
+
+        /// Option 2: go back to ncore
+        state->sw_q_state = nullptr;
+        local_batch_->add(pkt);
         continue;
       }
 
       // Egress 10: normal offloading
       // This flow is redirected only if an active RCore works on |sw_q|.
-      if (state->ingress_packet_count > state->egress_packet_count) {
-        state->egress_packet_count += 1;
-      }
+      // if (state->ingress_packet_count > state->egress_packet_count) {
+      //   state->egress_packet_count += 1;
+      // }
+      state->egress_packet_count += 1;
       q_state->sw_batch->add(pkt);
       continue;
     }
 
+    // In the process of |SplitAndEnqueue|, it is impossible if we find the
+    // enqueue packet count larger than the queued packet count.
     if (state->enqueued_packet_count >= state->queued_packet_count) {
-      if (state->ingress_packet_count > state->egress_packet_count) {
-        state->egress_packet_count += 1;
-      }
+      // if (state->ingress_packet_count > state->egress_packet_count) {
+      //   state->egress_packet_count += 1;
+      // }
+      state->egress_packet_count += 1;
       bess::Packet::Free(pkt);
       continue;
     }
@@ -292,9 +306,10 @@ void NFVCore::BestEffortEnqueue(bess::PacketBatch *batch, llring *q) {
       for (int i = 0; i < to_drop; i++) {
         bess::Packet *pkt = batch->pkts()[queued + i];
         state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
-        if (state->ingress_packet_count > state->egress_packet_count) {
-          state->egress_packet_count += 1;
-        }
+        // if (state->ingress_packet_count > state->egress_packet_count) {
+        //   state->egress_packet_count += 1;
+        // }
+        state->egress_packet_count += 1;
         // epoch_drop3_ += 1;
       }
       bess::Packet::Free(batch->pkts() + queued, to_drop);
