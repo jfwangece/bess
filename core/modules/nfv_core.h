@@ -75,8 +75,6 @@ struct SoftwareQueueState {
 struct FlowState {
   FlowState() {
     rss = 0;
-    ingress_packet_count = 0;
-    egress_packet_count = 0;
     short_epoch_packet_count = 0;
     queued_packet_count = 0;
     enqueued_packet_count = 0;
@@ -85,8 +83,6 @@ struct FlowState {
 
   Flow flow;
   uint32_t rss; // NIC's RSS-based hash for |flow|
-  uint32_t ingress_packet_count; // packet counter at ingress
-  uint32_t egress_packet_count; // packet counter at egress
   uint32_t short_epoch_packet_count; // short-term epoch packet counter
   uint32_t queued_packet_count; // packet count in the system
   uint32_t enqueued_packet_count; // packet count in the SplitAndEnqueue process
