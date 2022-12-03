@@ -74,8 +74,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       if (q_state == &system_dump_q0_) {
         // Egress 1: drop (no sw_q)
         state->queued_packet_count -= 1;
-        llring_mp_enqueue(bess::ctrl::system_dump_q_, pkt);
-        // bess::Packet::Free(pkt);
+        bess::Packet::Free(pkt);
         // epoch_drop1_ += 1;
         continue;
       }
@@ -215,8 +214,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
       if (q_state == &system_dump_q0_) {
         // Egress 7: drop (no sw_q)
         state->queued_packet_count -= 1;
-        llring_mp_enqueue(bess::ctrl::system_dump_q_, pkt);
-        // bess::Packet::Free(pkt);
+        bess::Packet::Free(pkt);
         // epoch_drop1_ += 1;
         continue;
       }

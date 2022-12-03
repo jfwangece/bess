@@ -64,8 +64,8 @@ CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
 
 void NFVRCore::DeInit() {
   // Mark to stop the pipeline and wait until the pipeline stops
-  rte_atomic16_set(&mark_to_disable_, 1);
-  while (rte_atomic16_read(&disabled_) == 0) { usleep(100000); }
+  rte_atomic16_set(&disabled_, 1);
+  while (rte_atomic16_read(&disabled_) == 2) { usleep(100000); }
 
   // Clean the software queue that is currently being processed
   sw_q_ = nullptr;
@@ -97,11 +97,8 @@ CommandResponse NFVRCore::CommandSetBurst(
 
 struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch,
                                      void *) {
-  if (rte_atomic16_read(&mark_to_disable_) == 1) {
-    rte_atomic16_set(&disabled_, 1);
-    return {.block = false, .packets = 0, .bits = 0};
-  }
   if (rte_atomic16_read(&disabled_) == 1) {
+    rte_atomic16_set(&disabled_, 2);
     return {.block = false, .packets = 0, .bits = 0};
   }
 

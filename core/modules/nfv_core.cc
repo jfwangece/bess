@@ -192,10 +192,6 @@ CommandResponse NFVCore::CommandSetBurst(
   }
 }
 
-// std::string NFVCore::GetDesc() const {
-//   return bess::utils::Format("%s:%hhu/%d", port_->name().c_str(), qid_, llring_count(local_queue_));
-// }
-
 /* Get a batch from NIC and send it to downstream */
 struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
                                      void *arg) {

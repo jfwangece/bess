@@ -388,7 +388,7 @@ cleanup:
         to_dump_sw_q_.erase(it);
       }
     }
-    LOG(INFO) << "nfvctrl: to remove " << q << "; total = " << to_dump_sw_q_.size();
+    LOG(INFO) << "nfvctrl: to remove " << q << "; total to-dump queues = " << to_dump_sw_q_.size();
   }
 
   // 2) check |add|. These |sw_q| must be added to |to_dump_sw_q_|.
@@ -400,7 +400,7 @@ cleanup:
         to_dump_sw_q_.push_back(q);
       }
     }
-    LOG(INFO) << "nfvctrl: to add " << q << "; total = " << to_dump_sw_q_.size();
+    LOG(INFO) << "nfvctrl: to add " << q << "; total to-dump queues = " << to_dump_sw_q_.size();
   }
 
   // |to_dump_sw_q_| contains |sw_q| that cannot be assigned to a RCore.

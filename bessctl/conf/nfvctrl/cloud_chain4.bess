@@ -26,9 +26,10 @@ ncore = int($BESS_NCORE!"8")
 queue_scale = 1
 
 # NFVCtrl runs on its own core
-nfvctrl_core = 30
+nfvctrl_core = 29
+sys_dump_core = 30
 core_cnt = ncore
-rcore_cnt = nfvctrl_core - (1 + ncore)
+rcore_cnt = nfvctrl_core - ncore - 1
 total_core_cnt = core_cnt + rcore_cnt
 cores = [i for i in range(core_cnt)]
 rcores = [core_cnt + i for i in range(rcore_cnt)]
@@ -113,16 +114,17 @@ for i in rcores:
     pinc0[i].set_burst(burst=burst_size)
 
 # Core
-bess.add_worker(wid=nfvctrl_core, core=nfvctrl_core)
+bess.add_worker(wid=nfvctrl_core, core=nfvctrl_core + offset0)
 nfvctrl.attach_task(wid=nfvctrl_core)
+
+bess.add_worker(wid=sys_dump_core, core=sys_dump_core + offset0)
+pinc0[rcore_cnt].attach_task(wid=sys_dump_core)
+
 for i in cores:
     bess.add_worker(wid=i, core=i + offset0)
     pinc0[i].attach_task(wid=i)
 for i in rcores:
     bess.add_worker(wid=i, core=i + offset0)
     pinc0[i].attach_task(wid=i)
-
-bess.add_worker(wid=total_core_cnt, core=total_core_cnt + offset0)
-pinc0[rcore_cnt].attach_task(wid=total_core_cnt)
 
 bess.resume_all()

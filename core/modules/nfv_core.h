@@ -160,6 +160,8 @@ class NFVCore final : public Module {
   struct llring *local_queue_;
   struct llring *local_boost_queue_;
   bess::PacketBatch *local_batch_;
+  bess::PacketBatch *boost_batch_;
+
   int burst_;
   uint32_t size_;
 
