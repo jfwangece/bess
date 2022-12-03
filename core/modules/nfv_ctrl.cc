@@ -29,7 +29,6 @@ void DumpOnceSoftwareQueue(struct llring* q, bess::PacketBatch *batch) {
   if (cnt) {
     bess::Packet::Free(batch->pkts(), cnt);
   }
-  // LOG(INFO) << q << ", " << cnt << ", " << llring_count(q);
 }
 #pragma GCC diagnostic pop
 } // namespace

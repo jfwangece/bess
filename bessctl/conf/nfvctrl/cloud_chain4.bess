@@ -22,7 +22,7 @@ acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 long_epoch_period = int($BESS_LSTATS_PERIOD!"1000000000")
 short_epoch_period = int((slo - 40000) / 2)
-ncore = int($BESS_NCORE!"8")
+ncore = int($BESS_NCORE!"6")
 queue_scale = 1
 
 # NFVCtrl runs on its own core
