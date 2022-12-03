@@ -694,8 +694,8 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     # Run all workers
     pids = []
     for i, wip in enumerate(selected_worker_ips):
-        # p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
-        p = multiprocessing.Process(target=start_dummy_worker, args=(wip,))
+        # p = multiprocessing.Process(target=start_dummy_worker, args=(wip,))
+        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
         p.start()
         pids.append(p)
     wait_pids(pids)

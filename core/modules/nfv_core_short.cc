@@ -95,9 +95,16 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
         // epoch_drop2_ += 1;
 
         /// Option 2: go back to ncore
-        state->sw_q_state = nullptr;
-        local_batch_->add(pkt);
-        continue;
+        // state->sw_q_state = nullptr;
+        // local_batch_->add(pkt);
+        // continue;
+
+        /// Option 3: recruit another core
+        int ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q_state->sw_q_id);
+        if (ret == 0) {
+          q_state->idle_epoch_count = 0;
+          curr_rcore_ += 1;
+        }
       }
 
       // Add debugg per-packet tags for sw enqueue
@@ -231,15 +238,15 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
         // epoch_drop2_ += 1;
 
         /// Option 2: go back to ncore
-        state->sw_q_state = nullptr;
-        local_batch_->add(pkt);
+        // state->sw_q_state = nullptr;
+        // local_batch_->add(pkt);
 
         /// Option 3: recruit another core
-        // int ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, sw_q_it.sw_q_id);
-        // if (ret == 0) {
-        //   curr_rcore_ += 1;
-        // }
-        continue;
+        int ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q_state->sw_q_id);
+        if (ret == 0) {
+          q_state->idle_epoch_count = 0;
+          curr_rcore_ += 1;
+        }
       }
 
       // Egress 10: normal offloading
