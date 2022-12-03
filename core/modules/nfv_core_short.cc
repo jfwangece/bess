@@ -74,7 +74,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       if (q_state == &system_dump_q0_) {
         // Egress 1: drop (no sw_q)
         state->queued_packet_count -= 1;
-        bess::Packet::Free(pkt);
+        llring_mp_enqueue(bess::ctrl::system_dump_q_, pkt);
         // epoch_drop1_ += 1;
         continue;
       }
@@ -82,7 +82,6 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
         // Egress 2: drop (super flow)
         state->queued_packet_count -= 1;
         llring_mp_enqueue(bess::ctrl::system_dump_q_, pkt);
-        // bess::Packet::Free(pkt);
         // epoch_drop4_ += 1;
         continue;
       }
@@ -204,9 +203,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
     bess::Packet *pkt = batch->pkts()[i];
     state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
     // if (state == nullptr) {
-    //   LOG(FATAL) << "split&enq: error (invalid non-flow packet)";
-    //   bess::Packet::Free(pkt);
-    //   continue;
+    //   LOG(FATAL) << "split&enq: error (invalid non-flow packet)"; continue;
     // }
 
     auto& q_state = state->sw_q_state;
@@ -254,11 +251,11 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
 
     // In the process of |SplitAndEnqueue|, it is impossible if we find the
     // enqueue packet count larger than the queued packet count.
-    if (state->enqueued_packet_count >= state->queued_packet_count) {
-      state->queued_packet_count -= 1;
-      bess::Packet::Free(pkt);
-      continue;
-    }
+    // if (state->enqueued_packet_count >= state->queued_packet_count) {
+    //   state->queued_packet_count -= 1;
+    //   bess::Packet::Free(pkt);
+    //   continue;
+    // }
 
     state->enqueued_packet_count += 1;
     local_batch_->add(pkt);

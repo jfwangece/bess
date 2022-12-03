@@ -50,10 +50,11 @@ CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
   if (core_id_ < bess::ctrl::ncore) {
     sw_q_ = bess::ctrl::local_boost_q[core_id_];
     LOG(INFO) << "rcore (core-boost): " << core_id_;
-  }
-  if (core_id_ >= bess::ctrl::rcore) {
+  } else if (core_id_ >= bess::ctrl::rcore) {
     sw_q_ = bess::ctrl::system_dump_q_;
     LOG(INFO) << "rcore (rcore-boost): " << core_id_;
+  } else {
+    LOG(INFO) << "rcore (normal): " << core_id_;
   }
 
   // Run!

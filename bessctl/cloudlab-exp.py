@@ -241,7 +241,7 @@ def start_dyssect_worker(wip, worker_id, slo):
     return
 
 def parse_latency_result(tip):
-    cmds = ['command', 'module', 'measure0', 'get_summary', 'MeasureCommandGetSummaryArg', '{"latency_percentiles": [50.0, 90.0, 95.0, 98.0, 99.0, 99.9]}']
+    cmds = ['command', 'module', 'measure0', 'get_summary', 'MeasureCommandGetSummaryArg', '{"latency_percentiles": [50.0, 90.0, 95.0, 98.0, 99.0]}']
     p = run_remote_besscmd(tip, cmds)
     out, err = p.communicate()
     # print(out + "\n")
