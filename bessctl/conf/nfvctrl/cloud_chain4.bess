@@ -103,9 +103,10 @@ for i in rcores:
     pout0[i] = QueueOut(port=port0, qid=i)
     pinc0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
+# aux-core booster
 pinc0[rcore_cnt] = NFVRCore(core_id=rcore_cnt)
 pout0[total_core_cnt] = QueueOut(port=port0, qid=total_core_cnt)
-pinc0[rcore_cnt] -> pout0[total_core_cnt]
+pinc0[rcore_cnt] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[total_core_cnt]
 
 # Burst
 for i in cores:

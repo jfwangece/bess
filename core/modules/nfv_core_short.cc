@@ -214,7 +214,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
       if (q_state == &system_dump_q0_) {
         // Egress 7: drop (no sw_q)
         state->queued_packet_count -= 1;
-        bess::Packet::Free(pkt);
+        llring_mp_enqueue(bess::ctrl::system_dump_q_, pkt);
         // epoch_drop1_ += 1;
         continue;
       }
@@ -222,7 +222,6 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
         // Egress 8: drop (super flow)
         state->queued_packet_count -= 1;
         llring_mp_enqueue(bess::ctrl::system_dump_q_, pkt);
-        // bess::Packet::Free(pkt);
         // epoch_drop4_ += 1;
         continue;
       }
@@ -237,6 +236,12 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
         /// Option 2: go back to ncore
         state->sw_q_state = nullptr;
         local_batch_->add(pkt);
+
+        /// Option 3: recruit another core
+        // int ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, sw_q_it.sw_q_id);
+        // if (ret == 0) {
+        //   curr_rcore_ += 1;
+        // }
         continue;
       }
 
@@ -280,7 +285,6 @@ void NFVCore::BestEffortEnqueue(bess::PacketBatch *batch, llring *q) {
         bess::Packet *pkt = batch->pkts()[queued + i];
         state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
         state->queued_packet_count -= 1;
-        // epoch_drop3_ += 1;
       }
       bess::Packet::Free(batch->pkts() + queued, to_drop);
     }
@@ -289,7 +293,7 @@ void NFVCore::BestEffortEnqueue(bess::PacketBatch *batch, llring *q) {
 
 uint32_t GetMaxPktCountFromShortTermProfile(uint32_t fc) {
   if (bess::ctrl::short_flow_count_pkt_threshold.size() == 0) {
-    return 1000;
+    return 512;
   }
 
   const auto& it = bess::ctrl::short_flow_count_pkt_threshold.find(fc);
