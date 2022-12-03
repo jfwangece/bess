@@ -31,7 +31,7 @@ for i in cores:
 
 # Burst
 for i in cores:
-    pinc0[i].set_burst(burst=burst_size)
+    pinc0[i].set_burst(burst=32)
 
 # Core
 for i in cores:
