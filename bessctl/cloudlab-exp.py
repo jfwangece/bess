@@ -200,6 +200,13 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     # print(out)
     print("ironside worker {} starts".format(wip))
 
+def start_dummy_worker(wip):
+    cmds = ["run", "nfvctrl/cloud_dummy"]
+    p = run_remote_besscmd(wip, cmds)
+    out, err = p.communicate()
+    # print(out)
+    print("ironside (dummy) worker {} starts".format(wip))
+
 def start_metron_worker(wip, worker_id):
     cmds = ["run", "nfvctrl/cloud_metron_chain4"]
     extra_cmd = "BESS_EXP_ID=2, TRAFFIC_MAC='{}', BESS_WID={}".format(macs[0], worker_id)
@@ -685,8 +692,8 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     # Run all workers
     pids = []
     for i, wip in enumerate(selected_worker_ips):
-        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
-        # p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
+        # p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
+        p = multiprocessing.Process(target=start_dummy_worker, args=(wip,))
         p.start()
         pids.append(p)
     wait_pids(pids)
@@ -926,7 +933,7 @@ def run_test_exp():
 def run_main_exp():
     worker_cnt = 3
     # target_slos = [100000, 200000, 300000, 400000, 500000]
-    target_slos = [100000, 200000]
+    target_slos = [200000]
 
     ironside_results = []
     for slo in target_slos:

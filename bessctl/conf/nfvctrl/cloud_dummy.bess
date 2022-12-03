@@ -1,0 +1,41 @@
+#
+# Test dummy chain:
+# This is to estimate the packet loss rate
+#
+
+wid = int($BESS_WID!"0")
+pcie0 = $BESS_DEV!"81:00.0"
+offset0 = 1
+
+# the traffic generator's routing information
+traffic_ip = "10.10.1.1"
+traffic_mac = $TRAFFIC_MAC!"b8:ce:f6:d2:3b:1a"
+
+# NFVCtrl runs on its own core
+core_cnt = 20
+total_core_cnt = core_cnt
+cores = [i for i in range(core_cnt)]
+print("total cores: %d" %(total_core_cnt))
+print("{} normal cores: {}".format(len(cores), cores))
+
+# Module
+port0::PMDPort(pci=pcie0, num_inc_q=core_cnt, num_out_q=core_cnt)
+pinc0 = {}
+pout0 = {}
+
+# Pipeline
+for i in cores:
+    pout0[i] = QueueOut(port=port0, qid=i)
+    pinc0[i] = QueueInc(port=port0, qid=i)
+    pout0[i] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
+
+# Burst
+for i in cores:
+    pinc0[i].set_burst(burst=burst_size)
+
+# Core
+for i in cores:
+    bess.add_worker(wid=i, core=i + offset0)
+    pinc0[i].attach_task(wid=i)
+
+bess.resume_all()
