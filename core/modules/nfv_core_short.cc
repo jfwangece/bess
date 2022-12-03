@@ -74,14 +74,16 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       if (q_state == &system_dump_q0_) {
         // Egress 1: drop (no sw_q)
         state->queued_packet_count -= 1;
-        bess::Packet::Free(pkt);
+        llring_mp_enqueue(bess::ctrl::system_dump_q_, pkt);
+        // bess::Packet::Free(pkt);
         // epoch_drop1_ += 1;
         continue;
       }
       if (q_state == &system_dump_q1_) {
         // Egress 2: drop (super flow)
         state->queued_packet_count -= 1;
-        bess::Packet::Free(pkt);
+        llring_mp_enqueue(bess::ctrl::system_dump_q_, pkt);
+        // bess::Packet::Free(pkt);
         // epoch_drop4_ += 1;
         continue;
       }
@@ -213,14 +215,16 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
       if (q_state == &system_dump_q0_) {
         // Egress 7: drop (no sw_q)
         state->queued_packet_count -= 1;
-        bess::Packet::Free(pkt);
+        llring_mp_enqueue(bess::ctrl::system_dump_q_, pkt);
+        // bess::Packet::Free(pkt);
         // epoch_drop1_ += 1;
         continue;
       }
       if (q_state == &system_dump_q1_) {
         // Egress 8: drop (super flow)
         state->queued_packet_count -= 1;
-        bess::Packet::Free(pkt);
+        llring_mp_enqueue(bess::ctrl::system_dump_q_, pkt);
+        // bess::Packet::Free(pkt);
         // epoch_drop4_ += 1;
         continue;
       }

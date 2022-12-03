@@ -102,6 +102,10 @@ for i in rcores:
     pout0[i] = QueueOut(port=port0, qid=i)
     pinc0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
+pinc0[rcore_cnt] = NFVRCore(core_id=rcore_cnt)
+pout0[total_core_cnt] = QueueOut(port=port0, qid=total_core_cnt)
+pinc0[rcore_cnt] -> pout0[total_core_cnt]
+
 # Burst
 for i in cores:
     pinc0[i].set_burst(burst=burst_size)
@@ -117,5 +121,8 @@ for i in cores:
 for i in rcores:
     bess.add_worker(wid=i, core=i + offset0)
     pinc0[i].attach_task(wid=i)
+
+bess.add_worker(wid=total_core_cnt, core=total_core_cnt + offset0)
+pinc0[rcore_cnt].attach_task(wid=total_core_cnt)
 
 bess.resume_all()

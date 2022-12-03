@@ -128,7 +128,7 @@ void NFVCtrlMsgInit() {
   bytes = llring_bytes_with_slots(dump_qsize);
   system_dump_q_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
   if (system_dump_q_) {
-    llring_init(system_dump_q_, dump_qsize, 0, 0);
+    llring_init(system_dump_q_, dump_qsize, 0, 1);
   } else {
     std::free(system_dump_q_);
     LOG(ERROR) << "failed to allocate system_dump_q_";
