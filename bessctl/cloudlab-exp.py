@@ -202,6 +202,8 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
 
 def start_dummy_worker(wip):
     cmds = ["run", "nfvctrl/cloud_dummy"]
+    extra_cmd = "TRAFFIC_MAC='{}'".format(macs[0])
+    cmds.append(extra_cmd)
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
     # print(out)

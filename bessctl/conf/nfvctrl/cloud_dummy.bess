@@ -25,9 +25,9 @@ pout0 = {}
 
 # Pipeline
 for i in cores:
-    pout0[i] = QueueOut(port=port0, qid=i)
     pinc0[i] = QueueInc(port=port0, qid=i)
-    pout0[i] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
+    pout0[i] = QueueOut(port=port0, qid=i)
+    pinc0[i] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
 # Burst
 for i in cores:
