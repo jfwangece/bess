@@ -9,6 +9,19 @@ from bessctl import run_cli
 from cloudlabutils import read_core_snapshot, slo_violation_analysis, get_short_term_profile
 
 INIT_SERVER = False
+
+FILE_SERVER = "jfwang@68.181.32.207"
+FILE_DIR = "/home/jfwang/ironside/large-files"
+MLNX_OFED = "MLNX_OFED_LINUX-5.4-3.5.8.0-ubuntu18.04-x86_64.tgz"
+BACKBONE_TRACE = "20190117-130000.tcp.pcap"
+
+## Server info
+# Places to edit MACs
+# * in cloud_pcap_relay.pcap: edit macs
+# * in nfv_ctrl_long.cc: edit traffic dst mac
+all_ips = ["130.127.134.97", "130.127.134.77", "130.127.134.91", "130.127.134.78", "130.127.134.94"]
+macs = ["b8:ce:f6:d2:3b:12", "b8:ce:f6:cc:8e:c4", "b8:ce:f6:cc:96:e4", "b8:ce:f6:cc:8c:14", "b8:ce:f6:cc:a2:c4"]
+
 # CLuster 1
 # dev = "41:00.0"
 # traffic_ip = ["128.110.219.154"]
@@ -16,14 +29,9 @@ INIT_SERVER = False
 
 # Cluster 2 (r6525)
 dev = "81:00.0"
-traffic_ip = ["130.127.134.101"]
-worker_ip = ["130.127.134.83", "130.127.134.76", "130.127.134.96", "130.127.134.87"]
-all_ip = traffic_ip + worker_ip
+traffic_ip = all_ips[:1]
+worker_ip = all_ips[1:]
 
-# Places to edit MACs
-# * in cloud_pcap_relay.pcap: edit macs
-# * in nfv_ctrl_long.cc: edit traffic dst mac
-macs = ["b8:ce:f6:d2:3a:ba", "b8:ce:f6:b0:35:e2", "b8:ce:f6:d2:3a:c2", "b8:ce:f6:cc:8e:cc", "b8:ce:f6:cc:a2:e4"]
 
 def wait_pids(pids):
     for p in pids:
@@ -81,9 +89,14 @@ def reset_grub(ip):
 def install_mlnx(ip):
     print("Install MLNX OFED for {}".format(ip))
 
+    cmd = "sudo apt update -y"
+    run_remote_command(ip, cmd)
     cmd = "sudo apt install -y htop git"
     run_remote_command(ip, cmd)
     cmd = "git clone https://github.com/jwangee/FaaS-Setup.git"
+    run_remote_command(ip, cmd)
+    # Download MLNX OFED
+    cmd = "scp {}:{}/{} /local".format(FILE_SERVER, FILE_DIR, MLNX_OFED)
     run_remote_command(ip, cmd)
     cmd = "cd ./FaaS-Setup && git pull && ./mlnx-ofed-install.sh"
     run_remote_command(ip, cmd)
@@ -321,7 +334,7 @@ def get_macs_for_all():
 def reset_grub_for_all():
     # install mlnx ofed
     pids = []
-    for ip in all_ip:
+    for ip in all_ips:
         p = multiprocessing.Process(target=reset_grub, args=(ip,))
         p.start()
         pids.append(p)
@@ -334,7 +347,7 @@ def reset_grub_for_all():
 def install_mlnx_for_all():
     # install mlnx ofed
     pids = []
-    for ip in all_ip:
+    for ip in all_ips:
         p = multiprocessing.Process(target=install_mlnx, args=(ip,))
         p.start()
         pids.append(p)
@@ -347,7 +360,7 @@ def install_mlnx_for_all():
 def install_bess_for_all():
     # install ironside bessd
     pids = []
-    for ip in all_ip:
+    for ip in all_ips:
         p = multiprocessing.Process(target=install_bess, args=(True, ip,))
         p.start()
         pids.append(p)
@@ -359,7 +372,7 @@ def install_bess_for_all():
 def fetch_bess_for_all():
     # install ironside bessd
     pids = []
-    for ip in all_ip:
+    for ip in all_ips:
         p = multiprocessing.Process(target=install_bess, args=(False, ip,))
         p.start()
         pids.append(p)
@@ -370,7 +383,7 @@ def fetch_bess_for_all():
 
 def fetch_traffic_trace():
     # transmit all traffic traces used in the evaluation
-    trace1 = "./experiment_conf/20190117-130000.tcp.pcap"
+    trace1 = "./{}".format(BACKBONE_TRACE)
     dst1 = "uscnsl@{}:/local/bess/experiment_conf".format(traffic_ip[0])
     local_cmd = ["scp", trace1, dst1]
     os.system(' '.join(local_cmd))
@@ -381,7 +394,7 @@ def fetch_traffic_trace():
 def setup_cpu_hugepage_for_all():
     # hugepage all servers
     pids = []
-    for ip in all_ip:
+    for ip in all_ips:
         p = multiprocessing.Process(target=setup_cpu_memory, args=(ip,))
         p.start()
         pids.append(p)
@@ -1111,8 +1124,8 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    # run_test_exp()
-    run_main_exp()
+    run_test_exp()
+    # run_main_exp()
     # run_compare_exp()
 
     # Ablation: the server mapper
