@@ -14,6 +14,7 @@ FILE_SERVER = "jfwang@68.181.32.207"
 FILE_DIR = "/home/jfwang/ironside/large-files"
 MLNX_OFED = "MLNX_OFED_LINUX-5.4-3.5.8.0-ubuntu18.04-x86_64.tgz"
 BACKBONE_TRACE = "20190117-130000.tcp.pcap"
+AS_TRACE  = "202209011400.tcp.pcap"
 
 ## Server info
 # Places to edit MACs
@@ -84,7 +85,8 @@ def reset_grub(ip):
     cmd = "git clone https://github.com/jwangee/FaaS-Setup.git"
     run_remote_command(ip, cmd)
     cmd = "cd ./FaaS-Setup && git pull && ./ironside-update-grub.sh"
-    run_remote_command(ip, cmd)
+    run_remote_command(ip, cmd)    
+    return
 
 def install_mlnx(ip):
     print("Install MLNX OFED for {}".format(ip))
@@ -147,7 +149,7 @@ def start_traffic(tip, num_worker, mode):
     """ Start a traffic generator with the worker-level load balancing scheme
     (such as Ironside's ingress).
     """
-    pkt_thresh = 2000000
+    pkt_thresh = 3000000
     cmds = ["run", "nfvctrl/cloud_pcap_replay_mc",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
     # cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
@@ -332,13 +334,12 @@ def get_macs_for_all():
     return
 
 def reset_grub_for_all():
-    # install mlnx ofed
+    # reset grub configuration
     pids = []
     for ip in all_ips:
         p = multiprocessing.Process(target=reset_grub, args=(ip,))
         p.start()
         pids.append(p)
-
     wait_pids(pids)
 
     print("Done resetting grub")
@@ -351,7 +352,6 @@ def install_mlnx_for_all():
         p = multiprocessing.Process(target=install_mlnx, args=(ip,))
         p.start()
         pids.append(p)
-
     wait_pids(pids)
 
     print("Done installing mlnx")
@@ -364,8 +364,8 @@ def install_bess_for_all():
         p = multiprocessing.Process(target=install_bess, args=(True, ip,))
         p.start()
         pids.append(p)
-
     wait_pids(pids)
+
     print("Done installing ironside")
     return
 
@@ -376,17 +376,17 @@ def fetch_bess_for_all():
         p = multiprocessing.Process(target=install_bess, args=(False, ip,))
         p.start()
         pids.append(p)
-
     wait_pids(pids)
+
     print("Done fetching ironside configures")
     return
 
-def fetch_traffic_trace():
-    # transmit all traffic traces used in the evaluation
-    trace1 = "./{}".format(BACKBONE_TRACE)
-    dst1 = "uscnsl@{}:/local/bess/experiment_conf".format(traffic_ip[0])
-    local_cmd = ["scp", trace1, dst1]
-    os.system(' '.join(local_cmd))
+def fetch_traffic_trace(ip):
+    # Download all traffic traces used in the evaluation
+    cmd = "scp {}:{}/{} /local/bess/experiment_conf".format(FILE_SERVER, FILE_DIR, BACKBONE_TRACE)
+    run_remote_command(ip, cmd)
+    cmd = "scp {}:{}/{} /local/bess/experiment_conf".format(FILE_SERVER, FILE_DIR, AS_TRACE)
+    run_remote_command(ip, cmd)
 
     print("Done fetching traffic traces")
     return
@@ -398,8 +398,8 @@ def setup_cpu_hugepage_for_all():
         p = multiprocessing.Process(target=setup_cpu_memory, args=(ip,))
         p.start()
         pids.append(p)
-
     wait_pids(pids)
+
     print("exp: all hugepages ready")
     return
 
@@ -933,6 +933,8 @@ def run_test_exp():
         short_prof = "./nf_profiles/short_{}_safe.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        if r == None:
+            continue
         exp_results.append(r)
 
     if len(exp_results) == 0:
@@ -1114,7 +1116,7 @@ def main():
 
     ## Config
     # setup_cpu_hugepage_for_all()
-    # fetch_traffic_trace()
+    # fetch_traffic_trace(traffic_ip[0])
 
     ## Ready to produce traffic
     # run_traffic()
