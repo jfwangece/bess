@@ -21,7 +21,7 @@ AS_TRACE  = "202209011400.tcp.pcap"
 # * in cloud_pcap_relay.pcap: edit macs
 # * in nfv_ctrl_long.cc: edit traffic dst mac
 all_ips = ["130.127.134.97", "130.127.134.77", "130.127.134.91", "130.127.134.78", "130.127.134.94"]
-macs = ["b8:ce:f6:d2:3b:12", "b8:ce:f6:cc:8e:c4", "b8:ce:f6:cc:96:e4", "b8:ce:f6:cc:8c:14", "b8:ce:f6:cc:a2:c4"]
+all_macs = ["b8:ce:f6:d2:3b:12", "b8:ce:f6:cc:8e:c4", "b8:ce:f6:cc:96:e4", "b8:ce:f6:cc:8c:14", "b8:ce:f6:cc:a2:c4"]
 
 # CLuster 1
 # dev = "41:00.0"
@@ -205,10 +205,10 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
 
     cmds = ["run", "nfvctrl/cloud_chain4"]
     if exp_id == 0:
-        extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}'".format(macs[0], worker_id, slo, remote_short, remote_long)
+        extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}'".format(all_macs[0], worker_id, slo, remote_short, remote_long)
         cmds.append(extra_cmd)
     else:
-        extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}', BESS_EXP_ID={}".format(macs[0], worker_id, slo, remote_short, remote_long, exp_id)
+        extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}', BESS_EXP_ID={}".format(all_macs[0], worker_id, slo, remote_short, remote_long, exp_id)
         cmds.append(extra_cmd)
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
@@ -217,7 +217,7 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
 
 def start_dummy_worker(wip):
     cmds = ["run", "nfvctrl/cloud_dummy"]
-    extra_cmd = "TRAFFIC_MAC='{}'".format(macs[0])
+    extra_cmd = "TRAFFIC_MAC='{}'".format(all_macs[0])
     cmds.append(extra_cmd)
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
@@ -226,7 +226,7 @@ def start_dummy_worker(wip):
 
 def start_metron_worker(wip, worker_id):
     cmds = ["run", "nfvctrl/cloud_metron_chain4"]
-    extra_cmd = "BESS_EXP_ID=2, TRAFFIC_MAC='{}', BESS_WID={}".format(macs[0], worker_id)
+    extra_cmd = "BESS_EXP_ID=2, TRAFFIC_MAC='{}', BESS_WID={}".format(all_macs[0], worker_id)
     cmds.append(extra_cmd)
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
@@ -235,7 +235,7 @@ def start_metron_worker(wip, worker_id):
 
 def start_quadrant_worker(wip, worker_id):
     cmds = ["run", "nfvctrl/cloud_metron_chain4"]
-    extra_cmd = "BESS_EXP_ID=3, BESS_SWITCH_CORE=2, BESS_WORKER_CORE=16, TRAFFIC_MAC='{}', BESS_WID={}".format(macs[0], worker_id)
+    extra_cmd = "BESS_EXP_ID=3, BESS_SWITCH_CORE=2, BESS_WORKER_CORE=16, TRAFFIC_MAC='{}', BESS_WID={}".format(all_macs[0], worker_id)
     cmds.append(extra_cmd)
     p = run_remote_besscmd(wip, cmds)
     out, err = p.communicate()
@@ -925,12 +925,12 @@ def run_dyssect_exp(num_worker, slo):
 # Main experiment
 def run_test_exp():
     worker_cnt = 3
-    target_slos = [100000]
+    target_slos = [200000]
 
     exp_results = []
     for slo in target_slos:
         slo_us = slo / 1000
-        short_prof = "./nf_profiles/short_{}_safe.pro".format(slo_us)
+        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
         if r == None:
@@ -958,6 +958,8 @@ def run_main_exp():
         short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        if r == None:
+            continue
         ironside_results.append(r)
 
     if len(ironside_results) == 0:
