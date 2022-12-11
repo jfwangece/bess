@@ -57,6 +57,7 @@ def send_remote_file(ip, local_path, target_path):
     return
 
 def run_remote_command(ip, cmd):
+    # ssh uscnsl@130.127.134.91 "/local/bess/bessctl/bessctl \"run nfvctrl/cloud_chain4 TRAFFIC_MAC='b8:ce:f6:d2:3b:12',BESS_WID=1,BESS_SLO=200000,BESS_SPROFILE='/local/bess/short.prof',BESS_LPROFILE='/local/bess/long.prof'\""
     remote_cmd = ['ssh', 'uscnsl@{}'.format(ip), '"{}"'.format(cmd), '>/dev/null', '2>&1', '\n']
     os.system(' '.join(remote_cmd))
     return
@@ -203,6 +204,7 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     send_remote_file(wip, long, remote_long)
     print("ironside worker {} gets short-term and long-term profiles".format(worker_id))
 
+    ## rpc method
     cmds = ["run", "nfvctrl/cloud_chain4"]
     if exp_id == 0:
         extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}'".format(all_macs[0], worker_id, slo, remote_short, remote_long)
@@ -214,9 +216,13 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     # out, err = p.communicate()
     # print(out)
 
-    run_bess_cmd = '/local/bess/bessctl/bessctl "{}"'.format(' '.join(cmds))
-    run_remote_command(wip, run_bess_cmd)
+    ## ssh method
+    x = ' '.join(cmds)
+    run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
+    run_remote_command_with_output(wip, run_bess_cmd)
+
     print("ironside worker {} starts".format(wip))
+    return
 
 def start_dummy_worker(wip):
     cmds = ["run", "nfvctrl/cloud_dummy"]
@@ -1117,7 +1123,7 @@ def main():
     # install_mlnx_for_all()
     # get_macs_for_all()
     # fetch_bess_for_all()
-    install_bess_for_all()
+    # install_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()

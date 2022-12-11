@@ -122,7 +122,7 @@ bess.add_worker(wid=nfvctrl_core, core=socket1_cores[nfvctrl_core])
 nfvctrl.attach_task(wid=nfvctrl_core)
 
 bess.add_worker(wid=sys_dump_core, core=socket1_cores[sys_dump_core])
-pinc0[rcore_cnt].attach_task(wid=sys_dump_core)
+pinc0[total_core_cnt].attach_task(wid=sys_dump_core)
 
 for i in cores:
     bess.add_worker(wid=i, core=socket1_cores[i])
