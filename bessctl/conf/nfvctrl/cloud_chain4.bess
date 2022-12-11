@@ -19,7 +19,7 @@ long_profile = $BESS_LPROFILE!"/local/bess/nf_profiles/long_100_p50.pro"
 burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
-long_epoch_period = int($BESS_LSTATS_PERIOD!"1000000000")
+long_epoch_period = int($BESS_LSTATS_PERIOD!"2000000000")
 short_epoch_period = int((slo - 40000) / 2)
 ncore = int($BESS_NCORE!"5")
 queue_scale = 1
@@ -103,9 +103,9 @@ for i in rcores:
     pinc0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
 # aux-core booster
-pinc0[rcore_cnt] = NFVRCore(core_id=rcore_cnt)
+pinc0[total_core_cnt] = NFVRCore(core_id=rcore_cnt)
 pout0[total_core_cnt] = QueueOut(port=port0, qid=total_core_cnt)
-pinc0[rcore_cnt] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[total_core_cnt]
+pinc0[total_core_cnt] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[total_core_cnt]
 
 # Burst
 for i in cores:

@@ -210,9 +210,12 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     else:
         extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}', BESS_EXP_ID={}".format(all_macs[0], worker_id, slo, remote_short, remote_long, exp_id)
         cmds.append(extra_cmd)
-    p = run_remote_besscmd(wip, cmds)
-    out, err = p.communicate()
+    # p = run_remote_besscmd(wip, cmds)
+    # out, err = p.communicate()
     # print(out)
+
+    run_bess_cmd = '/local/bess/bessctl/bessctl "{}"'.format(' '.join(cmds))
+    run_remote_command(wip, run_bess_cmd)
     print("ironside worker {} starts".format(wip))
 
 def start_dummy_worker(wip):
