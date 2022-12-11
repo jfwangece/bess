@@ -219,7 +219,7 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     ## ssh method
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
-    run_remote_command_with_output(wip, run_bess_cmd)
+    run_remote_command(wip, run_bess_cmd)
 
     print("ironside worker {} starts".format(wip))
     return
@@ -1123,7 +1123,7 @@ def main():
     # install_mlnx_for_all()
     # get_macs_for_all()
     # fetch_bess_for_all()
-    # install_bess_for_all()
+    install_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()

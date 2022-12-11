@@ -103,9 +103,9 @@ for i in rcores:
     pinc0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
 # aux-core booster
-pinc0[total_core_cnt] = NFVRCore(core_id=rcore_cnt)
+rbooster::NFVRCore(core_id=rcore_cnt)
 pout0[total_core_cnt] = QueueOut(port=port0, qid=total_core_cnt)
-pinc0[total_core_cnt] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[total_core_cnt]
+rbooster -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[total_core_cnt]
 
 # Burst
 for i in cores:
@@ -122,7 +122,7 @@ bess.add_worker(wid=nfvctrl_core, core=socket1_cores[nfvctrl_core])
 nfvctrl.attach_task(wid=nfvctrl_core)
 
 bess.add_worker(wid=sys_dump_core, core=socket1_cores[sys_dump_core])
-pinc0[total_core_cnt].attach_task(wid=sys_dump_core)
+rbooster.attach_task(wid=sys_dump_core)
 
 for i in cores:
     bess.add_worker(wid=i, core=socket1_cores[i])
