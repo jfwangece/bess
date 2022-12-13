@@ -146,7 +146,7 @@ def start_remote_bessd(ip, runtime="bess"):
     run_remote_command(ip, bessd_cmd)
     return
 
-def start_traffic(tip, num_worker, mode):
+def start_traffic_ironside_ingress(tip, num_worker, mode):
     """ Start a traffic generator with the worker-level load balancing scheme
     (such as Ironside's ingress).
     """
@@ -154,10 +154,17 @@ def start_traffic(tip, num_worker, mode):
     cmds = ["run", "nfvctrl/cloud_pcap_replay_mc",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
     # cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
-    p = run_remote_besscmd(tip, cmds)
-    out, err = p.communicate()
-    if len(out) > 0:
-        print(out)
+
+    ## rpc method
+    # p = run_remote_besscmd(tip, cmds)
+    # out, err = p.communicate()
+    # if len(out) > 0:
+    #     print(out)
+
+    ## ssh method
+    x = ' '.join(cmds)
+    run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
+    run_remote_command(tip, run_bess_cmd)
     print("traffic {} starts: worker-scale routing".format(tip))
 
 # run nfvctrl/cloud_pcap_metron BESS_NUM_WORKER=3, BESS_IG=0, BESS_SLO=100000
@@ -169,11 +176,10 @@ def start_traffic_metron_ingress(tip, num_worker, mode, slo=100000):
     pkt_thresh = 900000
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
-    p = run_remote_besscmd(tip, cmds)
-    out, err = p.communicate()
-    if len(out) > 0:
-        print(out)
-    print("traffic {} starts: core-scale routing".format(tip))
+    x = ' '.join(cmds)
+    run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
+    run_remote_command(tip, run_bess_cmd)
+    print("traffic {} starts: core-scale routing (metron)".format(tip))
 
 def start_traffic_quadrant_ingress(tip, num_worker, mode, slo=100000):
     """ Start a traffic generator with the core-level load balancing scheme
@@ -183,17 +189,16 @@ def start_traffic_quadrant_ingress(tip, num_worker, mode, slo=100000):
     pkt_thresh = 900000
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
-    p = run_remote_besscmd(tip, cmds)
-    out, err = p.communicate()
-    if len(out) > 0:
-        print(out)
-    print("traffic {} starts: core-scale routing".format(tip))
+    x = ' '.join(cmds)
+    run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
+    run_remote_command(tip, run_bess_cmd)
+    print("traffic {} starts: core-scale routing (quadrant)".format(tip))
 
 def start_flowgen(tip, flow, rate):
     cmds = ["run", "nfvctrl/cloud_flowgen BESS_FLOW={}, BESS_PKT_RATE={}".format(flow, rate)]
-    p = run_remote_besscmd(tip, cmds)
-    out, err = p.communicate()
-    print(out)
+    x = ' '.join(cmds)
+    run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
+    run_remote_command(tip, run_bess_cmd)
     print("flowgen {} starts".format(tip))
 
 # For short-term profiling, set |exp_id| to be 1.
@@ -204,23 +209,20 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     send_remote_file(wip, long, remote_long)
     print("ironside worker {} gets short-term and long-term profiles".format(worker_id))
 
-    ## rpc method
     cmds = ["run", "nfvctrl/cloud_chain4"]
-    if exp_id == 0:
-        extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}'".format(all_macs[0], worker_id, slo, remote_short, remote_long)
-        cmds.append(extra_cmd)
-    else:
-        extra_cmd = "TRAFFIC_MAC='{}', BESS_WID={}, BESS_SLO={}, BESS_SPROFILE='{}', BESS_LPROFILE='{}', BESS_EXP_ID={}".format(all_macs[0], worker_id, slo, remote_short, remote_long, exp_id)
-        cmds.append(extra_cmd)
-    # p = run_remote_besscmd(wip, cmds)
-    # out, err = p.communicate()
-    # print(out)
-
-    ## ssh method
+    extra_cmds = ["TRAFFIC_MAC='{}'".format(all_macs[0]),
+            "BESS_WID={}".format(worker_id),
+            "BESS_SLO={}".format(slo),
+            "BESS_SPROFILE='{}'".format(remote_short),
+            "BESS_LPROFILE='{}'".format(remote_long),
+            "BESS_LPERIOD='{}'".format(2500000000)]
+    if exp_id == 1:
+        # Profiling mode
+        extra_cmds.append("BESS_EXP_ID={}".format(exp_id))
+    cmds.append(",".join(extra_cmds))
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
     run_remote_command(wip, run_bess_cmd)
-
     print("ironside worker {} starts".format(wip))
     return
 
@@ -228,27 +230,27 @@ def start_dummy_worker(wip):
     cmds = ["run", "nfvctrl/cloud_dummy"]
     extra_cmd = "TRAFFIC_MAC='{}'".format(all_macs[0])
     cmds.append(extra_cmd)
-    p = run_remote_besscmd(wip, cmds)
-    out, err = p.communicate()
-    # print(out)
+    x = ' '.join(cmds)
+    run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
+    run_remote_command(wip, run_bess_cmd)
     print("ironside (dummy) worker {} starts".format(wip))
 
 def start_metron_worker(wip, worker_id):
     cmds = ["run", "nfvctrl/cloud_metron_chain4"]
     extra_cmd = "BESS_EXP_ID=2, TRAFFIC_MAC='{}', BESS_WID={}".format(all_macs[0], worker_id)
     cmds.append(extra_cmd)
-    p = run_remote_besscmd(wip, cmds)
-    out, err = p.communicate()
-    # print(out)
+    x = ' '.join(cmds)
+    run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
+    run_remote_command(wip, run_bess_cmd)
     print("metron worker {} starts".format(wip))
 
 def start_quadrant_worker(wip, worker_id):
     cmds = ["run", "nfvctrl/cloud_metron_chain4"]
     extra_cmd = "BESS_EXP_ID=3, BESS_SWITCH_CORE=2, BESS_WORKER_CORE=16, TRAFFIC_MAC='{}', BESS_WID={}".format(all_macs[0], worker_id)
     cmds.append(extra_cmd)
-    p = run_remote_besscmd(wip, cmds)
-    out, err = p.communicate()
-    # print(out)
+    x = ' '.join(cmds)
+    run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
+    run_remote_command(wip, run_bess_cmd)
     print("quadrant worker {} starts".format(wip))
 
 def start_dyssect_worker(wip, worker_id, slo):
@@ -269,9 +271,7 @@ def start_dyssect_worker(wip, worker_id, slo):
     extra_cmd = ' '.join(cmds)
     cmd = "/users/uscnsl/bess/bessctl/bessctl {}".format(extra_cmd)
     run_remote_command(wip, cmd)
-
     print("dyssect worker {} starts".format(wip))
-    return
 
 def parse_latency_result(tip):
     cmds = ['command', 'module', 'measure0', 'get_summary', 'MeasureCommandGetSummaryArg', '{"latency_percentiles": [50.0, 90.0, 95.0, 98.0, 99.0]}']
@@ -421,7 +421,7 @@ def run_traffic():
     wait_pids(pids)
 
     for tip in traffic_ip:
-        start_traffic(tip)
+        start_traffic_ironside_ingress(tip)
     print("exp: traffic started")
 
     time.sleep(30)
@@ -583,7 +583,7 @@ def short_term_profile_once(slo):
     ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
     ig_mode = 3
     for tip in traffic_ip:
-        start_traffic(tip, num_worker, ig_mode)
+        start_traffic_ironside_ingress(tip, num_worker, ig_mode)
     print("exp: traffic started")
 
     time.sleep(exp_duration)
@@ -727,7 +727,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
     ig_mode = 3
     for tip in traffic_ip:
-        start_traffic(tip, num_worker, ig_mode)
+        start_traffic_ironside_ingress(tip, num_worker, ig_mode)
     print("exp: traffic started")
 
     time.sleep(exp_duration)
