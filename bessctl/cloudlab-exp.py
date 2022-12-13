@@ -215,16 +215,15 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
             "BESS_SLO={}".format(slo),
             "BESS_SPROFILE='{}'".format(remote_short),
             "BESS_LPROFILE='{}'".format(remote_long),
-            "BESS_LPERIOD='{}'".format(2500000000)]
+            "BESS_LPERIOD={}".format(2500000000)]
     if exp_id == 1:
         # Profiling mode
         extra_cmds.append("BESS_EXP_ID={}".format(exp_id))
-    cmds.append(",".join(extra_cmds))
+    cmds.append(", ".join(extra_cmds))
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
-    run_remote_command(wip, run_bess_cmd)
+    run_remote_command_with_output(wip, run_bess_cmd)
     print("ironside worker {} starts".format(wip))
-    return
 
 def start_dummy_worker(wip):
     cmds = ["run", "nfvctrl/cloud_dummy"]

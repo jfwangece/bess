@@ -191,14 +191,16 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
 
   long_epoch_period_ns_ = LONG_TERM_UPDATE_PERIOD_NS;
   if (arg.long_epoch_period_ns() > 0) {
-    long_epoch_period_ns_ = (uint64_t)arg.long_epoch_period_ns();
+    long_epoch_period_ns_ = arg.long_epoch_period_ns();
   }
   curr_ts_ns_ = tsc_to_ns(rdtsc());
   last_long_epoch_end_ns_ = curr_ts_ns_;
 
+  bess::utils::slo_ns = 1000000; // default: 1 ms
   if (arg.slo_ns() > 0) {
     bess::utils::slo_ns = arg.slo_ns();
   }
+  LOG(INFO) << "target slo: " << bess::utils::slo_ns / 1000 << " us; Ironside long period: " << long_epoch_period_ns_ / 1000 << " us";
 
   // By default, open the example NF profile
   std::string long_profile_fname = "long_term_threshold";
@@ -272,7 +274,6 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
 
   // Run!
   rte_atomic16_set(&is_rebalancing_load_now_, 0);
-  rte_atomic16_set(&mark_to_disable_, 0);
   rte_atomic16_set(&disabled_, 0);
   return CommandSuccess();
 }
@@ -280,8 +281,8 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
 void NFVCtrl::DeInit() {
   // Mark to stop the pipeline and wait until the pipeline stops
   rte_atomic16_set(&is_rebalancing_load_now_, 0);
-  rte_atomic16_set(&mark_to_disable_, 1);
-  while (rte_atomic16_read(&disabled_) == 0) { usleep(100000); }
+  rte_atomic16_set(&disabled_, 1);
+  while (rte_atomic16_read(&disabled_) != 2) { usleep(100000); }
 
   llring* q;
   if (to_add_queue_) {
@@ -289,7 +290,6 @@ void NFVCtrl::DeInit() {
     std::free(to_add_queue_);
     to_add_queue_ = nullptr;
   }
-
   if (to_remove_queue_) {
     while (llring_sc_dequeue(to_remove_queue_, (void **)&q) == 0) { continue; }
     std::free(to_remove_queue_);
@@ -340,11 +340,8 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
     last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
 
     // For graceful termination
-    if (rte_atomic16_read(&mark_to_disable_) == 1) {
-      rte_atomic16_set(&disabled_, 1);
-      return {.block = false, .packets = 1, .bits = 1};
-    }
     if (rte_atomic16_read(&disabled_) == 1) {
+      rte_atomic16_set(&disabled_, 2);
       return {.block = false, .packets = 1, .bits = 1};
     }
   } else {

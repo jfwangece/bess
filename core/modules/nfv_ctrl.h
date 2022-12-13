@@ -109,7 +109,6 @@ class NFVCtrl final : public Module {
 
   uint64_t long_epoch_period_ns_;
   uint64_t last_long_epoch_end_ns_;
-  uint64_t slo_p50_ = 200000000; // Current target is 200 ms
 
   int worker_id_;
 

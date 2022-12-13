@@ -1030,8 +1030,8 @@ message NFVCtrlArg {
   repeated CoreAddr core_addrs = 4; /// list of routing addresses for available CPU cores in the cluster
   string port = 5; /// which NIC PMD to manage
   uint64 qid = 6; /// which NIC queue to send worker info
-  int32 slo_ns = 7; /// The target NF chain's tail latency SLO (in ns)
-  int32 long_epoch_period_ns = 8; /// Time period of applying long-term RSS-based scaling
+  uint32 slo_ns = 7; /// The target NF chain's tail latency SLO (in ns)
+  uint64 long_epoch_period_ns = 8; /// Time period of applying long-term RSS-based scaling
   string nf_long_term_profile = 9; /// A text file for the long-term NF performance profile
   string nf_short_term_profile = 10; /// A text file for the short-term NF performance profile
   int32 exp_id = 11; /// An integer that controls Ironside's experiment
