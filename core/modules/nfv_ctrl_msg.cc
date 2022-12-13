@@ -104,11 +104,8 @@ void NFVCtrlMsgInit() {
 
     // Note: each SoftwareQueue object has to be initialized as
     // 'rte_malloc' does not initialize it when allocating memory
-    sw_q_state[i] =
-        reinterpret_cast<SoftwareQueue *>(
+    sw_q_state[i] = reinterpret_cast<SoftwareQueue *>(
         std::aligned_alloc(alignof(SoftwareQueue), sizeof(SoftwareQueue)));
-    sw_q_state[i]->up_core_id = DEFAULT_INVALID_CORE_ID;
-    sw_q_state[i]->down_core_id = DEFAULT_INVALID_CORE_ID;
   }
 
   for (int i = 0; i < DEFAULT_NICQ_COUNT; i++) {

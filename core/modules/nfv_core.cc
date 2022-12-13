@@ -29,7 +29,6 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   if (arg.core_id() > 0) {
     core_id_ = arg.core_id();
   }
-  core_.core_id = core_id_;
 
   // Configure the target NIC queue
   if (!arg.port().empty()) {

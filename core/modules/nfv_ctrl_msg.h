@@ -38,11 +38,16 @@ namespace ctrl {
 class SoftwareQueue {
  public:
   SoftwareQueue() {
-    up_core_id = down_core_id = DEFAULT_INVALID_CORE_ID;
+    SetUpCoreID(DEFAULT_INVALID_CORE_ID);
+    SetDownCoreID(DEFAULT_INVALID_CORE_ID);
   }
+  void SetUpCoreID(uint16_t core_id) { rte_atomic16_set(&up_core_id, (int16_t)core_id); }
+  void SetDownCoreID(uint16_t core_id) { rte_atomic16_set(&down_core_id, (int16_t)core_id); }
+  uint16_t GetUpCoreID() { return (uint16_t)rte_atomic16_read(&up_core_id); }
+  uint16_t GetDownCoreID() { return (uint16_t)rte_atomic16_read(&down_core_id); }
 
-  cpu_core_t up_core_id;
-  cpu_core_t down_core_id;
+  rte_atomic16_t up_core_id;
+  rte_atomic16_t down_core_id;
 };
 
 // Used in measure, ironside_ingress

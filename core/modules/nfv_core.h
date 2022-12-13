@@ -175,8 +175,7 @@ class NFVCore final : public Module {
   // For fast insertion (with a constant-time worse case insertion).
   using HashTable = bess::utils::CuckooMap<Flow, FlowState*, FlowHash, Flow::EqualTo>;
 
-  cpu_core_t core_id_;
-  WorkerCore core_;
+  uint16_t core_id_;
 
   // NIC queue (port, qid)
   Port *port_;

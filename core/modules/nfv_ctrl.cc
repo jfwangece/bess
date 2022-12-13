@@ -34,7 +34,6 @@ void DumpOnceSoftwareQueue(struct llring* q, bess::PacketBatch *batch) {
 } // namespace
 
 /// NFVCtrl's own functions:
-
 const Commands NFVCtrl::cmds = {
     {"get_summary", "EmptyArg", MODULE_CMD_FUNC(&NFVCtrl::CommandGetSummary),
      Command::THREAD_SAFE},
@@ -51,9 +50,9 @@ std::vector<int> NFVCtrl::RequestNSwQ(cpu_core_t core_id, int n) {
 
   // Find a (idle) software queue
   for (int i = 0; (i < DEFAULT_SWQ_COUNT) && (int(assigned.size()) < n); i++) {
-    if (bess::ctrl::sw_q_state[i]->up_core_id == DEFAULT_INVALID_CORE_ID) {
+    if (bess::ctrl::sw_q_state[i]->GetUpCoreID() == DEFAULT_INVALID_CORE_ID) {
       assigned.push_back(i);
-      bess::ctrl::sw_q_state[i]->up_core_id = core_id;
+      bess::ctrl::sw_q_state[i]->SetUpCoreID(core_id);
     }
   }
   return assigned;
@@ -68,8 +67,8 @@ int NFVCtrl::RequestSwQ(cpu_core_t core_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
-    if (bess::ctrl::sw_q_state[i]->up_core_id == DEFAULT_INVALID_CORE_ID) {
-      bess::ctrl::sw_q_state[i]->up_core_id = core_id;
+    if (bess::ctrl::sw_q_state[i]->GetUpCoreID() == DEFAULT_INVALID_CORE_ID) {
+      bess::ctrl::sw_q_state[i]->SetUpCoreID(core_id);
       return i;
     }
   }
@@ -82,8 +81,8 @@ void NFVCtrl::ReleaseNSwQ(cpu_core_t core_id, std::vector<int> qids) {
   for (auto qid : qids) {
     if (qid >= 0 ||
         qid < DEFAULT_SWQ_COUNT ||
-        bess::ctrl::sw_q_state[qid]->up_core_id == core_id) {
-      bess::ctrl::sw_q_state[qid]->up_core_id = DEFAULT_INVALID_CORE_ID;
+        bess::ctrl::sw_q_state[qid]->GetUpCoreID() == core_id) {
+      bess::ctrl::sw_q_state[qid]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
     }
   }
 }
@@ -91,25 +90,28 @@ void NFVCtrl::ReleaseNSwQ(cpu_core_t core_id, std::vector<int> qids) {
 void NFVCtrl::ReleaseSwQ(int q_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
-  bess::ctrl::sw_q_state[q_id]->up_core_id = DEFAULT_INVALID_CORE_ID;
+  bess::ctrl::sw_q_state[q_id]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
 }
 
 int NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
+  cpu_core_t up = bess::ctrl::sw_q_state[q_id]->GetUpCoreID();
+  cpu_core_t down = bess::ctrl::sw_q_state[q_id]->GetDownCoreID();
+
   // Do not assign if sw_q |q_id| does not belong to NFVCore |core_id|
-  if (bess::ctrl::sw_q_state[q_id]->up_core_id != core_id) {
+  if (up != core_id) {
     return 1;
   }
   // Do not assign if sw_q |q_id| has already been assigned
-  if (bess::ctrl::sw_q_state[q_id]->down_core_id != DEFAULT_INVALID_CORE_ID) {
+  if (down != DEFAULT_INVALID_CORE_ID) {
     return 2;
   }
 
   // Find an idle reserved core
   // [0, ncore - 1] are used for core-boost.
   // [ncore, rcore - 1] are used for offloading.
-  for (int i = bess::ctrl::ncore; i < bess::ctrl::rcore; i++) {
+  for (uint16_t i = bess::ctrl::ncore; i < (uint16_t)bess::ctrl::rcore; i++) {
     if (bess::ctrl::nfv_rcores[i] == nullptr ||
         !bess::ctrl::rcore_state[i]) {
       continue;
@@ -118,39 +120,41 @@ int NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
     // Success
     bess::ctrl::rcore_state[i] = false;
     bess::ctrl::nfv_rcores[i]->AddQueue(bess::ctrl::sw_q[q_id]);
-    bess::ctrl::sw_q_state[q_id]->down_core_id = i;
+    bess::ctrl::sw_q_state[q_id]->SetDownCoreID(i);
     return 0;
   }
 
   // No RCores found. System Overloaded! Hand-off to NFVCtrl
   this->AddQueue(bess::ctrl::sw_q[q_id]);
-  bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_NFVCTRL_CORE_ID;
+  bess::ctrl::sw_q_state[q_id]->SetDownCoreID(DEFAULT_NFVCTRL_CORE_ID);
   return 3;
 }
 
 int NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
+  cpu_core_t up = bess::ctrl::sw_q_state[q_id]->GetUpCoreID();
+  cpu_core_t down = bess::ctrl::sw_q_state[q_id]->GetDownCoreID();
+
   // Do not change if sw_q |q_id| does not belong to NFVCore |core_id|
-  if (bess::ctrl::sw_q_state[q_id]->up_core_id != core_id) {
+  if (up != core_id) {
     return 1;
   }
   // RCore not assigned to sw_q
-  if (bess::ctrl::sw_q_state[q_id]->down_core_id == DEFAULT_INVALID_CORE_ID) {
+  if (down == DEFAULT_INVALID_CORE_ID) {
     return 2;
   }
 
-  cpu_core_t down = bess::ctrl::sw_q_state[q_id]->down_core_id;
   if (down == DEFAULT_NFVCTRL_CORE_ID) {
     // Queue has been assigned to nfv_ctrl for dumping.
     this->RemoveQueue(bess::ctrl::sw_q[q_id]);
-    bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_INVALID_CORE_ID;
+    bess::ctrl::sw_q_state[q_id]->SetDownCoreID(DEFAULT_INVALID_CORE_ID);
     return 3;
   }
 
   // Success
   bess::ctrl::nfv_rcores[down]->RemoveQueue(bess::ctrl::sw_q[q_id]);
-  bess::ctrl::sw_q_state[q_id]->down_core_id = DEFAULT_INVALID_CORE_ID;
+  bess::ctrl::sw_q_state[q_id]->SetDownCoreID(DEFAULT_INVALID_CORE_ID);
   bess::ctrl::rcore_state[down] = true;
   return 0;
 }
