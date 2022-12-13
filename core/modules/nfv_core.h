@@ -50,17 +50,17 @@ struct SoftwareQueueState {
   uint32_t QLenAfterAssignment() { return assigned_packet_count; }
 
   inline void EnqueueBatch() {
-    if (sw_batch->cnt() == 0) {
-      return;
-    }
-    processed_packet_count += sw_batch->cnt();
-    int queued = llring_sp_enqueue_burst(sw_q, (void**)sw_batch->pkts(), sw_batch->cnt());
-    if (queued < 0) {
-      queued = queued & (~RING_QUOT_EXCEED);
-    }
-    if (queued < sw_batch->cnt()) {
-      int to_drop = sw_batch->cnt() - queued;
-      bess::Packet::Free(sw_batch->pkts() + queued, to_drop);
+    if (sw_batch->cnt() > 0) {
+      processed_packet_count += sw_batch->cnt();
+      int queued = llring_sp_enqueue_burst(sw_q, (void**)sw_batch->pkts(), sw_batch->cnt());
+      if (queued < 0) {
+        queued = queued & (~RING_QUOT_EXCEED);
+      }
+      if (queued < sw_batch->cnt()) {
+        int to_drop = sw_batch->cnt() - queued;
+        bess::Packet::Free(sw_batch->pkts() + queued, to_drop);
+      }
+      sw_batch->clear();
     }
   }
 
@@ -94,8 +94,8 @@ class NFVCore final : public Module {
   static const Commands cmds;
 
   NFVCore() : Module(), burst_(32), size_(2048) {
-    local_queue_ = nullptr;
-    local_boost_queue_ = nullptr;
+    local_q_ = nullptr;
+    local_boost_q_ = nullptr;
     max_allowed_workers_ = 1;
   }
 
@@ -138,8 +138,34 @@ class NFVCore final : public Module {
   void SplitQToSwQ(llring* q);
   // - Split |batch| into |local_queue_| and other software queues
   void SplitAndEnqueue(bess::PacketBatch *batch);
-  // - Enqueue all packets in |batch| to the software queue |q|
-  void BestEffortEnqueue(bess::PacketBatch *batch, llring *q);
+  // - (sp) Enqueue all packets in |batch| to the software queue |q|
+  inline void SpEnqueue(bess::PacketBatch *batch, llring *q) {
+    if (batch->cnt()) {
+      int queued = llring_sp_enqueue_burst(q, (void **)batch->pkts(), batch->cnt());
+      if (queued < 0) {
+        queued = queued & (~RING_QUOT_EXCEED);
+      }
+      if (queued < batch->cnt()) {
+        int to_drop = batch->cnt() - queued;
+        bess::Packet::Free(batch->pkts() + queued, to_drop);
+      }
+      batch->clear();
+    }
+  }
+  // - (mp) Enqueue all packets in |batch| to the software queue |q|
+  inline void MpEnqueue(bess::PacketBatch *batch, llring *q) {
+    if (batch->cnt()) {
+      int queued = llring_mp_enqueue_burst(q, (void **)batch->pkts(), batch->cnt());
+      if (queued < 0) {
+        queued = queued & (~RING_QUOT_EXCEED);
+      }
+      if (queued < batch->cnt()) {
+        int to_drop = batch->cnt() - queued;
+        bess::Packet::Free(batch->pkts() + queued, to_drop);
+      }
+      batch->clear();
+    }
+  }
 
   // std::string GetDesc() const override;
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
@@ -158,10 +184,12 @@ class NFVCore final : public Module {
   queue_t qid_;
 
   // Software queue that holds packets
-  struct llring *local_queue_;
-  struct llring *local_boost_queue_;
+  struct llring *local_q_;
+  struct llring *local_boost_q_;
+
   bess::PacketBatch *local_batch_;
-  bess::PacketBatch *boost_batch_;
+  bess::PacketBatch *local_boost_batch_;
+  bess::PacketBatch *local_rboost_batch_;
 
   int burst_;
   uint32_t size_;

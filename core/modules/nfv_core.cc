@@ -49,9 +49,15 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
 
     size_ = DEFAULT_SWQ_SIZE;
     // Resize(size_);
-    local_queue_ = bess::ctrl::local_q[core_id_];
-    local_boost_queue_ = bess::ctrl::local_boost_q[core_id_];
+
+    local_q_ = bess::ctrl::local_q[core_id_];
+    local_boost_q_ = bess::ctrl::local_boost_q[core_id_];
+
     local_batch_ = reinterpret_cast<bess::PacketBatch *>
+          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+    local_boost_batch_ = reinterpret_cast<bess::PacketBatch *>
+          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+    local_rboost_batch_ = reinterpret_cast<bess::PacketBatch *>
           (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   }
 
@@ -122,6 +128,12 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
     local_bucket_stats_.per_bucket_flow_cache[i].clear();
   }
 
+  local_batch_->clear();
+  local_rboost_batch_->clear();
+  for (auto& sw_q_it : sw_q_) {
+    sw_q_it.sw_batch->clear();
+  }
+
   // Run!
   rte_atomic16_set(&disabled_, 0);
   return CommandSuccess();
@@ -136,10 +148,16 @@ void NFVCore::DeInit() {
   if (local_batch_) {
     bess::Packet::Free(local_batch_);
     std::free(local_batch_);
-    local_batch_ = nullptr;
   }
-  local_queue_ = nullptr;
-  local_boost_queue_ = nullptr;
+  if (local_rboost_batch_) {
+    bess::Packet::Free(local_rboost_batch_);
+    std::free(local_rboost_batch_);
+  }
+
+  local_batch_ = nullptr;
+  local_rboost_batch_ = nullptr;
+  local_q_ = nullptr;
+  local_boost_q_ = nullptr;
 
   // Clean borrowed software queues
   std::vector<int> assigned_qids;
@@ -240,8 +258,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
   }
 
-  // Boost if 1) the core has pulled many packets (i.e. 128) in this round; 2) |local_queue_| is large.
-  uint32_t queued_pkts = llring_count(local_queue_);
+  // Boost if 1) the core has pulled many packets (i.e. 128) in this round; 2) |local_q_| is large.
+  uint32_t queued_pkts = llring_count(local_q_);
   if (last_boost_ts_ns_ == 0) {
     if (update_bucket_stats_ ||
         epoch_advanced ||
@@ -271,7 +289,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   if (last_boost_ts_ns_ == 0) {
     // Process one batch
     batch->clear();
-    cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
+    cnt = llring_sc_dequeue_burst(local_q_, (void **)batch->pkts(), 32);
     if (cnt > 0) {
       batch->set_cnt(cnt);
       // Update |epoch_packet_processed_| and |per_flow_states_|, i.e.
@@ -282,10 +300,10 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   } else { // boost!
     for (int i = 0; i < 2; i++) {
       batch->clear();
-      cnt = llring_sc_dequeue_burst(local_queue_, (void **)batch->pkts(), 32);
+      cnt = llring_sc_dequeue_burst(local_q_, (void **)batch->pkts(), 32);
       if (cnt > 0) {
         batch->set_cnt(cnt);
-        BestEffortEnqueue(batch, local_boost_queue_);
+        SpEnqueue(batch, local_boost_q_);
       } else {
         break;
       }
@@ -306,7 +324,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     uint32_t curr_rcore = curr_rcore_;
 
     ShortEpochProcess();
-    SplitQToSwQ(local_queue_);
+    SplitQToSwQ(local_q_);
 
     // Update CPU core usage
     uint64_t now = tsc_to_ns(rdtsc());
