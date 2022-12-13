@@ -222,7 +222,7 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     cmds.append(", ".join(extra_cmds))
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
-    run_remote_command_with_output(wip, run_bess_cmd)
+    run_remote_command(wip, run_bess_cmd)
     print("ironside worker {} starts".format(wip))
 
 def start_dummy_worker(wip):
@@ -933,7 +933,7 @@ def run_dyssect_exp(num_worker, slo):
 # Main experiment
 def run_test_exp():
     worker_cnt = 3
-    target_slos = [200000]
+    target_slos = [300000]
 
     exp_results = []
     for slo in target_slos:
@@ -1093,7 +1093,7 @@ def run_ablation_core_mapper():
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
-        # No core mapper
+        # No core mapper: super high latency
         short_prof = "./nf_profiles/short_term_base.pro"
         long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
         r4 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
