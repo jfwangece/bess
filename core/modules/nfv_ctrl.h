@@ -31,7 +31,7 @@ class NFVCtrl final : public Module {
   int RequestSwQ(cpu_core_t core_id);
 
   // Releases many software queues back to the pool.
-  void ReleaseNSwQ(cpu_core_t core_id, uint64_t q_mask);
+  void ReleaseNSwQ(cpu_core_t core_id, std::vector<int> qids);
   // Releases a software queue back to NFVCtrl.
   void ReleaseSwQ(int q_id);
 

@@ -227,8 +227,8 @@ std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n) {
   return nfv_ctrl->RequestNSwQ(core_id, n);
 }
 
-void NFVCtrlReleaseNSwQ(cpu_core_t core_id, uint64_t q_mask) {
-  nfv_ctrl->ReleaseNSwQ(core_id, q_mask);
+void NFVCtrlReleaseNSwQ(cpu_core_t core_id, std::vector<int> q_ids) {
+  nfv_ctrl->ReleaseNSwQ(core_id, q_ids);
 }
 
 int NFVCtrlNotifyRCoreToWork(cpu_core_t core_id, int q_id) {

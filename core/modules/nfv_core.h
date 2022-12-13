@@ -146,6 +146,7 @@ class NFVCore final : public Module {
   CommandResponse CommandSetBurst(const bess::pb::NFVCoreCommandSetBurstArg &arg);
 
  private:
+  // For fast insertion (with a constant-time worse case insertion).
   using HashTable = bess::utils::CuckooMap<Flow, FlowState*, FlowHash, Flow::EqualTo>;
 
   cpu_core_t core_id_;
@@ -165,14 +166,12 @@ class NFVCore final : public Module {
   int burst_;
   uint32_t size_;
 
-  // The system dump queue state
-  // q0: for flows marked to drop when no idle RCore is available
-  // q1: for flows marked to drop when no single core can handle them
+  /// Software queues:
+  // q0: for flows marked to be dropped (running out of sw queues);
+  // q1: for flows marked to be sent to boost-mode rcores;
   SoftwareQueueState system_dump_q0_;
   SoftwareQueueState system_dump_q1_;
-
   // Software queues borrowed from NFVCtrl
-  uint64_t sw_q_mask_;
   std::vector<SoftwareQueueState> sw_q_;
 
   // Metadata field ID
@@ -210,6 +209,7 @@ class NFVCore final : public Module {
   // For recording per-bucket packet and flow counts
   bool update_bucket_stats_;
   BucketStats local_bucket_stats_;
+
   // For recording active flows in an epoch
   std::set<FlowState*> epoch_flow_cache_;
   // For each epoch, the set of flows that are not migrated to aux cores

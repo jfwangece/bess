@@ -19,8 +19,8 @@
 #define DEFAULT_NICQ_COUNT 40
 
 // Default queue size
-#define DEFAULT_SWQ_SIZE 1024;
-#define DEFAULT_DUMPQ_SIZE 4096;
+#define DEFAULT_SWQ_SIZE 1024
+#define DEFAULT_DUMPQ_SIZE 4096
 
 // Forward declaration
 struct llring;
@@ -33,6 +33,7 @@ class Measure;
 
 namespace bess {
 namespace ctrl {
+
 // |SoftwareQueue| tracks the mapping of (NFVCore, sw_q, NFVRCore)
 class SoftwareQueue {
  public:
@@ -123,7 +124,7 @@ std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n);
 
 // Release software queues according to |q_mask|.
 // Note: a sw_q goes back to the pool only if core |core_id| owns it.
-void NFVCtrlReleaseNSwQ(cpu_core_t core_id, uint64_t q_mask);
+void NFVCtrlReleaseNSwQ(cpu_core_t core_id, std::vector<int> q_ids);
 
 // Request a reserved core to work on the software queue |q_id|.
 // Return 0 if an idle reserved core is found and notified to work.

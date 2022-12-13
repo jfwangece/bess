@@ -415,6 +415,7 @@ bool NFVCore::ShortEpochProcess() {
       state->sw_q_state = &system_dump_q1_;
     }
   }
+
   // Debug log
   if (false) {
     LOG(INFO) << "short-term: core" << core_id_ << ", lf=" << local_large_flow

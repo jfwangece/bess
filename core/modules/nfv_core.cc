@@ -142,8 +142,12 @@ void NFVCore::DeInit() {
   local_boost_queue_ = nullptr;
 
   // Clean borrowed software queues
-  bess::ctrl::NFVCtrlReleaseNSwQ(core_id_, sw_q_mask_);
-  LOG(INFO) << "Core " << core_id_ << " releases " << sw_q_.size() << " sw_q. q_mask: " << std::bitset<64> (sw_q_mask_);
+  std::vector<int> assigned_qids;
+  for (auto sw_q : sw_q_) {
+    assigned_qids.emplace_back(sw_q.sw_q_id);
+  }
+  bess::ctrl::NFVCtrlReleaseNSwQ(core_id_, assigned_qids);
+  LOG(INFO) << "Core " << core_id_ << " releases " << sw_q_.size() << " sw queues";
 
   for (auto& it : sw_q_) {
     it.sw_q = nullptr;

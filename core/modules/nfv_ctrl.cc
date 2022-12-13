@@ -76,13 +76,14 @@ int NFVCtrl::RequestSwQ(cpu_core_t core_id) {
   return DEFAULT_SWQ_COUNT;
 }
 
-void NFVCtrl::ReleaseNSwQ(cpu_core_t core_id, uint64_t q_mask) {
+void NFVCtrl::ReleaseNSwQ(cpu_core_t core_id, std::vector<int> qids) {
   const std::lock_guard<std::mutex> lock(sw_q_mtx_);
 
-  for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
-    uint64_t sw_q_idx = (1ULL << i) & q_mask;
-    if (sw_q_idx != 0 && bess::ctrl::sw_q_state[i]->up_core_id == core_id) {
-      bess::ctrl::sw_q_state[i]->up_core_id = DEFAULT_INVALID_CORE_ID;
+  for (auto qid : qids) {
+    if (qid >= 0 ||
+        qid < DEFAULT_SWQ_COUNT ||
+        bess::ctrl::sw_q_state[qid]->up_core_id == core_id) {
+      bess::ctrl::sw_q_state[qid]->up_core_id = DEFAULT_INVALID_CORE_ID;
     }
   }
 }
