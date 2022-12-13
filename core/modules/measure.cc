@@ -48,33 +48,31 @@ using bess::utils::Tcp;
 using bess::utils::GetUint32;
 using bess::utils::add_debug_tag_nfvcore;
 
-Ethernet::Address INFO_SRC("ec:0d:9a:67:ff:68");
-Ethernet::Address BG_DST("00:00:00:00:00:01");
+// Ethernet::Address INFO_SRC("ec:0d:9a:67:ff:68");
+// Ethernet::Address BG_DST("00:00:00:00:00:01");
 
-static bool IsWorkerInfo(bess::Packet *pkt) {
-  if (bess::ctrl::exp_id != -1) {
-    return false;
-  }
-
-  Ethernet *eth = pkt->head_data<Ethernet *>();
-  if (eth->src_addr != INFO_SRC) {
-    return false;
-  }
-  Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
-  if (ip->src.value() != 12345 || ip->protocol != Ipv4::Proto::kTcp) {
-    return false;
-  }
-  Tcp* tcp = reinterpret_cast<Tcp *>(ip + 1);
-  int worker_id = tcp->src_port.value();
-  int ncore = tcp->dst_port.value();
-  uint32_t rate = tcp->seq_num.value();
-
-  bess::ctrl::nfvctrl_worker_mu.lock();
-  bess::ctrl::worker_ncore[worker_id] = ncore;
-  bess::ctrl::worker_packet_rate[worker_id] = rate;
-  bess::ctrl::nfvctrl_worker_mu.unlock();
-  return true;
-}
+// static bool IsWorkerInfo(bess::Packet *pkt) {
+//   if (bess::ctrl::exp_id != -1) {
+//     return false;
+//   }
+//   Ethernet *eth = pkt->head_data<Ethernet *>();
+//   if (eth->src_addr != INFO_SRC) {
+//     return false;
+//   }
+//   Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
+//   if (ip->src.value() != 12345 || ip->protocol != Ipv4::Proto::kTcp) {
+//     return false;
+//   }
+//   Tcp* tcp = reinterpret_cast<Tcp *>(ip + 1);
+//   int worker_id = tcp->src_port.value();
+//   int ncore = tcp->dst_port.value();
+//   uint32_t rate = tcp->seq_num.value();
+//   bess::ctrl::nfvctrl_worker_mu.lock();
+//   bess::ctrl::worker_ncore[worker_id] = ncore;
+//   bess::ctrl::worker_packet_rate[worker_id] = rate;
+//   bess::ctrl::nfvctrl_worker_mu.unlock();
+//   return true;
+// }
 
 static bool IsTimestamped(bess::Packet *pkt, size_t offset, uint64_t *time) {
   auto *marker = pkt->head_data<Timestamp::MarkerType *>(offset);
@@ -195,9 +193,6 @@ void Measure::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
-    if (IsWorkerInfo(batch->pkts()[i])) {
-      continue;
-    }
     IsCoreInfo(batch->pkts()[i]);
 
     uint64_t pkt_time = 0;
@@ -212,6 +207,7 @@ void Measure::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
       if (now_ns >= pkt_time) {
         diff = now_ns - pkt_time;
+        if (bess::ctrl::exp_id == 0 && diff >= 20000000) { continue; }
         if (add_debug_tag_nfvcore) {
           if (diff >= 2000000) {
             PerPacketTag val;
