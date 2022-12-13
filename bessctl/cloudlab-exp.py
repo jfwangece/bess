@@ -215,7 +215,7 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
             "BESS_SLO={}".format(slo),
             "BESS_SPROFILE='{}'".format(remote_short),
             "BESS_LPROFILE='{}'".format(remote_long),
-            "BESS_LPERIOD={}".format(2500000000)]
+            "BESS_LPERIOD={}".format(2000000000)]
     if exp_id == 1:
         # Profiling mode
         extra_cmds.append("BESS_EXP_ID={}".format(exp_id))
@@ -631,7 +631,7 @@ def run_short_profile_under_slos():
 ### Ironside experiments
 ## Single-worker experiment
 def run_worker_exp(slo):
-    exp_duration = 40
+    exp_duration = 50
     selected_worker_ips = [worker_ip[0]]
 
     # Start all bessd
@@ -694,7 +694,7 @@ def run_worker_exp(slo):
 # run nfvctrl/cloud_pcap_replay_mc BESS_NUM_WORKER=4, BESS_IG=3, BESS_PKT_RATE_THRESH=3000000
 # run nfvctrl/cloud_chain4 BESS_SPROFILE="./short.prof", BESS_LPROFILE="./long.prof"
 def run_cluster_exp(num_worker, slo, short_profile, long_profile):
-    exp_duration = 40
+    exp_duration = 50
     selected_worker_ips = []
     for i in range(num_worker):
         selected_worker_ips.append(worker_ip[i])
@@ -757,7 +757,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     return (slo/1000, avg_cores, total_packets/1000000.0, delay)
 
 def run_metron_exp(num_worker, slo=1000000):
-    exp_duration = 40
+    exp_duration = 50
     selected_worker_ips = []
     for i in range(num_worker):
         selected_worker_ips.append(worker_ip[i])
@@ -816,7 +816,7 @@ def run_metron_exp(num_worker, slo=1000000):
     return (slo/1000, avg_cores, total_packets/1000000.0, delay)
 
 def run_quadrant_exp(num_worker, slo):
-    exp_duration = 40
+    exp_duration = 50
     selected_worker_ips = []
     for i in range(num_worker):
         selected_worker_ips.append(worker_ip[i])
@@ -875,7 +875,7 @@ def run_quadrant_exp(num_worker, slo):
     return (slo/1000, avg_cores, total_packets/1000000.0, delay)
 
 def run_dyssect_exp(num_worker, slo):
-    exp_duration = 40
+    exp_duration = 50
     selected_worker_ips = []
     for i in range(num_worker):
         selected_worker_ips.append(worker_ip[i])
