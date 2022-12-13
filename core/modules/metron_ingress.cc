@@ -31,10 +31,14 @@ CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
   if (arg.mode() > 0) {
     mode_ = arg.mode();
   }
-  if (mode_ == 0) {
+
+  // Set the global |exp_id| parameter
+  if (mode_ == 0) { // metron
     bess::ctrl::exp_id = 2;
-  } else if (mode_ == 1) {
+  } else if (mode_ == 1) { // quadrant
     bess::ctrl::exp_id = 3;
+  } else if (mode_ == 2) { // dyssect
+    bess::ctrl::exp_id = 4;
   }
 
   rewrite_ = 0;

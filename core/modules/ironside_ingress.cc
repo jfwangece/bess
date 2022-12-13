@@ -12,6 +12,8 @@ using bess::utils::UpdateChecksumWithIncrement;
 using bess::utils::UpdateChecksum16;
 
 CommandResponse IronsideIngress::Init(const bess::pb::IronsideIngressArg &arg) {
+  bess::ctrl::exp_id = 0;
+
   // Init
   flow_cache_.clear();
   ips_.clear();
