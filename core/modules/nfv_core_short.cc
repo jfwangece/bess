@@ -378,7 +378,7 @@ bool NFVCore::ShortEpochProcess() {
     }
   }
 
-  LOG(INFO) << active_sw_q_.size() << ", " << terminating_sw_q_.size() << ", " idle_sw_q_.size();
+  LOG(INFO) << active_sw_q_.size() << ", " << terminating_sw_q_.size() << ", " << idle_sw_q_.size();
 
   // Reclaim idle rcores
   int ret;
@@ -398,7 +398,7 @@ bool NFVCore::ShortEpochProcess() {
       terminating_sw_q_.emplace(q);
     } else {
       ++qit;
-    }    
+    }
   }
 
   // Activate rcores to do the work
