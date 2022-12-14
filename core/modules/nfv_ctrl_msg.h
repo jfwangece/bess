@@ -41,6 +41,7 @@ class SoftwareQueue {
     SetUpCoreID(DEFAULT_INVALID_CORE_ID);
     SetDownCoreID(DEFAULT_INVALID_CORE_ID);
   }
+
   void SetUpCoreID(uint16_t core_id) { rte_atomic16_set(&up_core_id, (int16_t)core_id); }
   void SetDownCoreID(uint16_t core_id) { rte_atomic16_set(&down_core_id, (int16_t)core_id); }
   uint16_t GetUpCoreID() { return (uint16_t)rte_atomic16_read(&up_core_id); }

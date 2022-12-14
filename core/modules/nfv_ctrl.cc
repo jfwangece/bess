@@ -50,7 +50,6 @@ std::vector<int> NFVCtrl::RequestNSwQ(cpu_core_t core_id, int n) {
 
   // Find a (idle) software queue
   for (int i = 0; (i < DEFAULT_SWQ_COUNT) && (int(assigned.size()) < n); i++) {
-    LOG(INFO) << bess::ctrl::sw_q_state[i]->GetUpCoreID() << DEFAULT_INVALID_CORE_ID;
     if (bess::ctrl::sw_q_state[i]->GetUpCoreID() == DEFAULT_INVALID_CORE_ID) {
       assigned.push_back(i);
       bess::ctrl::sw_q_state[i]->SetUpCoreID(core_id);
