@@ -378,6 +378,8 @@ bool NFVCore::ShortEpochProcess() {
     }
   }
 
+  LOG(INFO) << active_sw_q_.size() << ", " << terminating_sw_q_.size() << ", " idle_sw_q_.size();
+
   // Reclaim idle rcores
   int ret;
   for (auto qit = active_sw_q_.begin(); qit != active_sw_q_.end(); ) {
