@@ -46,6 +46,7 @@ struct SoftwareQueueState {
     assigned_packet_count = 0;
     processed_packet_count = 0;
   }
+
   inline bool IsIdle() {
     return idle_epoch_count == -2;
   }
@@ -209,8 +210,13 @@ class NFVCore final : public Module {
   // q1: for flows marked to be sent to boost-mode rcores;
   SoftwareQueueState system_dump_q0_;
   SoftwareQueueState system_dump_q1_;
+
   // Software queues borrowed from NFVCtrl
   std::vector<SoftwareQueueState> sw_q_;
+
+  std::set<SoftwareQueueState*> idle_sw_q_;
+  std::set<SoftwareQueueState*> terminating_sw_q_;
+  std::set<SoftwareQueueState*> active_sw_q_;
 
   // Metadata field ID
   int flow_stats_attr_id_; // for maintaining per-flow stats

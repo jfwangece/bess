@@ -283,22 +283,25 @@ bool NFVCore::ShortEpochProcess() {
   // 6) release idle software queues if they have not been used for N epochs
 
   // Check qlen of exisitng software queues
-  for (auto& sw_q_it : sw_q_) {
-    if (sw_q_it.IsIdle()) {
-      continue;
-    }
-    if (sw_q_it.IsTerminating()) {
-      if (bess::ctrl::sw_q_state[sw_q_it.sw_q_id]->GetDownCoreID() == DEFAULT_INVALID_CORE_ID) {
-        sw_q_it.idle_epoch_count = -2;
-      }
-      continue;
-    }
-    if (sw_q_it.processed_packet_count == 0) {
-      sw_q_it.idle_epoch_count += 1;
+  for (auto qit = active_sw_q_.begin(); qit != active_sw_q_.end(); ++qit) {
+    SoftwareQueueState* q = *qit;
+    if (q->processed_packet_count == 0) {
+      q->idle_epoch_count += 1;
     } else {
-      sw_q_it.idle_epoch_count = 0;
+      q->idle_epoch_count = 0;
     }
-    sw_q_it.assigned_packet_count = llring_count(sw_q_it.sw_q);
+    q->assigned_packet_count = llring_count(q->sw_q);
+  }
+
+  for (auto qit = terminating_sw_q_.begin(); qit != terminating_sw_q_.end(); ) {
+    SoftwareQueueState* q = *qit;
+    if (bess::ctrl::sw_q_state[q->sw_q_id]->GetDownCoreID() == DEFAULT_INVALID_CORE_ID) {
+      q->idle_epoch_count = -2;
+      q->assigned_packet_count = 0;
+      terminating_sw_q_.erase(qit++);
+    } else {
+      ++qit;
+    }
   }
 
   // Update |unoffload_flows_|
@@ -307,7 +310,7 @@ bool NFVCore::ShortEpochProcess() {
     FlowState *state = *it;
     if (state != nullptr) {
       if (state->queued_packet_count > 10000) {
-        LOG(INFO) << "incorrect per-flow packet counter: " << state->queued_packet_count;
+        // LOG(INFO) << "incorrect per-flow packet counter: " << state->queued_packet_count;
         state->queued_packet_count = 0;
       }
 
@@ -364,31 +367,45 @@ bool NFVCore::ShortEpochProcess() {
     }
   }
 
-  // Notify reserved cores to do the work.
+  // Reclaim idle rcores
   int ret;
-  for (auto& sw_q_it : sw_q_) {
-    if (sw_q_it.IsIdle()) { // inactive
-      if (sw_q_it.assigned_packet_count > 0) { // got things to do
-        ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, sw_q_it.sw_q_id);
-        if (ret != 0) {
-          LOG(ERROR) << "S error: " << ret << "; core: " << core_id_ << "; q: " << sw_q_it.sw_q_id;
-        } else {
-          curr_rcore_ += 1;
-        }
-        sw_q_it.idle_epoch_count = 0;
+  for (auto qit = active_sw_q_.begin(); qit != active_sw_q_.end(); ) {
+    SoftwareQueueState* q = *qit;
+    q->processed_packet_count = 0;
+
+    if (q->idle_epoch_count >= max_idle_epoch_count_) { // idle for a while
+      ret = bess::ctrl::NFVCtrlNotifyRCoreToRest(core_id_, q->sw_q_id);
+      if (ret != 0) {
+        LOG(ERROR) << "E error: " << ret << "; core: " << core_id_ << "; q: " << q->sw_q_id;
+      } else {
+        curr_rcore_ -= 1;
       }
-    } else if (sw_q_it.IsActive()) { // |idle_epoch_count| >= 0; active
-      if (sw_q_it.idle_epoch_count >= max_idle_epoch_count_) { // idle for a while
-        ret = bess::ctrl::NFVCtrlNotifyRCoreToRest(core_id_, sw_q_it.sw_q_id);
-        if (ret != 0) {
-          LOG(ERROR) << "E error: " << ret << "; core: " << core_id_ << "; q: " << sw_q_it.sw_q_id;
-        } else {
-          curr_rcore_ -= 1;
-        }
-        sw_q_it.idle_epoch_count = -1;
+      q->idle_epoch_count = -1; // terminating
+      active_sw_q_.erase(qit++);
+      terminating_sw_q_.emplace(q);
+    } else {
+      ++qit;
+    }    
+  }
+
+  // Activate rcores to do the work
+  for (auto qit = idle_sw_q_.begin(); qit != idle_sw_q_.end(); ) {
+    SoftwareQueueState* q = *qit;
+    q->processed_packet_count = 0;
+
+    if (q->assigned_packet_count > 0) { // got things to do
+      ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q->sw_q_id);
+      if (ret != 0) {
+        LOG(ERROR) << "S error: " << ret << "; core: " << core_id_ << "; q: " << q->sw_q_id;
+      } else {
+        curr_rcore_ += 1;
       }
+      q->idle_epoch_count = 0;
+      idle_sw_q_.erase(qit++);
+      active_sw_q_.emplace(q);
+    } else {
+      ++qit;
     }
-    sw_q_it.processed_packet_count = 0;
   }
 
   // Clear
@@ -399,7 +416,6 @@ bool NFVCore::ShortEpochProcess() {
       all_core_stats_chan[core_id_]->Pop(stats_ptr);
       delete (stats_ptr);
     }
-
     epoch_packet_arrival_ = 0;
     epoch_packet_processed_ = 0;
   }

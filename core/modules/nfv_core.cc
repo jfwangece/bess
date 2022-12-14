@@ -90,10 +90,14 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
     sw_q_.back().sw_batch = reinterpret_cast<bess::PacketBatch *>
         (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   }
+  for (uint32_t i = 0; i < sw_q_.size(); i++) {
+    idle_sw_q_.emplace(&sw_q_[i]);
+  }
   LOG(INFO) << "Core " << core_id_ << " has " << sw_q_.size() << " sw_q.";
 
   // Init epoch thresholds and packet counters
   if (bess::ctrl::short_flow_count_pkt_threshold.size() > 0) {
+    // op 1: exp with different thresh settings
     epoch_packet_thresh_ = bess::ctrl::short_flow_count_pkt_threshold.begin()->second + 32;
 
     large_queue_packet_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second * bess::ctrl::rcore / bess::ctrl::ncore;
@@ -102,7 +106,6 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
     }
 
     busy_pull_round_thresh_ = (--bess::ctrl::short_flow_count_pkt_threshold.end())->second / 32;
-    // busy_pull_round_thresh_ = (bess::ctrl::short_flow_count_pkt_threshold.begin())->second / 32;
     if (busy_pull_round_thresh_ < 1) {
       busy_pull_round_thresh_ = 1;
     }
