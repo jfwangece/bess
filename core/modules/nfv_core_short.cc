@@ -342,22 +342,33 @@ bool NFVCore::ShortEpochProcess() {
       if (local_pkt_assigned + task_size < local_pkt_thresh) {
         local_pkt_assigned += task_size;
       } else {
+        // Prioritize sw queues that are active.
         bool assigned = false;
-        for (auto& sw_q_it : sw_q_) {
-          if (sw_q_it.IsTerminating()) {
-            continue;
-          }
-
-          if (sw_q_it.QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
-            state->sw_q_state = &sw_q_it;
-            sw_q_it.assigned_packet_count += task_size;
+        for (auto qit = active_sw_q_.begin(); qit != active_sw_q_.end(); ++qit) {
+          SoftwareQueueState* q = *qit;
+          if (q->QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
+            state->sw_q_state = q;
+            q->assigned_packet_count += task_size;
             assigned = true;
             break;
           }
         }
+
         if (!assigned) {
+          for (auto qit = idle_sw_q_.begin(); qit != idle_sw_q_.end(); ++qit) {
+            SoftwareQueueState* q = *qit;
+            if (q->QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
+              state->sw_q_state = q;
+              q->assigned_packet_count += task_size;
+              assigned = true;
+              break;
+            }
+          }
+
           // Existing software queues cannot hold this flow. Need more queues
-          state->sw_q_state = &system_dump_q0_;
+          if (!assigned) {
+            state->sw_q_state = &system_dump_q0_;
+          }
         }
       }
     } else {
