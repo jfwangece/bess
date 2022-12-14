@@ -127,7 +127,6 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
     if (qid == -1) {
       return {.block = false, .packets = 0, .bits = 0};
     }
-    LOG(INFO) << "rcore " << core_id_ << " gets " << qid;
     // Hand-off to me
     bess::ctrl::sw_q_state[qid]->SetDownCoreID(core_id_);
     sw_q_ = bess::ctrl::sw_q[qid];
@@ -146,7 +145,6 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
   if (qid_ != -1) {
     if (llring_count(sw_q_) == 0) {
       // Hand-off to NFVCore
-      LOG(INFO) << "rcore " << core_id_ << " removes " << qid_;
       bess::ctrl::sw_q_state[qid_]->SetDownCoreID(DEFAULT_INVALID_CORE_ID);
       qid_ = -1;
       sw_q_ = nullptr;
