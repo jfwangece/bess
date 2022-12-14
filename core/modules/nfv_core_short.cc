@@ -299,6 +299,7 @@ bool NFVCore::ShortEpochProcess() {
       q->idle_epoch_count = -2;
       q->assigned_packet_count = 0;
       terminating_sw_q_.erase(qit++);
+      idle_sw_q_.emplace(q);
     } else {
       ++qit;
     }
@@ -378,8 +379,6 @@ bool NFVCore::ShortEpochProcess() {
     }
   }
 
-  LOG(INFO) << active_sw_q_.size() << ", " << terminating_sw_q_.size() << ", " << idle_sw_q_.size();
-
   // Reclaim idle rcores
   int ret;
   for (auto qit = active_sw_q_.begin(); qit != active_sw_q_.end(); ) {
@@ -419,6 +418,10 @@ bool NFVCore::ShortEpochProcess() {
     } else {
       ++qit;
     }
+  }
+
+  if (core_id_ == 2) {
+    LOG(INFO) << active_sw_q_.size() << ", " << terminating_sw_q_.size() << ", " << idle_sw_q_.size();
   }
 
   // Clear
