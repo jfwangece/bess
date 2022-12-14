@@ -9,10 +9,10 @@ const Commands NFVRCore::cmds = {
 };
 
 namespace {
-uint64_t get_hw_timestamp_nic(bess::Packet *pkt) {
-  uint64_t nic_cycle = reinterpret_cast<rte_mbuf*>(pkt)->timestamp;
-  return nic_tsc_to_ns(nic_cycle);
-}
+// uint64_t get_hw_timestamp_nic(bess::Packet *pkt) {
+//   uint64_t nic_cycle = reinterpret_cast<rte_mbuf*>(pkt)->timestamp;
+//   return nic_tsc_to_ns(nic_cycle);
+// }
 }
 
 // NFVRCore member functions
@@ -58,7 +58,8 @@ CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
   }
 
   // Run!
-  rte_atomic16_set(&mark_to_disable_, 0);
+  qid_ = -1;
+  rte_atomic16_set(&sw_q_id_, -1);
   rte_atomic16_set(&disabled_, 0);
   return CommandSuccess();
 }
@@ -69,6 +70,8 @@ void NFVRCore::DeInit() {
   while (rte_atomic16_read(&disabled_) == 2) { usleep(100000); }
 
   // Clean the software queue that is currently being processed
+  qid_ = -1;
+  rte_atomic16_set(&sw_q_id_, -1);
   sw_q_ = nullptr;
 
   // Clean any queues that are pending
@@ -77,7 +80,6 @@ void NFVRCore::DeInit() {
     std::free(to_add_queue_);
     to_add_queue_ = nullptr;
   }
-
   if (to_remove_queue_) {
     while (llring_sc_dequeue(to_remove_queue_, (void **)&sw_q_) == 0) { continue; }
     std::free(to_remove_queue_);
@@ -96,29 +98,59 @@ CommandResponse NFVRCore::CommandSetBurst(
   }
 }
 
-struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch,
-                                     void *) {
+struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, void *) {
   if (rte_atomic16_read(&disabled_) == 1) {
     rte_atomic16_set(&disabled_, 2);
     return {.block = false, .packets = 0, .bits = 0};
   }
 
-  // 1) check |remove|
-  if (llring_count(to_remove_queue_) == 1) {
-    llring *q = nullptr;
-    llring_sc_dequeue(to_remove_queue_, (void**)&q);
-    if (q == sw_q_) {
-      sw_q_ = nullptr;
+  // // 1) check |remove|
+  // if (llring_count(to_remove_queue_) == 1) {
+  //   llring *q = nullptr;
+  //   llring_sc_dequeue(to_remove_queue_, (void**)&q);
+  //   if (q == sw_q_) {
+  //     sw_q_ = nullptr;
+  //     return {.block = false, .packets = 0, .bits = 0};
+  //   }
+  // }
+  // // 2) check |add|
+  // if (sw_q_ == nullptr) {
+  //   if (llring_count(to_add_queue_) >= 1) {
+  //     return {.block = false, .packets = 0, .bits = 0};
+  //   }
+  //   llring_sc_dequeue(to_add_queue_, (void**)&sw_q_);
+  // }
+
+  if (sw_q_ == nullptr) {
+    // to add
+    int16_t qid = rte_atomic16_read(&sw_q_id_);
+    if (qid == -1) {
       return {.block = false, .packets = 0, .bits = 0};
+    }
+    // Hand-off to me
+    bess::ctrl::sw_q_state[qid]->SetDownCoreID(core_id_);
+    sw_q_ = bess::ctrl::sw_q[qid];
+    rte_atomic16_set(&sw_q_id_, -1);
+  } else {
+    // to remove
+    int16_t qid = rte_atomic16_read(&sw_q_id_);
+    if (qid != -1) {
+      if (qid > 200 && sw_q_ == bess::ctrl::sw_q[qid - 200]) {
+        qid_ = qid - 200;
+      }
+      rte_atomic16_set(&sw_q_id_, -1);
     }
   }
 
-  // 2) check |add|
-  if (sw_q_ == nullptr) {
-    if (llring_count(to_add_queue_) != 1) {
+  if (qid_ != -1) {
+    if (llring_count(sw_q_) == 0) {
+      // Hand-off to NFVCore
+      bess::ctrl::sw_q_state[qid_]->SetDownCoreID(DEFAULT_INVALID_CORE_ID);
+      qid_ = -1;
+      sw_q_ = nullptr;
+      bess::ctrl::rcore_state[core_id_] = true; // ready for any new work
       return {.block = false, .packets = 0, .bits = 0};
     }
-    llring_sc_dequeue(to_add_queue_, (void**)&sw_q_);
   }
 
   // 3) then, |sw_q_| != nullptr; start the NF chain
@@ -129,22 +161,20 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch,
   }
   batch->set_cnt(cnt);
 
-  uint64_t curr_nic_ts_ns = nic_tsc_to_ns(nic_rdtsc());
   uint64_t total_bytes = 0;
-  uint64_t max_pkt_delay = 0;
+  // uint64_t curr_nic_ts_ns = nic_tsc_to_ns(nic_rdtsc());
+  // uint64_t max_pkt_delay = 0;
   for (uint32_t i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
-
-    uint64_t pkt_ts_ns = get_hw_timestamp_nic(pkt);
-    if (curr_nic_ts_ns > pkt_ts_ns) {
-      uint64_t pkt_delay = curr_nic_ts_ns - pkt_ts_ns;
-      if (pkt_delay < max_pkt_delay) {
-        max_pkt_delay = pkt_delay;
-      }
-    }
-
     rte_prefetch0(pkt->head_data());
     total_bytes += pkt->total_len();
+    // uint64_t pkt_ts_ns = get_hw_timestamp_nic(pkt);
+    // if (curr_nic_ts_ns > pkt_ts_ns) {
+    //   uint64_t pkt_delay = curr_nic_ts_ns - pkt_ts_ns;
+    //   if (pkt_delay < max_pkt_delay) {
+    //     max_pkt_delay = pkt_delay;
+    //   }
+    // }
   }
 
   RunNextModule(ctx, batch);

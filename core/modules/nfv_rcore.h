@@ -32,9 +32,15 @@ class NFVRCore final : public Module {
   inline void AddQueue(struct llring* q) {
     llring_mp_enqueue(to_add_queue_, (void*)q);
   }
+  inline void AddQueue(int16_t qid) {
+    rte_atomic16_set(&sw_q_id_, qid);
+  }
   // |NFVRCore| will stop working on |q| when the next round starts
   inline void RemoveQueue(struct llring* q) {
     llring_mp_enqueue(to_remove_queue_, (void*)q);
+  }
+  inline void RemoveQueue(int16_t qid) {
+    rte_atomic16_set(&sw_q_id_, 200+qid);
   }
 
   CommandResponse CommandSetBurst(const bess::pb::NFVRCoreCommandSetBurstArg &arg);
@@ -43,16 +49,18 @@ class NFVRCore final : public Module {
   cpu_core_t core_id_;
   WorkerCore core_;
 
+  // NFVCore -> NFVCtrl
   struct llring *to_add_queue_;
   struct llring *to_remove_queue_;
+  rte_atomic16_t sw_q_id_;
 
-  // Set by NFVCtrl
+  // Set by myself after reading |sw_q_id_|
+  int16_t qid_;
   struct llring* sw_q_;
   int burst_;
 
   // If true, |this| normal core stops pulling packets from its NIC queue
   rte_atomic16_t disabled_;
-  rte_atomic16_t mark_to_disable_;
 };
 
 #endif // BESS_MODULES_NFV_RCORE_H_

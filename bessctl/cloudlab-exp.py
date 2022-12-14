@@ -933,7 +933,7 @@ def run_dyssect_exp(num_worker, slo):
 # Main experiment
 def run_test_exp():
     worker_cnt = 3
-    target_slos = [300000]
+    target_slos = [100000, 200000]
 
     exp_results = []
     for slo in target_slos:

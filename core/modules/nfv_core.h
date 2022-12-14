@@ -47,7 +47,9 @@ struct SoftwareQueueState {
     processed_packet_count = 0;
   }
 
-  uint32_t QLenAfterAssignment() { return assigned_packet_count; }
+  inline uint32_t QLenAfterAssignment() {
+    return assigned_packet_count;
+  }
 
   inline void EnqueueBatch() {
     if (sw_batch->cnt() > 0) {

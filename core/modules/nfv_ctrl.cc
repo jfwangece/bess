@@ -116,11 +116,9 @@ int NFVCtrl::NotifyRCoreToWork(cpu_core_t core_id, int q_id) {
         !bess::ctrl::rcore_state[i]) {
       continue;
     }
-
     // Success
     bess::ctrl::rcore_state[i] = false;
-    bess::ctrl::nfv_rcores[i]->AddQueue(bess::ctrl::sw_q[q_id]);
-    bess::ctrl::sw_q_state[q_id]->SetDownCoreID(i);
+    bess::ctrl::nfv_rcores[i]->AddQueue(q_id);
     return 0;
   }
 
@@ -153,9 +151,7 @@ int NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   }
 
   // Success
-  bess::ctrl::nfv_rcores[down]->RemoveQueue(bess::ctrl::sw_q[q_id]);
-  bess::ctrl::sw_q_state[q_id]->SetDownCoreID(DEFAULT_INVALID_CORE_ID);
-  bess::ctrl::rcore_state[down] = true;
+  bess::ctrl::nfv_rcores[down]->RemoveQueue(q_id);
   return 0;
 }
 
