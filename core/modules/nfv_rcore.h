@@ -33,7 +33,6 @@ class NFVRCore final : public Module {
     llring_mp_enqueue(to_add_queue_, (void*)q);
   }
   inline void AddQueue(int16_t qid) {
-    LOG(INFO) << "add " << qid;
     rte_atomic16_set(&sw_q_id_, qid);
   }
 
@@ -42,7 +41,6 @@ class NFVRCore final : public Module {
     llring_mp_enqueue(to_remove_queue_, (void*)q);
   }
   inline void RemoveQueue(int16_t qid) {
-    LOG(INFO) << "rmv " << qid;
     rte_atomic16_set(&sw_q_id_, 200+qid);
   }
 

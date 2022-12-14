@@ -42,9 +42,18 @@ struct SoftwareQueueState {
   SoftwareQueueState(int qid) : sw_q_id(qid) {
     // The system's software queue for offloading
     sw_q = bess::ctrl::sw_q[qid];
-    idle_epoch_count = -1;
+    idle_epoch_count = -2;
     assigned_packet_count = 0;
     processed_packet_count = 0;
+  }
+  inline bool IsIdle() {
+    return idle_epoch_count == -2;
+  }
+  inline bool IsTerminating() {
+    return idle_epoch_count == -1;
+  }
+  inline bool IsActive() {
+    return idle_epoch_count >= 0;
   }
 
   inline uint32_t QLenAfterAssignment() {
@@ -69,7 +78,7 @@ struct SoftwareQueueState {
   llring* sw_q;
   bess::PacketBatch* sw_batch;
   int sw_q_id;
-  int idle_epoch_count;
+  int idle_epoch_count; // -2: idle; -1: terminating; 0 and 0+: active
   uint32_t assigned_packet_count;
   uint32_t processed_packet_count;
 };

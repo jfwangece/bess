@@ -259,22 +259,10 @@ uint32_t GetMaxPktCountFromShortTermProfile(uint32_t fc) {
 
 bool NFVCore::ShortEpochProcess() {
   using bess::utils::all_core_stats_chan;
-  // This |ncore| observes a large queue, and by default, it hopes that
-  // the following short-term optimization can handle it with aux cores.
-  // However, if it still sees a large queue in the next epoch, it tells
-  // that an on-demand load-balancing is needed immediately ...
-  // uint32_t q_cnt = llring_count(local_q_);
-  // if (q_cnt > large_queue_packet_thresh_) {
-  //   num_epoch_with_large_queue_ += 1;
-  //   if (num_epoch_with_large_queue_ > 1) {
-  //     num_epoch_with_large_queue_ = 0;
-  //     bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
-  //   }
-  // }
 
   // At the end of one epoch, NFVCore requests software queues to
   // absorb the existing packet queue in the coming epoch.
-
+  //
   // |epoch_flow_cache_| has all flows that have arrivals in this epoch
   // |flow_to_sw_q_| has all flows that are offloaded to reserved cores
   // |sw_q_mask_| has all software queues that borrowed from NFVCtrl
@@ -296,7 +284,13 @@ bool NFVCore::ShortEpochProcess() {
 
   // Check qlen of exisitng software queues
   for (auto& sw_q_it : sw_q_) {
-    if (sw_q_it.idle_epoch_count == -1) {
+    if (sw_q_it.IsIdle()) {
+      continue;
+    }
+    if (sw_q_it.IsTerminating()) {
+      if (bess::ctrl::sw_q_state[sw_q_it.sw_q_id]->GetDownCoreID() == DEFAULT_INVALID_CORE_ID) {
+        sw_q_it.idle_epoch_count = -2;
+      }
       continue;
     }
     if (sw_q_it.processed_packet_count == 0) {
@@ -347,6 +341,10 @@ bool NFVCore::ShortEpochProcess() {
       } else {
         bool assigned = false;
         for (auto& sw_q_it : sw_q_) {
+          if (sw_q_it.IsTerminating()) {
+            continue;
+          }
+
           if (sw_q_it.QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
             state->sw_q_state = &sw_q_it;
             sw_q_it.assigned_packet_count += task_size;
@@ -366,16 +364,10 @@ bool NFVCore::ShortEpochProcess() {
     }
   }
 
-  // Debug log
-  if (false) {
-    LOG(INFO) << "short-term: core" << core_id_ << ", lf=" << local_large_flow
-              << ", d1=" << epoch_drop1_ << ", d2=" << epoch_drop2_ << ", d3=" << epoch_drop3_ << ", d4=" << epoch_drop4_;
-  }
-
   // Notify reserved cores to do the work.
   int ret;
   for (auto& sw_q_it : sw_q_) {
-    if (sw_q_it.idle_epoch_count == -1) { // inactive
+    if (sw_q_it.IsIdle()) { // inactive
       if (sw_q_it.assigned_packet_count > 0) { // got things to do
         ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, sw_q_it.sw_q_id);
         if (ret != 0) {
@@ -385,7 +377,7 @@ bool NFVCore::ShortEpochProcess() {
         }
         sw_q_it.idle_epoch_count = 0;
       }
-    } else { // |idle_epoch_count| >= 0; active
+    } else if (sw_q_it.IsActive()) { // |idle_epoch_count| >= 0; active
       if (sw_q_it.idle_epoch_count >= max_idle_epoch_count_) { // idle for a while
         ret = bess::ctrl::NFVCtrlNotifyRCoreToRest(core_id_, sw_q_it.sw_q_id);
         if (ret != 0) {
@@ -410,10 +402,6 @@ bool NFVCore::ShortEpochProcess() {
 
     epoch_packet_arrival_ = 0;
     epoch_packet_processed_ = 0;
-    // epoch_drop1_ = 0;
-    // epoch_drop2_ = 0;
-    // epoch_drop3_ = 0;
-    // epoch_drop4_ = 0;
   }
 
   return true;
