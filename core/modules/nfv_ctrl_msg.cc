@@ -205,6 +205,7 @@ void NFVCtrlCheckAllComponents() {
 std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n) {
   if (nfv_cores[core_id] == nullptr) {
     LOG(ERROR) << "Core " << core_id << " is used but not created";
+
     // To register all normal CPU cores
     for (int i = 0; i < DEFAULT_INVALID_CORE_ID; i++){
       std::string core_name = "nfv_core" + std::to_string(i);
@@ -221,6 +222,7 @@ std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n) {
     std::vector<int> assigned;
     return assigned;
   }
+
   return nfv_ctrl->RequestNSwQ(core_id, n);
 }
 
