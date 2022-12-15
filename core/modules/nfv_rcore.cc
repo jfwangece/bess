@@ -32,9 +32,6 @@ CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
   burst_ = bess::PacketBatch::kMaxBurst;
 
   // Init
-  bess::ctrl::nfv_rcores[core_id_] = this;
-  bess::ctrl::rcore_state[core_id_] = true; // ready for any new work
-
   size_t kQSize = 64;
   int bytes = llring_bytes_with_slots(kQSize);
   to_add_queue_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
@@ -46,15 +43,40 @@ CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
     llring_init(to_remove_queue_, kQSize, 0, 1);
   }
 
+  // Set |mode_|
+  mode_ = 0;
+  if (arg.mode() > 0) {
+    mode_ = arg.mode();
+  }
+
+  // Set |sw_q_|
   sw_q_ = nullptr;
-  if (core_id_ < bess::ctrl::ncore) {
+  if (mode_ == 0) {
     sw_q_ = bess::ctrl::local_boost_q[core_id_];
-    LOG(INFO) << "rcore (core-boost): " << core_id_;
-  } else if (core_id_ >= bess::ctrl::rcore) {
-    sw_q_ = bess::ctrl::system_dump_q_;
-    LOG(INFO) << "rcore (rcore-boost): " << core_id_;
-  } else {
-    LOG(INFO) << "rcore (normal): " << core_id_;
+    bess::ctrl::nfv_booster[core_id_] = this;
+    LOG(INFO) << "ncore-booster: " << core_id_;
+  }
+  else if (mode_ == 1) {
+    sw_q_ = bess::ctrl::sw_q[core_id_];
+    bess::ctrl::nfv_rcores[core_id_] = this;
+    bess::ctrl::rcore_state[core_id_] = true; // ready for any new work
+    LOG(INFO) << "rcore: " << core_id_;
+  }
+  else if (mode_ == 2) {
+    sw_q_ = bess::ctrl::rcore_boost_q;
+    bess::ctrl::nfv_rcore_booster = this;
+    LOG(INFO) << "rcore-booster";
+  }
+  else if (mode_ == 3) {
+    // Turn |this| rcore to be a factory that dumps packets which cannot
+    // be processed by any ncores or rcores.
+    // WHy do we need this?
+    // A: if we don't free packets, these packets will accumulate. They
+    // will use all free packet memory slots and prevent new incoming
+    // packets from entering the server.
+    sw_q_ = bess::ctrl::system_dump_q;
+    bess::ctrl::nfv_system_dumper = this;
+    LOG(INFO) << "sys-dump!";
   }
 
   // Run!
@@ -104,23 +126,6 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
     return {.block = false, .packets = 0, .bits = 0};
   }
 
-  // // 1) check |remove|
-  // if (llring_count(to_remove_queue_) == 1) {
-  //   llring *q = nullptr;
-  //   llring_sc_dequeue(to_remove_queue_, (void**)&q);
-  //   if (q == sw_q_) {
-  //     sw_q_ = nullptr;
-  //     return {.block = false, .packets = 0, .bits = 0};
-  //   }
-  // }
-  // // 2) check |add|
-  // if (sw_q_ == nullptr) {
-  //   if (llring_count(to_add_queue_) >= 1) {
-  //     return {.block = false, .packets = 0, .bits = 0};
-  //   }
-  //   llring_sc_dequeue(to_add_queue_, (void**)&sw_q_);
-  // }
-
   if (sw_q_ == nullptr) {
     // to add
     int16_t qid = rte_atomic16_read(&sw_q_id_);
@@ -144,40 +149,32 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
 
   if (qid_ != -1) {
     if (llring_count(sw_q_) == 0) {
-      // Hand-off to NFVCore
-      bess::ctrl::sw_q_state[qid_]->SetDownCoreID(DEFAULT_INVALID_CORE_ID);
-      qid_ = -1;
-      sw_q_ = nullptr;
-      bess::ctrl::rcore_state[core_id_] = true; // ready for any new work
+      // Tell everyone that |this| rcore can take any new work
+      bess::ctrl::sw_q_state[qid_]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
+      bess::ctrl::rcore_state[core_id_] = true;
       return {.block = false, .packets = 0, .bits = 0};
     }
   }
 
   // 3) then, |sw_q_| != nullptr; start the NF chain
-  const int burst = ACCESS_ONCE(burst_);
-  uint32_t cnt = llring_mc_dequeue_burst(sw_q_, (void **)batch->pkts(), burst);
+  uint32_t cnt = llring_sc_dequeue_burst(sw_q_, (void **)batch->pkts(), 32);
   if (cnt == 0) {
     return {.block = false, .packets = 0, .bits = 0};
   }
   batch->set_cnt(cnt);
 
   uint64_t total_bytes = 0;
-  // uint64_t curr_nic_ts_ns = nic_tsc_to_ns(nic_rdtsc());
-  // uint64_t max_pkt_delay = 0;
   for (uint32_t i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
     rte_prefetch0(pkt->head_data());
     total_bytes += pkt->total_len();
-    // uint64_t pkt_ts_ns = get_hw_timestamp_nic(pkt);
-    // if (curr_nic_ts_ns > pkt_ts_ns) {
-    //   uint64_t pkt_delay = curr_nic_ts_ns - pkt_ts_ns;
-    //   if (pkt_delay < max_pkt_delay) {
-    //     max_pkt_delay = pkt_delay;
-    //   }
-    // }
   }
 
-  RunNextModule(ctx, batch);
+  if (mode_ == 3) {
+    bess::Packet::Free(batch);
+  } else {
+    RunNextModule(ctx, batch);
+  }
 
   return {.block = false,
           .packets = cnt,

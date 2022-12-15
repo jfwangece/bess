@@ -10,6 +10,7 @@
 #include "../utils/lock_less_queue.h"
 
 using bess::utils::WorkerCore;
+using bess::ctrl::SoftwareQueueState;
 
 // A reserved CPU core for processing temporary packet burst.
 // Each NFVCore can split a large packet queue into many smaller
@@ -47,6 +48,7 @@ class NFVRCore final : public Module {
   CommandResponse CommandSetBurst(const bess::pb::NFVRCoreCommandSetBurstArg &arg);
 
  private:
+  int mode_;
   cpu_core_t core_id_;
   WorkerCore core_;
 

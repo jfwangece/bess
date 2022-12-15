@@ -18,71 +18,11 @@ using bess::utils::FlowHash;
 using bess::utils::FlowRoutingRule;
 using bess::utils::CoreStats;
 using bess::utils::BucketStats;
-using bess::utils::WorkerCore;
+using bess::ctrl::SoftwareQueueState;
 
 // Assumption:
 // if |active_flow_count| increases, |packet_count| will decrease
 // Then, the admission process can be a packing problem.
-
-// The assignment state for each software queue.
-// |sw_q_id|: the global software queue index seen by NFVCtrl.
-// |sw_q|: the (borrowed) software queue's pointer;
-// |assigned_packet_count|: the number of packets to be enqueued;
-// |processed_packet_count|: the number of packets seen by the queue;
-// |idle_epoch_count|: the number of epoches with no packet arrivals;
-struct SoftwareQueueState {
-  SoftwareQueueState() {
-    // The system's dump queue
-    sw_q_id = DEFAULT_SWQ_COUNT + 1;
-    sw_q = bess::ctrl::system_dump_q_;
-    idle_epoch_count = 0;
-    assigned_packet_count = 0;
-    processed_packet_count = 0;
-  }
-  SoftwareQueueState(int qid) : sw_q_id(qid) {
-    // The system's software queue for offloading
-    sw_q = bess::ctrl::sw_q[qid];
-    idle_epoch_count = -2;
-    assigned_packet_count = 0;
-    processed_packet_count = 0;
-  }
-
-  inline bool IsIdle() {
-    return idle_epoch_count == -2;
-  }
-  inline bool IsTerminating() {
-    return idle_epoch_count == -1;
-  }
-  inline bool IsActive() {
-    return idle_epoch_count >= 0;
-  }
-
-  inline uint32_t QLenAfterAssignment() {
-    return assigned_packet_count;
-  }
-
-  inline void EnqueueBatch() {
-    if (sw_batch->cnt() > 0) {
-      processed_packet_count += sw_batch->cnt();
-      int queued = llring_sp_enqueue_burst(sw_q, (void**)sw_batch->pkts(), sw_batch->cnt());
-      if (queued < 0) {
-        queued = queued & (~RING_QUOT_EXCEED);
-      }
-      if (queued < sw_batch->cnt()) {
-        int to_drop = sw_batch->cnt() - queued;
-        bess::Packet::Free(sw_batch->pkts() + queued, to_drop);
-      }
-      sw_batch->clear();
-    }
-  }
-
-  llring* sw_q;
-  bess::PacketBatch* sw_batch;
-  int sw_q_id;
-  int idle_epoch_count; // -2: idle; -1: terminating; 0 and 0+: active
-  uint32_t assigned_packet_count;
-  uint32_t processed_packet_count;
-};
 
 struct FlowState {
   FlowState() {
@@ -105,7 +45,7 @@ class NFVCore final : public Module {
  public:
   static const Commands cmds;
 
-  NFVCore() : Module(), burst_(32), size_(2048) {
+  NFVCore() : Module(), burst_(32) {
     local_q_ = nullptr;
     local_boost_q_ = nullptr;
     max_allowed_workers_ = 1;
@@ -125,11 +65,6 @@ class NFVCore final : public Module {
   // if it will lead to SLO violations.
   // Returns true if a new epoch started.
   bool ShortEpochProcess();
-
-  // Work on all flows in |unoffload_flows_|.
-  // Decide the number of additional software queues and
-  // assign flows to them.
-  int PackFlowsToSoftwareQueues();
 
   // OnFetch:
   // - Add the per-flow state pointer to each packet's metadata.
@@ -193,30 +128,25 @@ class NFVCore final : public Module {
   Port *port_;
   uint16_t port_id_;
   queue_t qid_;
+  int burst_;
 
   // Software queue that holds packets
   struct llring *local_q_;
   struct llring *local_boost_q_;
 
   bess::PacketBatch *local_batch_;
-  bess::PacketBatch *local_boost_batch_;
   bess::PacketBatch *local_rboost_batch_;
-
-  int burst_;
-  uint32_t size_;
+  bess::PacketBatch *system_dump_batch_;
 
   /// Software queues:
   // q0: for flows marked to be dropped (running out of sw queues);
   // q1: for flows marked to be sent to boost-mode rcores;
-  SoftwareQueueState system_dump_q0_;
-  SoftwareQueueState system_dump_q1_;
+  SoftwareQueueState* rcore_booster_q_state_;
+  SoftwareQueueState* system_dump_q_state_;
 
   // Software queues borrowed from NFVCtrl
-  std::vector<SoftwareQueueState> sw_q_;
-
-  std::set<SoftwareQueueState*> idle_sw_q_;
-  std::set<SoftwareQueueState*> terminating_sw_q_;
   std::set<SoftwareQueueState*> active_sw_q_;
+  std::set<SoftwareQueueState*> terminating_sw_q_;
 
   // Metadata field ID
   int flow_stats_attr_id_; // for maintaining per-flow stats

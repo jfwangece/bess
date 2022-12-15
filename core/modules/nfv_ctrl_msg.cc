@@ -15,7 +15,11 @@ namespace ctrl {
 // NFVCtrl system components
 NFVCtrl* nfv_ctrl = nullptr;
 NFVCore* nfv_cores[DEFAULT_INVALID_CORE_ID] = {nullptr};
+NFVRCore* nfv_booster[DEFAULT_INVALID_CORE_ID] = {nullptr};
 NFVRCore* nfv_rcores[DEFAULT_INVALID_CORE_ID] = {nullptr};
+NFVRCore* nfv_rcore_booster = nullptr;
+NFVRCore* nfv_system_dumper = nullptr;
+
 NFVMonitor* nfv_monitors[DEFAULT_INVALID_CORE_ID] = {nullptr};
 MetronCore* metron_cores[DEFAULT_INVALID_CORE_ID] = {nullptr};
 
@@ -35,13 +39,18 @@ std::map<uint16_t, uint16_t> trans_buckets;
 
 // A software queue as this server's trash bin. Any packets that are
 // moved into this queue will be freed without any processing.
-struct llring* system_dump_q_ = nullptr;
+struct llring* system_dump_q = nullptr;
+struct llring* rcore_boost_q = nullptr;
 struct llring* local_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
 struct llring* local_boost_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
 struct llring* local_mc_q[DEFAULT_NICQ_COUNT] = {nullptr};
 
 struct llring* sw_q[DEFAULT_SWQ_COUNT] = {nullptr};
-SoftwareQueue* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr}; // sw_q can be assigned if |up_core_id| is invalid
+
+// sw_q can be assigned if |up_core_id| is invalid
+SoftwareQueueState* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr};
+SoftwareQueueState* rcore_booster_q_state = nullptr;
+SoftwareQueueState* system_dump_q_state = nullptr;
 
 // The number of dedicated cores and aux cores in an Ironside worker.
 int ncore = 0;
@@ -76,7 +85,7 @@ void NFVCtrlMsgInit() {
     ret = llring_init(local_q[i], sw_qsize, 1, 1);
     if (ret) {
       std::free(local_q[i]);
-      LOG(ERROR) << "llring_init failed on local queue " << i;
+      LOG(FATAL) << "llring_init failed on local queue " << i;
       break;
     }
 
@@ -85,30 +94,42 @@ void NFVCtrlMsgInit() {
     ret = llring_init(local_boost_q[i], sw_qsize, 1, 1);
     if (ret) {
       std::free(local_boost_q[i]);
-      LOG(ERROR) << "llring_init failed on local boost queue " << i;
+      LOG(FATAL) << "llring_init failed on local boost queue " << i;
       break;
     }
   }
 
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
-    // |sw_q| used by all aux cores
-    // single-producer: each sw_q can only be held by one ncore;
-    // however, more than 1 rcores can access a sw_q.
+    // |sw_q| used by all aux cores:
+    // single-producer and single-consumer
     sw_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-    ret = llring_init(sw_q[i], sw_qsize, 1, 0);
+    ret = llring_init(sw_q[i], sw_qsize, 1, 1);
     if (ret) {
       std::free(sw_q[i]);
-      LOG(ERROR) << "llring_init failed on software queue " << i;
+      LOG(FATAL) << "llring_init failed on software queue " << i;
       break;
     }
 
-    // Note: each SoftwareQueue object has to be initialized as
+    // Note: each SoftwareQueueState object has to be initialized as
     // 'rte_malloc' does not initialize it when allocating memory
-    sw_q_state[i] = reinterpret_cast<SoftwareQueue *>(
-        std::aligned_alloc(alignof(SoftwareQueue), sizeof(SoftwareQueue)));
+    sw_q_state[i] = reinterpret_cast<SoftwareQueueState*>(
+        std::aligned_alloc(alignof(SoftwareQueueState), sizeof(SoftwareQueueState)));
+
     sw_q_state[i]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
     sw_q_state[i]->SetDownCoreID(DEFAULT_INVALID_CORE_ID);
+    sw_q_state[i]->sw_q = sw_q[i];
+    sw_q_state[i]->sw_batch = reinterpret_cast<bess::PacketBatch *>
+        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+    sw_q_state[i]->sw_q_id = i;
+    sw_q_state[i]->idle_epoch_count = -2;
+    sw_q_state[i]->assigned_packet_count = 0;
+    sw_q_state[i]->processed_packet_count = 0;
   }
+
+  rcore_booster_q_state = reinterpret_cast<SoftwareQueueState*>(
+        std::aligned_alloc(alignof(SoftwareQueueState), sizeof(SoftwareQueueState)));
+  system_dump_q_state = reinterpret_cast<SoftwareQueueState*>(
+        std::aligned_alloc(alignof(SoftwareQueueState), sizeof(SoftwareQueueState)));
 
   for (int i = 0; i < DEFAULT_NICQ_COUNT; i++) {
     // |local_mc_q| is used by all Metron / Quadrant cores to receive tagged packets.
@@ -117,7 +138,7 @@ void NFVCtrlMsgInit() {
     ret = llring_init(local_mc_q[i], sw_qsize, 0, 1);
     if (ret) {
       std::free(local_mc_q[i]);
-      LOG(ERROR) << "llring_init failed on local boost queue " << i;
+      LOG(FATAL) << "llring_init failed on local boost queue " << i;
       break;
     }
   }
@@ -125,19 +146,28 @@ void NFVCtrlMsgInit() {
   // Assign a system dump queue.
   size_t dump_qsize = DEFAULT_DUMPQ_SIZE;
   bytes = llring_bytes_with_slots(dump_qsize);
-  system_dump_q_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-  if (system_dump_q_) {
-    llring_init(system_dump_q_, dump_qsize, 0, 1);
+
+  rcore_boost_q = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+  if (rcore_boost_q) {
+    llring_init(rcore_boost_q, dump_qsize, 0, 1);
   } else {
-    std::free(system_dump_q_);
-    LOG(ERROR) << "failed to allocate system_dump_q_";
+    std::free(rcore_boost_q);
+    LOG(FATAL) << "failed to allocate rcore_boost_q";
+  }
+
+  system_dump_q = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+  if (system_dump_q) {
+    llring_init(system_dump_q, dump_qsize, 0, 1);
+  } else {
+    std::free(system_dump_q);
+    LOG(FATAL) << "failed to allocate system_dump_q";
   }
 
   LOG(INFO) << "NFV control messages are initialized";
 }
 
 void NFVCtrlMsgDeInit() {
-  SoftwareQueue *q_state = nullptr;
+  SoftwareQueueState *q_state = nullptr;
   bess::Packet *pkt = nullptr;
   struct llring *q = nullptr;
 
@@ -162,7 +192,7 @@ void NFVCtrlMsgDeInit() {
   for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
     q = sw_q[i];
     if (q) {
-      while (llring_mc_dequeue(q, (void **)&pkt) == 0) {
+      while (llring_sc_dequeue(q, (void **)&pkt) == 0) {
         bess::Packet::Free(pkt);
       }
       std::free(q);
@@ -184,12 +214,20 @@ void NFVCtrlMsgDeInit() {
     }
   }
 
-  if (system_dump_q_) {
-    while (llring_mc_dequeue(system_dump_q_, (void **)&pkt) == 0) {
+  if (rcore_boost_q) {
+    while (llring_sc_dequeue(rcore_boost_q, (void **)&pkt) == 0) {
       bess::Packet::Free(pkt);
     }
-    std::free(system_dump_q_);
-    system_dump_q_ = nullptr;
+    std::free(rcore_boost_q);
+    rcore_boost_q = nullptr;
+  }
+
+  if (system_dump_q) {
+    while (llring_sc_dequeue(system_dump_q, (void **)&pkt) == 0) {
+      bess::Packet::Free(pkt);
+    }
+    std::free(system_dump_q);
+    system_dump_q = nullptr;
   }
 
   LOG(INFO) << "NFV control messages are de-initialized";
@@ -206,7 +244,7 @@ void NFVCtrlCheckAllComponents() {
 // to NFVCore (who calls this function)
 std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n) {
   if (nfv_cores[core_id] == nullptr) {
-    LOG(ERROR) << "Core " << core_id << " is used but not created";
+    LOG(FATAL) << "Core " << core_id << " is used but not created";
 
     // To register all normal CPU cores
     for (int i = 0; i < DEFAULT_INVALID_CORE_ID; i++){
@@ -220,7 +258,7 @@ std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n) {
   }
 
   if (nfv_ctrl == nullptr) {
-    LOG(ERROR) << "NFVCtrl is used but not created";
+    LOG(FATAL) << "NFVCtrl is used but not created";
     std::vector<int> assigned;
     return assigned;
   }

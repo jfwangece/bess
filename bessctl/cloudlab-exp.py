@@ -109,6 +109,8 @@ def install_bess(recompile, ip):
     print("Install BESS daemon for {}".format(ip))
 
     if recompile:
+        cmd = "sudo rm -rf /tmp/bess*"
+        run_remote_command(ip, cmd)
         cmd = "sudo pkill -f bessd"
         run_remote_command(ip, cmd)
         cmd = "sudo pkill -f solver"
@@ -146,11 +148,10 @@ def start_remote_bessd(ip, runtime="bess"):
     run_remote_command(ip, bessd_cmd)
     return
 
-def start_traffic_ironside_ingress(tip, num_worker, mode):
+def start_traffic_ironside_ingress(tip, num_worker, mode, pkt_thresh=2500000):
     """ Start a traffic generator with the worker-level load balancing scheme
     (such as Ironside's ingress).
     """
-    pkt_thresh = 3000000
     cmds = ["run", "nfvctrl/cloud_pcap_replay_mc",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
     # cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
@@ -724,9 +725,10 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
 
     # mode: 0 min core; 1 min traffic; 2 max core; 3 max traffic
     ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
+    slo_to_pkt_thresh = {100000: 2000000, 200000: 2000000, 300000: 3000000, 400000: 3000000, 500000: 3000000}
     ig_mode = 3
     for tip in traffic_ip:
-        start_traffic_ironside_ingress(tip, num_worker, ig_mode)
+        start_traffic_ironside_ingress(tip, num_worker, ig_mode, slo_to_pkt_thresh[slo])
     print("exp: traffic started")
 
     time.sleep(exp_duration)
@@ -933,7 +935,7 @@ def run_dyssect_exp(num_worker, slo):
 # Main experiment
 def run_test_exp():
     worker_cnt = 3
-    target_slos = [100000, 200000]
+    target_slos = [300000]
 
     exp_results = []
     for slo in target_slos:

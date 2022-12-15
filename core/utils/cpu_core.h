@@ -5,10 +5,6 @@
 
 #include "flow.h"
 
-// Valid Core ID range [0, 63]
-#define DEFAULT_INVALID_CORE_ID 64
-#define DEFAULT_NFVCTRL_CORE_ID 63 
-
 typedef uint16_t cpu_core_t;
 
 namespace bess{

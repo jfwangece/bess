@@ -25,15 +25,23 @@ ncore = int($BESS_NCORE!"5")
 queue_scale = 1
 
 # NFVCtrl runs on its own core
-nfvctrl_core = 30
-sys_dump_core = 31
-core_cnt = ncore
-rcore_cnt = nfvctrl_core - ncore
-total_core_cnt = core_cnt + rcore_cnt
-cores = [i for i in range(core_cnt)]
-rcores = [core_cnt + i for i in range(rcore_cnt)]
+rcore_boost_core = 29
+sys_dump_core = 30
+nfvctrl_core = 31
+
+ncore_cnt = ncore
+ncore_booster_cnt = ncore
+rcore_cnt = nfvctrl_core - (ncore + ncore_booster_cnt)
+# [1, sys_dump_core]
+total_core_cnt = sys_dump_core
+
+ncores = [i for i in range(ncore_cnt)]
+ncore_boosters = [ncore_cnt + i for i in range(ncore_cnt)]
+rcores = [2*ncore_cnt + i for i in range(rcore_cnt)]
+
 print("total cores: %d" %(total_core_cnt))
-print("{} normal cores: {}".format(len(cores), cores))
+print("{} normal cores: {}".format(len(ncores), ncores))
+print("{} normal booster cores: {}".format(len(ncore_boosters), ncore_boosters))
 print("{} reserved cores: {}".format(len(rcores), rcores))
 
 acl_rules = []
@@ -57,7 +65,7 @@ nfvctrl::NFVCtrl(wid=wid, ncore=core_cnt, rcore=rcore_cnt, qid=total_core_cnt,
 
 port0::PMDPort(pci=pcie0,
     num_inc_q=core_cnt,
-    num_out_q=total_core_cnt+1,
+    num_out_q=total_core_cnt,
     bench_rss=False)
 
 pinc0 = {}
@@ -69,7 +77,7 @@ nfvig = {}
 nfvmo = {}
 
 # Pipeline
-for i in cores:
+for i in ncores:
     pout0[i] = QueueOut(port=port0, qid=i)
     fw[i] = FlowACL(rules=acl_rules)
     lb[i] = FlowLB(endpoints=nat_hosts)
@@ -97,15 +105,22 @@ for i in cores:
         nfvmo[i] = NFVMonitor(core_id=i)
         pinc0[i] -> nfvmo[i] -> pout0[i]
 
+for i in ncore_booster_cnt:
+    pinc0[i] = NFVRCore(mode=0, core_id=i-ncore_cnt)
+    pout0[i] = QueueOut(port=port0, qid=i)
+    pinc0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
+
 for i in rcores:
-    pinc0[i] = NFVRCore(core_id=i-core_cnt)
+    pinc0[i] = NFVRCore(mode=1, core_id=i-2*ncore_cnt)
     pout0[i] = QueueOut(port=port0, qid=i)
     pinc0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
 # aux-core booster
-rbooster::NFVRCore(core_id=rcore_cnt)
-pout0[total_core_cnt] = QueueOut(port=port0, qid=total_core_cnt)
-rbooster -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[total_core_cnt]
+rbooster::NFVRCore(mode=2)
+pout0[rcore_boost_core] = QueueOut(port=port0, qid=rcore_boost_core)
+rbooster -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[rcore_boost_core]
+
+sys_dump::NFVRCore(mode=3) -> Sink()
 
 # Burst
 for i in cores:
@@ -118,13 +133,19 @@ for i in rcores:
 socket0_cores = [i for i in range(1, 32, 1)]
 socket1_cores = [i for i in range(32, 64, 1)]
 
+bess.add_worker(wid=rcore_boost_core, core=socket1_cores[rcore_boost_core])
+rbooster.attach_task(wid=rcore_boost_core)
+
+bess.add_worker(wid=sys_dump_core, core=socket1_cores[sys_dump_core])
+sys_dump.attach_task(wid=sys_dump_core)
+
 bess.add_worker(wid=nfvctrl_core, core=socket1_cores[nfvctrl_core])
 nfvctrl.attach_task(wid=nfvctrl_core)
 
-bess.add_worker(wid=sys_dump_core, core=socket1_cores[sys_dump_core])
-rbooster.attach_task(wid=sys_dump_core)
-
-for i in cores:
+for i in ncores:
+    bess.add_worker(wid=i, core=socket1_cores[i])
+    pinc0[i].attach_task(wid=i)
+for i in ncore_boosters:
     bess.add_worker(wid=i, core=socket1_cores[i])
     pinc0[i].attach_task(wid=i)
 for i in rcores:

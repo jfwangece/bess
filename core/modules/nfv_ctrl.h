@@ -43,8 +43,10 @@ class NFVCtrl final : public Module {
 
   // Finds an idle NFVRCore to work on sw_q |q_id|.
   int NotifyRCoreToWork(cpu_core_t core_id, int q_id);
+  int RequestRCore();
   // Notifies the NFVRCore to stop working on sw_q |q_id|.
   int NotifyRCoreToRest(cpu_core_t core_id, int q_id);
+  int ReleaseRCore(int q_id);
 
   inline void AddQueue(struct llring* q) {
     llring_mp_enqueue(to_add_queue_, (void*)q);
@@ -147,7 +149,6 @@ class NFVCtrl final : public Module {
 
   // If true, |this| normal core stops pulling packets from its NIC queue
   rte_atomic16_t disabled_;
-  rte_atomic16_t mark_to_disable_;
 
   // Set by |NFVCore| and |NFVRCore| when a persistent traffic burst is
   // observed. |this| module will run a long-term optimization to rebalance

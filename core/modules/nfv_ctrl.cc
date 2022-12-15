@@ -155,6 +155,28 @@ int NFVCtrl::NotifyRCoreToRest(cpu_core_t core_id, int q_id) {
   return 0;
 }
 
+int NFVCtrl::RequestRCore() {
+  const std::lock_guard<std::mutex> lock(sw_q_mtx_);
+
+  for (int i = 0; i < bess::ctrl::rcore; i++) {
+    if (bess::ctrl::nfv_rcores[i] == nullptr ||
+        !bess::ctrl::rcore_state[i]) {
+      continue;
+    }
+    // Success
+    bess::ctrl::rcore_state[i] = false;
+    return i;
+  }
+  return -1;
+}
+
+int NFVCtrl::ReleaseRCore(int q_id) {
+  const std::lock_guard<std::mutex> lock(sw_q_mtx_);
+
+  bess::ctrl::nfv_rcores[q_id]->RemoveQueue(q_id);
+  return 0;
+}
+
 void NFVCtrl::NotifyCtrlLoadBalanceNow(uint16_t core_id) {
   rte_atomic16_set(&is_rebalancing_load_now_, core_id + 1);
 }
@@ -249,23 +271,7 @@ CommandResponse NFVCtrl::Init(const bess::pb::NFVCtrlArg &arg) {
     LOG(INFO) << "Ironside exp: " << bess::ctrl::exp_id;
   }
 
-  // Assign |to_add_queue_| and |to_remove_queue_| so that NFVCtrl
-  // can dump packets in software queues for NFVCore and NFVRCore.
-  size_t kQQSize = 64;
-  int bytes = llring_bytes_with_slots(kQQSize);
-  to_add_queue_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-  if (to_add_queue_) {
-    llring_init(to_add_queue_, kQQSize, 0, 1);
-  } else {
-    LOG(ERROR) << "failed to allocate to_add_queue_";
-  }
-  to_remove_queue_ = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-  if (to_remove_queue_) {
-    llring_init(to_remove_queue_, kQQSize, 0, 1);
-  } else {
-    LOG(ERROR) << "failed to allocate to_remove_queue_";
-  }
-
+  // Waiting for long-term stats from all ncores
   msg_mode_ = false;
   rte_atomic16_set(&long_term_stats_ready_cores_, 0);
 
@@ -368,45 +374,11 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
   }
 
 cleanup:
-  // The following is a factory that dumps packets (in batch) that won't
-  // be processed by any Cores or RCores.
-  // WHy do we need this?
-  // A: if we don't free packets, these packets will accumulate. They
-  // will use all free packet memory slots and prevent new incoming
-  // packets from entering the server.
-
-  // 1) check |remove|. These |sw_q| must be removed from |to_dump_sw_q_|.
-  llring* q = nullptr;
-  while (llring_count(to_remove_queue_) > 0) {
-    llring_sc_dequeue(to_remove_queue_, (void**)&q);
-    if (q != NULL) {
-      auto it = std::find(to_dump_sw_q_.begin(), to_dump_sw_q_.end(), q);
-      if (it != to_dump_sw_q_.end()) {
-        to_dump_sw_q_.erase(it);
-      }
-    }
-    LOG(INFO) << "nfvctrl: to remove " << q << "; total to-dump queues = " << to_dump_sw_q_.size();
-  }
-
-  // 2) check |add|. These |sw_q| must be added to |to_dump_sw_q_|.
-  while (llring_count(to_add_queue_) > 0) {
-    llring_sc_dequeue(to_add_queue_, (void**)&q);
-    if (q != NULL) {
-      auto it = std::find(to_dump_sw_q_.begin(), to_dump_sw_q_.end(), q);
-      if (it == to_dump_sw_q_.end()) {
-        to_dump_sw_q_.push_back(q);
-      }
-    }
-    LOG(INFO) << "nfvctrl: to add " << q << "; total to-dump queues = " << to_dump_sw_q_.size();
-  }
-
   // |to_dump_sw_q_| contains |sw_q| that cannot be assigned to a RCore.
   // Just simply dump all packets for them.
-  if (to_dump_sw_q_.size() > 0) {
-    for (auto& it : to_dump_sw_q_) {
-      if (it != NULL) {
-        DumpOnceSoftwareQueue(it, batch);
-      }
+  for (auto& it : to_dump_sw_q_) {
+    if (it != NULL) {
+      DumpOnceSoftwareQueue(it, batch);
     }
   }
 
@@ -414,7 +386,8 @@ cleanup:
 }
 
 void NFVCtrl::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
-  RunNextModule(ctx, batch); // To avoid [-Werror=unused-parameter] error
+  // To avoid [-Werror=unused-parameter] error
+  RunNextModule(ctx, batch);
 }
 
 ADD_MODULE(NFVCtrl, "nfv_ctrl", "The per-worker NFV controller that interacts with NFVCore and NFVMonitor")

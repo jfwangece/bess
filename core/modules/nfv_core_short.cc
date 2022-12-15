@@ -66,52 +66,33 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     // Determine the packet's destination queue
     auto& q_state = state->sw_q_state;
     if (q_state != nullptr) {
-      if (q_state == &system_dump_q0_) {
+      if (q_state == system_dump_q_state_) {
         // Egress 1: drop (no sw_q)
         state->queued_packet_count -= 1;
-        local_rboost_batch_->add(pkt);
+        system_dump_batch_->add(pkt);
         // epoch_drop1_ += 1;
         continue;
       }
-      if (q_state == &system_dump_q1_) {
+      if (q_state == rcore_booster_q_state_) {
         // Egress 2: drop (super flow)
         state->queued_packet_count -= 1;
         local_rboost_batch_->add(pkt);
         // epoch_drop4_ += 1;
         continue;
       }
-      if (q_state->idle_epoch_count == -1) {
-        /// Option 1: drop
-        // Egress 3: drop (idle RCore)
-        // Do not offload because RCore is inactive.
-        // state->sw_q_state = &system_dump_q1_;
-        // state->queued_packet_count -= 1;
-        // bess::Packet::Free(pkt);
-        // epoch_drop2_ += 1;
+      if (!q_state->IsActive()) {
+        /// Option 1: go back to ncore
+        state->sw_q_state = nullptr;
+        local_batch_->add(pkt);
+        continue;
 
-        /// Option 2: go back to ncore
-        // state->sw_q_state = nullptr;
-        // local_batch_->add(pkt);
-        // continue;
-
-        /// Option 3: recruit another core
-        int ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q_state->sw_q_id);
-        if (ret == 0) {
-          q_state->idle_epoch_count = 0;
-          curr_rcore_ += 1;
-        }
+        /// Option 2: recruit another core
+        // int ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q_state->sw_q_id);
+        // if (ret == 0) {
+        //   q_state->idle_epoch_count = 0;
+        //   curr_rcore_ += 1;
+        // }
       }
-
-      // Add debugg per-packet tags for sw enqueue
-      // if (add_debug_tag_nfvcore) {
-      //   uint32_t val;
-      //   val = q_state->idle_epoch_count >= 0 ? q_state->idle_epoch_count : 1000000;
-      //   TagUint32(pkt, 90, val);
-      //   val = core_id_ * 1000 + q_state->sw_q_id;
-      //   TagUint32(pkt, 94, val);
-      //   val = llring_count(q_state->sw_q);
-      //   TagUint32(pkt, 98, val);
-      // }
 
       // Egress 4: normal offloading
       // This flow is redirected only if an active RCore works on |sw_q|
@@ -128,9 +109,10 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
 
   // Egress 5: drop (|local_q_| overflow)
   SpEnqueue(local_batch_, local_q_);
-  MpEnqueue(local_rboost_batch_, bess::ctrl::system_dump_q_);
-  for (auto& sw_q_it : sw_q_) {
-    sw_q_it.EnqueueBatch();
+  MpEnqueue(local_rboost_batch_, bess::ctrl::rcore_boost_q);
+  MpEnqueue(system_dump_batch_, bess::ctrl::system_dump_q);
+  for (auto& q : active_sw_q_) {
+    q->EnqueueBatch();
   }
 }
 
@@ -191,38 +173,31 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
 
     auto& q_state = state->sw_q_state;
     if (q_state != nullptr) {
-      if (q_state == &system_dump_q0_) {
+      if (q_state == system_dump_q_state_) {
         // Egress 7: drop (no sw_q)
         state->queued_packet_count -= 1;
-        local_rboost_batch_->add(pkt);
+        system_dump_batch_->add(pkt);
         // epoch_drop1_ += 1;
         continue;
       }
-      if (q_state == &system_dump_q1_) {
+      if (q_state == rcore_booster_q_state_) {
         // Egress 8: drop (super flow)
         state->queued_packet_count -= 1;
         local_rboost_batch_->add(pkt);
         // epoch_drop4_ += 1;
         continue;
       }
-      if (q_state->idle_epoch_count == -1) {
-        /// Option 1: drop
-        // Egress 9: drop (idle RCore)
-        // state->sw_q_state = &system_dump_q1_;
-        // state->queued_packet_count -= 1;
-        // bess::Packet::Free(pkt);
-        // epoch_drop2_ += 1;
+      if (!q_state->IsActive()) {
+        /// Option 1: go back to ncore
+        state->sw_q_state = nullptr;
+        local_batch_->add(pkt);
+        continue;
 
-        /// Option 2: go back to ncore
-        // state->sw_q_state = nullptr;
-        // local_batch_->add(pkt);
-
-        /// Option 3: recruit another core
-        int ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q_state->sw_q_id);
-        if (ret == 0) {
-          q_state->idle_epoch_count = 0;
-          curr_rcore_ += 1;
-        }
+        /// Option 2: recruit another core
+        // int ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q_state->sw_q_id);
+        // if (ret == 0) {
+        //   q_state->idle_epoch_count = 0;
+        //   curr_rcore_ += 1;
       }
 
       // Egress 10: normal offloading
@@ -239,9 +214,10 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
   // Just drop excessive packets when a software queue is full
   // Egress 11: drop (|local_q_| overflow)
   SpEnqueue(local_batch_, local_q_);
-  MpEnqueue(local_rboost_batch_, bess::ctrl::system_dump_q_);
-  for (auto& sw_q_it : sw_q_) {
-    sw_q_it.EnqueueBatch();
+  MpEnqueue(local_rboost_batch_, bess::ctrl::rcore_boost_q);
+  MpEnqueue(system_dump_batch_, bess::ctrl::system_dump_q);
+  for (auto& q : active_sw_q_) {
+    q->EnqueueBatch();
   }
 }
 
@@ -262,10 +238,7 @@ bool NFVCore::ShortEpochProcess() {
 
   // At the end of one epoch, NFVCore requests software queues to
   // absorb the existing packet queue in the coming epoch.
-  //
   // |epoch_flow_cache_| has all flows that have arrivals in this epoch
-  // |flow_to_sw_q_| has all flows that are offloaded to reserved cores
-  // |sw_q_mask_| has all software queues that borrowed from NFVCtrl
   //
   // Flow Assignment Algorithm: (Greedy) first-fit
   // 0) check whether the NIC queue cannot be handled by NFVCore in the next epoch
@@ -295,11 +268,9 @@ bool NFVCore::ShortEpochProcess() {
 
   for (auto qit = terminating_sw_q_.begin(); qit != terminating_sw_q_.end(); ) {
     SoftwareQueueState* q = *qit;
-    if (bess::ctrl::sw_q_state[q->sw_q_id]->GetDownCoreID() == DEFAULT_INVALID_CORE_ID) {
-      q->idle_epoch_count = -2;
-      q->assigned_packet_count = 0;
+    if (bess::ctrl::sw_q_state[q->sw_q_id]->GetUpCoreID() == DEFAULT_INVALID_CORE_ID) {
+      q->idle_epoch_count = -2; // terminated
       terminating_sw_q_.erase(qit++);
-      idle_sw_q_.emplace(q);
     } else {
       ++qit;
     }
@@ -345,8 +316,9 @@ bool NFVCore::ShortEpochProcess() {
       } else {
         // Prioritize sw queues that are active.
         bool assigned = false;
+        SoftwareQueueState* q = nullptr;
         for (auto qit = active_sw_q_.begin(); qit != active_sw_q_.end(); ++qit) {
-          SoftwareQueueState* q = *qit;
+          q = *qit;
           if (q->QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
             state->sw_q_state = q;
             q->assigned_packet_count += task_size;
@@ -356,43 +328,39 @@ bool NFVCore::ShortEpochProcess() {
         }
 
         if (!assigned) {
-          for (auto qit = idle_sw_q_.begin(); qit != idle_sw_q_.end(); ++qit) {
-            SoftwareQueueState* q = *qit;
-            if (q->QLenAfterAssignment() + task_size < epoch_packet_thresh_) {
-              state->sw_q_state = q;
-              q->assigned_packet_count += task_size;
-              assigned = true;
-              break;
-            }
+          int qid = bess::ctrl::nfv_ctrl->RequestRCore();
+          if (qid != -1) {
+            q = bess::ctrl::sw_q_state[qid];
+            active_sw_q_.emplace(q);
+
+            state->sw_q_state = q;
+            q->assigned_packet_count += task_size;
+            assigned = true;
           }
 
-          // Existing software queues cannot hold this flow. Need more queues
+          // All rcores are busy now! Need to clean this flow anyway.
           if (!assigned) {
-            state->sw_q_state = &system_dump_q0_;
+            state->sw_q_state = system_dump_q_state_;
           }
         }
       }
     } else {
       // This flow cannot be handled by only 1 core.
       local_large_flow += task_size;
-      state->sw_q_state = &system_dump_q1_;
+      state->sw_q_state = rcore_booster_q_state_;
     }
   }
 
   // Reclaim idle rcores
-  int ret;
   for (auto qit = active_sw_q_.begin(); qit != active_sw_q_.end(); ) {
     SoftwareQueueState* q = *qit;
     q->processed_packet_count = 0;
 
     if (q->idle_epoch_count >= max_idle_epoch_count_) { // idle for a while
-      ret = bess::ctrl::NFVCtrlNotifyRCoreToRest(core_id_, q->sw_q_id);
-      if (ret != 0) {
-        LOG(ERROR) << "E error: " << ret << "; core: " << core_id_ << "; q: " << q->sw_q_id;
-      } else {
-        curr_rcore_ -= 1;
-      }
       q->idle_epoch_count = -1; // terminating
+      bess::ctrl::nfv_ctrl->ReleaseRCore(q->sw_q_id);
+      curr_rcore_ -= 1;
+
       active_sw_q_.erase(qit++);
       terminating_sw_q_.emplace(q);
     } else {
@@ -400,29 +368,9 @@ bool NFVCore::ShortEpochProcess() {
     }
   }
 
-  // Activate rcores to do the work
-  for (auto qit = idle_sw_q_.begin(); qit != idle_sw_q_.end(); ) {
-    SoftwareQueueState* q = *qit;
-    q->processed_packet_count = 0;
-
-    if (q->assigned_packet_count > 0) { // got things to do
-      ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q->sw_q_id);
-      if (ret != 0) {
-        LOG(ERROR) << "S error: " << ret << "; core: " << core_id_ << "; q: " << q->sw_q_id;
-      } else {
-        curr_rcore_ += 1;
-      }
-      q->idle_epoch_count = 0;
-      idle_sw_q_.erase(qit++);
-      active_sw_q_.emplace(q);
-    } else {
-      ++qit;
-    }
-  }
-
-  if (core_id_ == 2) {
-    LOG(INFO) << active_sw_q_.size() << ", " << terminating_sw_q_.size() << ", " << idle_sw_q_.size();
-  }
+  // if (core_id_ == 2) {
+  //   LOG(INFO) << active_sw_q_.size() << ", " << terminating_sw_q_.size() << ", " << idle_sw_q_.size();
+  // }
 
   // Clear
   epoch_flow_cache_.clear();

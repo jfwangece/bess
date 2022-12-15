@@ -45,19 +45,6 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
     if (tid == INVALID_TASK_ID) {
       return CommandFailure(ENOMEM, "Task creation failed");
     }
-
-    size_ = DEFAULT_SWQ_SIZE;
-    // Resize(size_);
-
-    local_q_ = bess::ctrl::local_q[core_id_];
-    local_boost_q_ = bess::ctrl::local_boost_q[core_id_];
-
-    local_batch_ = reinterpret_cast<bess::PacketBatch *>
-          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
-    local_boost_batch_ = reinterpret_cast<bess::PacketBatch *>
-          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
-    local_rboost_batch_ = reinterpret_cast<bess::PacketBatch *>
-          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   }
 
   // Configure the short-term optimization epoch size (default: 1000 us)
@@ -83,17 +70,19 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   // Init
   bess::ctrl::nfv_cores[core_id_] = this;
 
-  // Begin with 0 software queue
-  auto assigned = bess::ctrl::NFVCtrlRequestNSwQ(core_id_, 10);
-  for (int i : assigned) {
-    sw_q_.emplace_back (i);
-    sw_q_.back().sw_batch = reinterpret_cast<bess::PacketBatch *>
+  // Configure software queues
+  local_q_ = bess::ctrl::local_q[core_id_];
+  local_boost_q_ = bess::ctrl::local_boost_q[core_id_];
+
+  local_batch_ = reinterpret_cast<bess::PacketBatch *>
         (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
-  }
-  for (uint32_t i = 0; i < sw_q_.size(); i++) {
-    idle_sw_q_.emplace(&sw_q_[i]);
-  }
-  LOG(INFO) << "Core " << core_id_ << " has " << sw_q_.size() << " sw_q.";
+  local_rboost_batch_ = reinterpret_cast<bess::PacketBatch *>
+        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+  system_dump_batch_ = reinterpret_cast<bess::PacketBatch *>
+        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+
+  rcore_booster_q_state_ = bess::ctrl::rcore_booster_q_state;
+  system_dump_q_state_ = bess::ctrl::system_dump_q_state;
 
   // Init epoch thresholds and packet counters
   if (bess::ctrl::short_flow_count_pkt_threshold.size() > 0) {
@@ -132,8 +121,9 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
 
   local_batch_->clear();
   local_rboost_batch_->clear();
-  for (auto& sw_q_it : sw_q_) {
-    sw_q_it.sw_batch->clear();
+  system_dump_batch_->clear();
+  for (auto& q : active_sw_q_) {
+    q->sw_batch->clear();
   }
 
   // Run!
@@ -161,23 +151,8 @@ void NFVCore::DeInit() {
   local_q_ = nullptr;
   local_boost_q_ = nullptr;
 
-  // Clean borrowed software queues
-  std::vector<int> assigned_qids;
-  for (auto sw_q : sw_q_) {
-    assigned_qids.emplace_back(sw_q.sw_q_id);
-  }
-  bess::ctrl::NFVCtrlReleaseNSwQ(core_id_, assigned_qids);
-  LOG(INFO) << "Core " << core_id_ << " releases " << sw_q_.size() << " sw queues";
-
-  for (auto& it : sw_q_) {
-    it.sw_q = nullptr;
-    if (it.sw_batch) {
-      bess::Packet::Free(it.sw_batch);
-      std::free(it.sw_batch);
-      it.sw_batch = nullptr;
-    }
-  }
-  sw_q_.clear();
+  active_sw_q_.clear();
+  terminating_sw_q_.clear();
 }
 
 CommandResponse NFVCore::CommandGetCoreTime(const bess::pb::EmptyArg &) {
