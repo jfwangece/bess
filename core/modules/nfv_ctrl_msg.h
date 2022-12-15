@@ -111,16 +111,7 @@ extern uint64_t pcpb_flow_count[DEFAULT_INVALID_CORE_ID][512]; // Ironside
 // |idle_epoch_count|: the number of epoches with no packet arrivals;
 class SoftwareQueueState {
  public:
-  SoftwareQueueState(int qid) {
-    SetUpCoreID(DEFAULT_INVALID_CORE_ID);
-    SetDownCoreID(DEFAULT_INVALID_CORE_ID);
-
-    // The system's software queue for offloading
-    sw_q = bess::ctrl::sw_q[qid];
-    idle_epoch_count = -2;
-    assigned_packet_count = 0;
-    processed_packet_count = 0;
-  }
+  SoftwareQueueState() = default;
 
   // Atomic assignment functions
   void SetUpCoreID(uint16_t core_id) { rte_atomic16_set(&up_core_id, (int16_t)core_id); }

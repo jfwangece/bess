@@ -120,6 +120,7 @@ void NFVCtrlMsgInit() {
     sw_q_state[i]->sw_q = sw_q[i];
     sw_q_state[i]->sw_batch = reinterpret_cast<bess::PacketBatch *>
         (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+    sw_q_state[i]->sw_batch->clear();
     sw_q_state[i]->sw_q_id = i;
     sw_q_state[i]->idle_epoch_count = -2;
     sw_q_state[i]->assigned_packet_count = 0;
