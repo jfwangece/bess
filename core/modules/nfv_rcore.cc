@@ -126,33 +126,14 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
     return {.block = false, .packets = 0, .bits = 0};
   }
 
-  if (sw_q_ == nullptr) {
-    // to add
-    int16_t qid = rte_atomic16_read(&sw_q_id_);
-    if (qid == -1) {
-      return {.block = false, .packets = 0, .bits = 0};
-    }
-    // Hand-off to me
-    bess::ctrl::sw_q_state[qid]->SetDownCoreID(core_id_);
-    sw_q_ = bess::ctrl::sw_q[qid];
-    rte_atomic16_set(&sw_q_id_, -1);
-  } else {
-    // to remove
+  // check if |this| rcore is done with the current offloading assignment.
+  if (mode_ == 1) {
     int16_t qid = rte_atomic16_read(&sw_q_id_);
     if (qid != -1) {
       if (qid > 200 && sw_q_ == bess::ctrl::sw_q[qid - 200]) {
         qid_ = qid - 200;
       }
       rte_atomic16_set(&sw_q_id_, -1);
-    }
-  }
-
-  if (qid_ != -1) {
-    if (llring_count(sw_q_) == 0) {
-      // Tell everyone that |this| rcore can take any new work
-      bess::ctrl::sw_q_state[qid_]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
-      bess::ctrl::rcore_state[core_id_] = true;
-      return {.block = false, .packets = 0, .bits = 0};
     }
   }
 
@@ -169,8 +150,18 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
     rte_prefetch0(pkt->head_data());
     total_bytes += pkt->total_len();
   }
-
   RunNextModule(ctx, batch);
+
+  // Done with processing |sw_q_|.
+  // Tell everyone that |this| rcore can take any new work
+  if (mode_ == 1 && qid_ != -1) {
+    if (llring_count(sw_q_) == 0) {
+      qid_ = -1;
+      bess::ctrl::sw_q_state[qid_]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
+      bess::ctrl::rcore_state[core_id_] = true;
+      return {.block = false, .packets = 0, .bits = 0};
+    }
+  }
 
   return {.block = false,
           .packets = cnt,

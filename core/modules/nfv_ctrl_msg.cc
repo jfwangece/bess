@@ -126,11 +126,6 @@ void NFVCtrlMsgInit() {
     sw_q_state[i]->processed_packet_count = 0;
   }
 
-  rcore_booster_q_state = reinterpret_cast<SoftwareQueueState*>(
-        std::aligned_alloc(alignof(SoftwareQueueState), sizeof(SoftwareQueueState)));
-  system_dump_q_state = reinterpret_cast<SoftwareQueueState*>(
-        std::aligned_alloc(alignof(SoftwareQueueState), sizeof(SoftwareQueueState)));
-
   for (int i = 0; i < DEFAULT_NICQ_COUNT; i++) {
     // |local_mc_q| is used by all Metron / Quadrant cores to receive tagged packets.
     // mp: many software switch cores; sc: each worker core pulls from its own queue.
@@ -143,7 +138,7 @@ void NFVCtrlMsgInit() {
     }
   }
 
-  // Assign a system dump queue.
+  // Assign a system-level rcore booster core and a dump queue.
   size_t dump_qsize = DEFAULT_DUMPQ_SIZE;
   bytes = llring_bytes_with_slots(dump_qsize);
 
@@ -154,6 +149,11 @@ void NFVCtrlMsgInit() {
     std::free(rcore_boost_q);
     LOG(FATAL) << "failed to allocate rcore_boost_q";
   }
+  rcore_booster_q_state = reinterpret_cast<SoftwareQueueState*>(
+        std::aligned_alloc(alignof(SoftwareQueueState), sizeof(SoftwareQueueState)));
+  rcore_booster_q_state->sw_q = rcore_boost_q;
+  rcore_booster_q_state->sw_batch = reinterpret_cast<bess::PacketBatch *>
+        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
 
   system_dump_q = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
   if (system_dump_q) {
@@ -162,6 +162,11 @@ void NFVCtrlMsgInit() {
     std::free(system_dump_q);
     LOG(FATAL) << "failed to allocate system_dump_q";
   }
+  system_dump_q_state = reinterpret_cast<SoftwareQueueState*>(
+        std::aligned_alloc(alignof(SoftwareQueueState), sizeof(SoftwareQueueState)));
+  system_dump_q_state->sw_q = system_dump_q;
+  system_dump_q_state->sw_batch = reinterpret_cast<bess::PacketBatch *>
+        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
 
   LOG(INFO) << "NFV control messages are initialized";
 }
