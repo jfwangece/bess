@@ -393,7 +393,7 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
     return CommandFailure(-ret, "rte_eth_dev_start() failed");
   }
   dpdk_port_id_ = ret_port_id;
-  dpdk_port_conf_ = &eth_conf;
+  dpdk_rss_hf_ = eth_conf.rx_adv_conf.rss_conf.rss_hf;
 
   int numa_node = rte_eth_dev_socket_id(static_cast<int>(ret_port_id));
   node_placement_ =
@@ -436,11 +436,6 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
     reta_table_.push_back(0);
     reta_conf_[j / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
     reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = 0;
-
-    // Option 2: Default to use many cores
-    // reta_table_.push_back(j % 6);
-    // reta_conf_[j / RTE_RETA_GROUP_SIZE].mask = UINT64_MAX;
-    // reta_conf_[j / RTE_RETA_GROUP_SIZE].reta[j % RTE_RETA_GROUP_SIZE] = j % 6;
   }
   // |reta_flows_| and |rte_flow_id_| are required to apply RSS rules
   // with the NIC's forwarding table. They are flow rules.

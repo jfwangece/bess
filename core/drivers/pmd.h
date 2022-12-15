@@ -197,7 +197,8 @@ class PMDPort final : public Port {
   /*!
    * The DPDK port Ethernet configuration.
    */
-  rte_eth_conf* dpdk_port_conf_;
+  // rte_eth_conf* dpdk_port_conf_;
+  uint64_t dpdk_rss_hf_;
 
   /*!
    * True if device did not exist when bessd started and was later patched in.

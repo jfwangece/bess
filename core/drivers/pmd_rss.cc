@@ -132,7 +132,7 @@ void PMDPort::UpdateRssFlow() {
   memset((void*)&rss, 0, sizeof(rss));
   rss.key = nullptr;
   rss.key_len = 0;
-  rss.types = dpdk_port_conf_->rx_adv_conf.rss_conf.rss_hf;
+  rss.types = dpdk_rss_hf_;
   rss.queue_num = reta_size_;
   rss.queue = reta_table_.data();
   rss.level = 0;
