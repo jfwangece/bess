@@ -137,6 +137,18 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
     }
   }
 
+  // Done with processing |sw_q_|.
+  // Tell everyone that |this| rcore can take any new work
+  if (mode_ == 1 && qid_ != -1) {
+    if (llring_count(sw_q_) < 128) {
+      LOG(INFO) << "q" << qid_ << " is released";
+      qid_ = -1;
+      bess::ctrl::sw_q_state[qid_]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
+      bess::ctrl::rcore_state[core_id_] = true;
+      return {.block = false, .packets = 0, .bits = 0};
+    }
+  }
+
   // 3) then, |sw_q_| != nullptr; start the NF chain
   uint32_t cnt = llring_sc_dequeue_burst(sw_q_, (void **)batch->pkts(), 32);
   if (cnt == 0) {
@@ -151,18 +163,6 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
     total_bytes += pkt->total_len();
   }
   RunNextModule(ctx, batch);
-
-  // Done with processing |sw_q_|.
-  // Tell everyone that |this| rcore can take any new work
-  if (mode_ == 1 && qid_ != -1) {
-    if (llring_count(sw_q_) < 128) {
-      LOG(INFO) << "q" << qid_ << " is released";
-      qid_ = -1;
-      bess::ctrl::sw_q_state[qid_]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
-      bess::ctrl::rcore_state[core_id_] = true;
-      return {.block = false, .packets = 0, .bits = 0};
-    }
-  }
 
   return {.block = false,
           .packets = cnt,
