@@ -357,6 +357,7 @@ bool NFVCore::ShortEpochProcess() {
     if (q->idle_epoch_count >= max_idle_epoch_count_) { // idle for a while
       q->idle_epoch_count = -1; // terminating
       bess::ctrl::nfv_ctrl->ReleaseRCore(q->sw_q_id);
+      LOG(INFO) << "core " << core_id_ << " releases q" << q->sw_q_id;
 
       active_sw_q_.erase(qit++);
       terminating_sw_q_.emplace(q);

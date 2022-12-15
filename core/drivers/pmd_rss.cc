@@ -1,6 +1,7 @@
 #include "pmd.h"
 
 #include <set>
+#include <string>
 
 namespace {
 struct rte_flow_item ETH_ITEM = {
@@ -138,6 +139,12 @@ void PMDPort::UpdateRssFlow() {
   rss.func = RTE_ETH_HASH_FUNCTION_DEFAULT;
   action[aid].conf = &rss;
   ++aid;
+
+  std::string output;
+  for (auto x : reta_table_) {
+    output += std::to_string(x);
+  }
+  LOG(INFO) << output;
 
   action[aid].type = RTE_FLOW_ACTION_TYPE_END;
   ++aid;

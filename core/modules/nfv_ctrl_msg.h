@@ -141,7 +141,6 @@ class SoftwareQueueState {
       }
       if (queued < sw_batch->cnt()) {
         int to_drop = sw_batch->cnt() - queued;
-        LOG(INFO) << "sw sp";
         bess::Packet::Free(sw_batch->pkts() + queued, to_drop);
       }
       sw_batch->clear();
