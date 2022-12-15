@@ -69,14 +69,16 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       if (q_state == system_dump_q_state_) {
         // Egress 1: drop (no sw_q)
         state->queued_packet_count -= 1;
-        system_dump_batch_->add(pkt);
+        bess::Packet::Free(pkt);
+        // system_dump_batch_->add(pkt);
         // epoch_drop1_ += 1;
         continue;
       }
       if (q_state == rcore_booster_q_state_) {
         // Egress 2: drop (super flow)
         state->queued_packet_count -= 1;
-        local_rboost_batch_->add(pkt);
+        bess::Packet::Free(pkt);
+        // local_rboost_batch_->add(pkt);
         // epoch_drop4_ += 1;
         continue;
       }
@@ -85,13 +87,6 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
         state->sw_q_state = nullptr;
         local_batch_->add(pkt);
         continue;
-
-        /// Option 2: recruit another core
-        // int ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q_state->sw_q_id);
-        // if (ret == 0) {
-        //   q_state->idle_epoch_count = 0;
-        //   curr_rcore_ += 1;
-        // }
       }
 
       // Egress 4: normal offloading
@@ -109,11 +104,11 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
 
   // Egress 5: drop (|local_q_| overflow)
   SpEnqueue(local_batch_, local_q_);
-  MpEnqueue(local_rboost_batch_, bess::ctrl::rcore_boost_q);
-  MpEnqueue(system_dump_batch_, bess::ctrl::system_dump_q);
   for (auto& q : active_sw_q_) {
     q->EnqueueBatch();
   }
+  MpEnqueue(local_rboost_batch_, bess::ctrl::rcore_boost_q);
+  MpEnqueue(system_dump_batch_, bess::ctrl::system_dump_q);
 }
 
 void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
@@ -172,14 +167,16 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
       if (q_state == system_dump_q_state_) {
         // Egress 7: drop (no sw_q)
         state->queued_packet_count -= 1;
-        system_dump_batch_->add(pkt);
+        bess::Packet::Free(pkt);
+        // system_dump_batch_->add(pkt);
         // epoch_drop1_ += 1;
         continue;
       }
       if (q_state == rcore_booster_q_state_) {
         // Egress 8: drop (super flow)
         state->queued_packet_count -= 1;
-        local_rboost_batch_->add(pkt);
+        bess::Packet::Free(pkt);
+        // local_rboost_batch_->add(pkt);
         // epoch_drop4_ += 1;
         continue;
       }
@@ -188,12 +185,6 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
         state->sw_q_state = nullptr;
         local_batch_->add(pkt);
         continue;
-
-        /// Option 2: recruit another core
-        // int ret = bess::ctrl::NFVCtrlNotifyRCoreToWork(core_id_, q_state->sw_q_id);
-        // if (ret == 0) {
-        //   q_state->idle_epoch_count = 0;
-        //   curr_rcore_ += 1;
       }
 
       // Egress 10: normal offloading
@@ -210,11 +201,11 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
   // Just drop excessive packets when a software queue is full
   // Egress 11: drop (|local_q_| overflow)
   SpEnqueue(local_batch_, local_q_);
-  MpEnqueue(local_rboost_batch_, bess::ctrl::rcore_boost_q);
-  MpEnqueue(system_dump_batch_, bess::ctrl::system_dump_q);
   for (auto& q : active_sw_q_) {
     q->EnqueueBatch();
   }
+  MpEnqueue(local_rboost_batch_, bess::ctrl::rcore_boost_q);
+  MpEnqueue(system_dump_batch_, bess::ctrl::system_dump_q);
 }
 
 uint32_t GetMaxPktCountFromShortTermProfile(uint32_t fc) {

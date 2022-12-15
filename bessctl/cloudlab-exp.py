@@ -20,8 +20,8 @@ AS_TRACE  = "202209011400.tcp.pcap"
 # Places to edit MACs
 # * in cloud_pcap_relay.pcap: edit macs
 # * in nfv_ctrl_long.cc: edit traffic dst mac
-all_ips = ["130.127.134.97", "130.127.134.77", "130.127.134.91", "130.127.134.78", "130.127.134.94"]
-all_macs = ["b8:ce:f6:d2:3b:12", "b8:ce:f6:cc:8e:c4", "b8:ce:f6:cc:96:e4", "b8:ce:f6:cc:8c:14", "b8:ce:f6:cc:a2:c4"]
+all_ips = ["130.127.134.97", "130.127.134.77", "130.127.134.91", "130.127.134.94"]
+all_macs = ["b8:ce:f6:d2:3b:12", "b8:ce:f6:cc:8e:c4", "b8:ce:f6:cc:96:e4", "b8:ce:f6:cc:a2:c4"]
 
 # CLuster 1
 # dev = "41:00.0"
@@ -144,7 +144,7 @@ def start_remote_bessd(ip, runtime="bess"):
     run_remote_command(ip, cmd)
     # start the new one
     bessd = "/local/bess/core/bessd"
-    bessd_cmd = "sudo {} --dpdk=true --buffers=1048576 -k".format(bessd)
+    bessd_cmd = "sudo {} --dpdk=true --buffers=1048576 -m=4096 -k".format(bessd)
     run_remote_command(ip, bessd_cmd)
     return
 
