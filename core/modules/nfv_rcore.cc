@@ -130,7 +130,6 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
   if (mode_ == 1) {
     int16_t qid = rte_atomic16_read(&sw_q_id_);
     if (qid != -1) {
-      LOG(INFO) << qid << (sw_q_ == bess::ctrl::sw_q[qid - 200]);
       if (qid > 200 && sw_q_ == bess::ctrl::sw_q[qid - 200]) {
         qid_ = qid - 200;
       }
@@ -156,7 +155,8 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
   // Done with processing |sw_q_|.
   // Tell everyone that |this| rcore can take any new work
   if (mode_ == 1 && qid_ != -1) {
-    if (llring_count(sw_q_) == 0) {
+    if (llring_count(sw_q_) < 128) {
+      LOG(INFO) << "q" << qid_ << " is released";
       qid_ = -1;
       bess::ctrl::sw_q_state[qid_]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
       bess::ctrl::rcore_state[core_id_] = true;

@@ -109,7 +109,6 @@ class NFVCore final : public Module {
       }
       if (queued < batch->cnt()) {
         int to_drop = batch->cnt() - queued;
-        LOG(INFO) << "mp";
         bess::Packet::Free(batch->pkts() + queued, to_drop);
       }
       batch->clear();
