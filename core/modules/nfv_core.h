@@ -137,6 +137,7 @@ class NFVCore final : public Module {
   bess::PacketBatch *local_batch_;
   bess::PacketBatch *local_rboost_batch_;
   bess::PacketBatch *system_dump_batch_;
+  bess::PacketBatch *split_enqueue_batch_;
 
   /// Software queues:
   // q0: for flows marked to be dropped (running out of sw queues);

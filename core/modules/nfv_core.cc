@@ -80,6 +80,8 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
         (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
   system_dump_batch_ = reinterpret_cast<bess::PacketBatch *>
         (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+  split_enqueue_batch_ = reinterpret_cast<bess::PacketBatch *>
+        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
 
   rcore_booster_q_state_ = bess::ctrl::rcore_booster_q_state;
   system_dump_q_state_ = bess::ctrl::system_dump_q_state;

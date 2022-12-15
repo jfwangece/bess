@@ -143,17 +143,13 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
 
 void NFVCore::SplitQToSwQ(llring* q) {
   uint32_t total_cnt = llring_count(q);
-  if (total_cnt <= epoch_packet_thresh_) {
-    return;
-  }
 
-  bess::PacketBatch batch;
   uint32_t curr_cnt = 0;
   while (curr_cnt < total_cnt) { // scan all packets only once
-    batch.clear();
-    int cnt = llring_mc_dequeue_burst(q, (void **)batch.pkts(), 32);
-    batch.set_cnt(cnt);
-    SplitAndEnqueue(&batch);
+    split_enqueue_batch_->clear();
+    int cnt = llring_sc_dequeue_burst(q, (void **)split_enqueue_batch_->pkts(), 32);
+    split_enqueue_batch_->set_cnt(cnt);
+    SplitAndEnqueue(split_enqueue_batch_);
     curr_cnt += cnt;
   }
 

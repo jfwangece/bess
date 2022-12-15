@@ -170,11 +170,7 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
     total_bytes += pkt->total_len();
   }
 
-  if (mode_ == 3) {
-    bess::Packet::Free(batch);
-  } else {
-    RunNextModule(ctx, batch);
-  }
+  RunNextModule(ctx, batch);
 
   return {.block = false,
           .packets = cnt,
