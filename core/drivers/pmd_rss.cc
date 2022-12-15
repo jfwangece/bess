@@ -178,7 +178,7 @@ void PMDPort::UpdateRssFlow() {
       rte_flow_id_ = (rte_flow_id_ + 1) % 2;
     }
   } else {
-    LOG(ERROR) << "Flow rule (rss) cannot be validated. Error msg: " << error.message;
+    LOG(ERROR) << "Flow rule (rss) cannot be validated. Error code: " << ret << "; msg: " << error.message;
   }
 }
 

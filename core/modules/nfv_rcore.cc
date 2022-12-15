@@ -130,6 +130,7 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
   if (mode_ == 1) {
     int16_t qid = rte_atomic16_read(&sw_q_id_);
     if (qid != -1) {
+      LOG(INFO) << qid << (sw_q_ == bess::ctrl::sw_q[qid - 200]);
       if (qid > 200 && sw_q_ == bess::ctrl::sw_q[qid - 200]) {
         qid_ = qid - 200;
       }
