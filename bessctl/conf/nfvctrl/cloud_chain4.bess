@@ -31,7 +31,7 @@ nfvctrl_core = 31
 
 ncore_cnt = ncore
 ncore_booster_cnt = ncore
-rcore_cnt = nfvctrl_core - (ncore + ncore_booster_cnt)
+rcore_cnt = rcore_boost_core - (ncore + ncore_booster_cnt)
 # [1, sys_dump_core]
 total_core_cnt = sys_dump_core
 
@@ -57,14 +57,14 @@ for i in range(lb_cnt / 20):
 
 # Module
 # nfvctrl must be declared before PMDPort 
-nfvctrl::NFVCtrl(wid=wid, ncore=core_cnt, rcore=rcore_cnt, qid=total_core_cnt,
+nfvctrl::NFVCtrl(wid=wid, ncore=ncore_cnt, rcore=rcore_cnt, qid=total_core_cnt,
                 slo_ns=slo,
                 long_epoch_period_ns=long_epoch_period,
                 nf_short_term_profile=short_profile, nf_long_term_profile=long_profile,
                 exp_id=experiment_index)
 
 port0::PMDPort(pci=pcie0,
-    num_inc_q=core_cnt,
+    num_inc_q=ncore_cnt,
     num_out_q=total_core_cnt,
     bench_rss=False)
 
@@ -105,7 +105,7 @@ for i in ncores:
         nfvmo[i] = NFVMonitor(core_id=i)
         pinc0[i] -> nfvmo[i] -> pout0[i]
 
-for i in ncore_booster_cnt:
+for i in ncore_boosters:
     pinc0[i] = NFVRCore(mode=0, core_id=i-ncore_cnt)
     pout0[i] = QueueOut(port=port0, qid=i)
     pinc0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
@@ -116,9 +116,7 @@ for i in rcores:
     pinc0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
 # aux-core booster
-rbooster::NFVRCore(mode=2)
-pout0[rcore_boost_core] = QueueOut(port=port0, qid=rcore_boost_core)
-rbooster -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[rcore_boost_core]
+rbooster::NFVRCore(mode=2) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> QueueOut(port=port0, qid=rcore_boost_core)
 
 sys_dump::NFVRCore(mode=3) -> Sink()
 
