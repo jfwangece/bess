@@ -70,9 +70,11 @@ void NFVCtrl::InitPMD(PMDPort* port) {
 
   port_ = port;
   // start with 0.5x CPU core load
-  // active_core_count_ = bess::ctrl::ncore / 2;
   active_core_count_ = 2;
-  if (active_core_count_ == 0) {
+  if (bess::ctrl::exp_id == 1) {
+    active_core_count_ = 1;
+  }
+  if (active_core_count_ < 1) {
     active_core_count_ = 1;
   }
 

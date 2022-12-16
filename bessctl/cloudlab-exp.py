@@ -543,7 +543,7 @@ def run_long_term_profile(slo, flow_range, rate_range):
 def run_long_profile_under_slos():
     target_slos = [100000, 200000, 300000, 400000, 500000, 600000,]
     flow_range = range(500, 5500, 500)
-    rate_range = range(1300000, 2000000, 20000)
+    rate_range = range(1500000, 2000000, 20000)
 
     for slo in target_slos:
         run_long_term_profile(slo, flow_range, rate_range)
