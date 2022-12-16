@@ -26,6 +26,11 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   Flow flow;
   FlowState *state = nullptr;
 
+  local_batch_->clear();
+  for (auto& q : active_sw_q_) {
+    q->sw_batch->clear();
+  }
+
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];

@@ -150,18 +150,18 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
   }
 
   // 3) then, |sw_q_| != nullptr; start the NF chain
+  uint64_t total_bytes = 0;
+
   uint32_t cnt = llring_sc_dequeue_burst(sw_q_, (void **)batch->pkts(), 32);
   if (cnt == 0) {
     return {.block = false, .packets = 0, .bits = 0};
   }
   batch->set_cnt(cnt);
 
-  uint64_t total_bytes = 0;
   for (uint32_t i = 0; i < cnt; i++) {
-    bess::Packet *pkt = batch->pkts()[i];
-    rte_prefetch0(pkt->head_data());
-    total_bytes += pkt->total_len();
+    total_bytes += batch->pkts()[i]->total_len();
   }
+
   RunNextModule(ctx, batch);
 
   return {.block = false,
