@@ -1,4 +1,5 @@
 #include "flow_acl.h"
+#include "nfv_ctrl_msg.h"
 
 #include "../utils/ether.h"
 #include "../utils/ip.h"
@@ -7,6 +8,8 @@
 namespace {
 const uint64_t TIME_OUT_NS = 10ull * 1000 * 1000 * 1000; // 10 seconds
 }
+
+using bess::ctrl::FlowState;
 
 const Commands FlowACL::cmds = {
     {"add", "FlowACLArg", MODULE_CMD_FUNC(&FlowACL::CommandAdd),
@@ -24,6 +27,12 @@ CommandResponse FlowACL::Init(const bess::pb::FlowACLArg &arg) {
         .drop = rule.drop()};
     rules_.push_back(new_rule);
   }
+
+  // Read the metadata
+  std::string attr_name = "flow_stats";
+  using AccessMode = bess::metadata::Attribute::AccessMode;
+  flow_stats_attr_id_ = AddMetadataAttr(attr_name, sizeof(FlowState*), AccessMode::kRead);
+
   return CommandSuccess();
 }
 
@@ -62,52 +71,76 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     Tcp *tcp =
         reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
 
-    Flow flow;
-    flow.src_ip = ip->src;
-    flow.dst_ip = ip->dst;
-    flow.src_port = tcp->src_port;
-    flow.dst_port = tcp->dst_port;
-
     uint64_t now = ctx->current_ns;
-
-    // Find existing flow, if we have one.
-    std::unordered_map<Flow, FlowRecord, FlowHash>::iterator it =
-        flow_cache_.find(flow);
-
     bool emitted = false;
-    if (it != flow_cache_.end()) {
-      if (now >= it->second.ExpiryTime()) { // an outdated flow
-        flow_cache_.erase(it);
-        active_flows_ -= 1;
-        it = flow_cache_.end();
-      } else { // an existing flow
-        if (it->second.IsACLPass()) {
+
+    if (bess::ctrl::exp_id <= 1) { // Ironside      
+      FlowState *state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
+
+      if (state->acl.pkt_cnt_ == 0) {
+        state->acl.pkt_cnt_ = 1;
+        for (const auto &rule : rules_) {
+          if (rule.Match(ip->src, ip->dst, tcp->src_port, tcp->dst_port)) {
+            if (!rule.drop) {
+              state->acl.SetACLPass();
+              emitted = true;
+            }
+            break;  // Stop matching other rules
+          }
+        }
+      } else {
+        if (state->acl.IsACLPass()) {
           emitted = true;
         }
       }
+
+      state->acl.SetExpiryTime(now + TIME_OUT_NS);
     }
+    else { // Metron, Dyssect
+      Flow flow;
+      flow.src_ip = ip->src;
+      flow.dst_ip = ip->dst;
+      flow.src_port = tcp->src_port;
+      flow.dst_port = tcp->dst_port;
 
-    if (it == flow_cache_.end()) {
-      std::tie(it, std::ignore) = flow_cache_.emplace(
-          std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
+      // Find existing flow, if we have one.
+      std::unordered_map<Flow, FlowRecord, FlowHash>::iterator it =
+          flow_cache_.find(flow);
 
-      for (const auto &rule : rules_) {
-        if (rule.Match(ip->src, ip->dst, tcp->src_port, tcp->dst_port)) {
-          if (!rule.drop) {
-            it->second.SetACLPass();
+      if (it != flow_cache_.end()) {
+        if (now >= it->second.ExpiryTime()) { // an outdated flow
+          flow_cache_.erase(it);
+          active_flows_ -= 1;
+          it = flow_cache_.end();
+        } else { // an existing flow
+          if (it->second.IsACLPass()) {
             emitted = true;
           }
-          break;  // Stop matching other rules
         }
       }
-      active_flows_ += 1;
-    }
 
-    it->second.SetExpiryTime(now + TIME_OUT_NS);
+      if (it == flow_cache_.end()) {
+        std::tie(it, std::ignore) = flow_cache_.emplace(
+            std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
 
-    if (tcp->flags & Tcp::Flag::kFin) {
-      flow_cache_.erase(it);
-      active_flows_ -= 1;
+        for (const auto &rule : rules_) {
+          if (rule.Match(ip->src, ip->dst, tcp->src_port, tcp->dst_port)) {
+            if (!rule.drop) {
+              it->second.SetACLPass();
+              emitted = true;
+            }
+            break;  // Stop matching other rules
+          }
+        }
+        active_flows_ += 1;
+      }
+
+      it->second.SetExpiryTime(now + TIME_OUT_NS);
+
+      if (tcp->flags & Tcp::Flag::kFin) {
+        flow_cache_.erase(it);
+        active_flows_ -= 1;
+      }
     }
 
     // Determine whether to drop or forward |pkt|.

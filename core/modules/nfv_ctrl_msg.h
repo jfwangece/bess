@@ -10,6 +10,7 @@
 #include <vector>
 
 using bess::utils::Flow;
+using bess::utils::FlowRecord;
 
 // Quadrant
 #define WorkerDelayTsTagOffset 100
@@ -92,12 +93,16 @@ struct FlowState {
     sw_q_state = nullptr;
   }
 
-  Flow flow; // for long-term flow counter
   uint32_t rss; // NIC's RSS-based hash for |flow|
   uint32_t short_epoch_packet_count; // short-term epoch packet counter
   uint32_t queued_packet_count; // packet count in the system
   uint32_t enqueued_packet_count; // packet count in the SplitAndEnqueue process
   SoftwareQueueState *sw_q_state; // |this| flow sent to software queue w/ valid |sw_q_state|
+
+  Flow flow; // for long-term flow counter
+  FlowRecord acl;
+  FlowRecord lb;
+  FlowRecord monitor;
 };
 
 // Used in measure, ironside_ingress

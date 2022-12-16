@@ -44,6 +44,9 @@ class FlowACL final : public Module {
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
 
  private:
+  // Metadata field ID
+  int flow_stats_attr_id_; // for maintaining per-flow stats
+
   // The global ACL rule table
   std::vector<ACLRule> rules_;
   // Per-flow connection table
