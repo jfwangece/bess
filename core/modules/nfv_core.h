@@ -136,6 +136,7 @@ class NFVCore final : public Module {
   bess::PacketBatch *local_batch_;
   bess::PacketBatch *local_rboost_batch_;
   bess::PacketBatch *system_dump_batch_;
+  bess::PacketBatch *local_sw_batch_[DEFAULT_SWQ_COUNT];
   bess::PacketBatch *split_enqueue_batch_;
 
   /// Software queues:

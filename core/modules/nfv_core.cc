@@ -74,14 +74,13 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   local_q_ = bess::ctrl::local_q[core_id_];
   local_boost_q_ = bess::ctrl::local_boost_q[core_id_];
 
-  local_batch_ = reinterpret_cast<bess::PacketBatch *>
-        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
-  local_rboost_batch_ = reinterpret_cast<bess::PacketBatch *>
-        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
-  system_dump_batch_ = reinterpret_cast<bess::PacketBatch *>
-        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
-  split_enqueue_batch_ = reinterpret_cast<bess::PacketBatch *>
-        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+  local_batch_ = bess::ctrl::CreatePacketBatch();
+  local_rboost_batch_ = bess::ctrl::CreatePacketBatch();
+  system_dump_batch_ = bess::ctrl::CreatePacketBatch();
+  split_enqueue_batch_ = bess::ctrl::CreatePacketBatch();
+  for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
+    local_sw_batch_[i] = bess::ctrl::CreatePacketBatch();
+  }
 
   rcore_booster_q_state_ = bess::ctrl::rcore_booster_q_state;
   system_dump_q_state_ = bess::ctrl::system_dump_q_state;
@@ -123,13 +122,6 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
     local_bucket_stats_.per_bucket_flow_cache[i].clear();
   }
 
-  local_batch_->clear();
-  local_rboost_batch_->clear();
-  system_dump_batch_->clear();
-  for (auto& q : active_sw_q_) {
-    q->sw_batch->clear();
-  }
-
   // Run!
   rte_atomic16_set(&disabled_, 0);
   return CommandSuccess();
@@ -141,13 +133,12 @@ void NFVCore::DeInit() {
   while (rte_atomic16_read(&disabled_) != 2) { usleep(100000); }
 
   // Clean the local batch / queue
-  if (local_batch_) {
-    bess::Packet::Free(local_batch_);
-    std::free(local_batch_);
-  }
-  if (local_rboost_batch_) {
-    bess::Packet::Free(local_rboost_batch_);
-    std::free(local_rboost_batch_);
+  bess::ctrl::FreePacketBatch(local_batch_);
+  bess::ctrl::FreePacketBatch(local_rboost_batch_);
+  bess::ctrl::FreePacketBatch(system_dump_batch_);
+  bess::ctrl::FreePacketBatch(split_enqueue_batch_);
+  for (int i = 0; i < DEFAULT_SWQ_COUNT; i++) {
+    bess::ctrl::FreePacketBatch(local_sw_batch_[i]);
   }
 
   local_batch_ = nullptr;

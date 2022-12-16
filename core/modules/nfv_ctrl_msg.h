@@ -197,6 +197,9 @@ void NFVCtrlCheckAllComponents();
 // Return 0 if the reserved core is released.
 // int NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id);
 
+bess::PacketBatch* CreatePacketBatch();
+void FreePacketBatch(bess::PacketBatch* batch);
+
 } // namespace ctrl
 } // namespace bess
 

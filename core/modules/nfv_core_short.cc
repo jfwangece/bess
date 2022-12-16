@@ -26,11 +26,6 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   Flow flow;
   FlowState *state = nullptr;
 
-  local_batch_->clear();
-  for (auto& q : active_sw_q_) {
-    q->sw_batch->clear();
-  }
-
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
@@ -98,7 +93,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       // Egress 4: normal offloading
       // This flow is redirected only if an active RCore works on |sw_q|
       state->queued_packet_count -= 1;
-      q_state->sw_batch->add(pkt);
+      local_sw_batch_[q_state->sw_q_id]->add(pkt);
       continue;
     }
 
@@ -111,7 +106,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   // Egress 5: drop (|local_q_| overflow)
   SpEnqueue(local_batch_, local_q_);
   for (auto& q : active_sw_q_) {
-    MpEnqueue(q->sw_batch, q->sw_q);
+    MpEnqueue(local_sw_batch_[q->sw_q_id], q->sw_q);
   }
   MpEnqueue(local_rboost_batch_, bess::ctrl::rcore_boost_q);
   MpEnqueue(system_dump_batch_, bess::ctrl::system_dump_q);
@@ -196,7 +191,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
       // Egress 10: normal offloading
       // This flow is redirected only if an active RCore works on |sw_q|.
       state->queued_packet_count -= 1;
-      q_state->sw_batch->add(pkt);
+      local_sw_batch_[q_state->sw_q_id]->add(pkt);
       continue;
     }
 
@@ -208,7 +203,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
   // Egress 11: drop (|local_q_| overflow)
   SpEnqueue(local_batch_, local_q_);
   for (auto& q : active_sw_q_) {
-    MpEnqueue(q->sw_batch, q->sw_q);
+    MpEnqueue(local_sw_batch_[q->sw_q_id], q->sw_q);
   }
   MpEnqueue(local_rboost_batch_, bess::ctrl::rcore_boost_q);
   MpEnqueue(system_dump_batch_, bess::ctrl::system_dump_q);

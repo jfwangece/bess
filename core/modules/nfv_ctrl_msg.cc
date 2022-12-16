@@ -152,9 +152,7 @@ void NFVCtrlMsgInit() {
   rcore_booster_q_state = reinterpret_cast<SoftwareQueueState*>(
         std::aligned_alloc(alignof(SoftwareQueueState), sizeof(SoftwareQueueState)));
   rcore_booster_q_state->sw_q = rcore_boost_q;
-  rcore_booster_q_state->sw_batch = reinterpret_cast<bess::PacketBatch *>
-        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
-  rcore_booster_q_state->sw_batch->clear();
+  rcore_booster_q_state->sw_batch = CreatePacketBatch();
 
   system_dump_q = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
   if (system_dump_q) {
@@ -166,9 +164,7 @@ void NFVCtrlMsgInit() {
   system_dump_q_state = reinterpret_cast<SoftwareQueueState*>(
         std::aligned_alloc(alignof(SoftwareQueueState), sizeof(SoftwareQueueState)));
   system_dump_q_state->sw_q = system_dump_q;
-  system_dump_q_state->sw_batch = reinterpret_cast<bess::PacketBatch *>
-        (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
-  system_dump_q_state->sw_batch->clear();
+  system_dump_q_state->sw_batch = CreatePacketBatch();
 
   LOG(INFO) << "NFV control messages are initialized";
 }
@@ -283,6 +279,20 @@ void NFVCtrlCheckAllComponents() {
 //   }
 //   return nfv_ctrl->NotifyRCoreToRest(core_id, q_id);
 // }
+
+bess::PacketBatch* CreatePacketBatch() {
+  bess::PacketBatch* b = reinterpret_cast<bess::PacketBatch *>
+          (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+  b->clear();
+  return b;
+}
+
+void FreePacketBatch(bess::PacketBatch* batch) {
+  if (batch != nullptr) {
+    bess::Packet::Free(batch);
+    std::free(batch);
+  }
+}
 
 } // namespace ctrl
 } // namespace bess
