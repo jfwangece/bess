@@ -77,8 +77,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       if (q_state == rcore_booster_q_state_) {
         // Egress 2: drop (super flow)
         state->queued_packet_count -= 1;
-        bess::Packet::Free(pkt);
-        // local_rboost_batch_->add(pkt);
+        local_rboost_batch_->add(pkt);
         // epoch_drop4_ += 1;
         continue;
       }
@@ -174,8 +173,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
       if (q_state == rcore_booster_q_state_) {
         // Egress 8: drop (super flow)
         state->queued_packet_count -= 1;
-        bess::Packet::Free(pkt);
-        // local_rboost_batch_->add(pkt);
+        local_rboost_batch_->add(pkt);
         // epoch_drop4_ += 1;
         continue;
       }
