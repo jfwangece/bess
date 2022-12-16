@@ -3,10 +3,13 @@
 
 #include "../drivers/pmd.h"
 #include "../utils/cpu_core.h"
+#include "../utils/flow.h"
 #include "../utils/lock_less_queue.h"
 
 #include <mutex>
 #include <vector>
+
+using bess::utils::Flow;
 
 // Quadrant
 #define WorkerDelayTsTagOffset 100
@@ -38,6 +41,64 @@ class Measure;
 
 namespace bess {
 namespace ctrl {
+
+/// States for maintaining software packet queues, normal and reserved cores.
+// |SoftwareQueueState| tracks the mapping of (NFVCore, sw_q, NFVRCore)
+// |sw_q|: the software queue's pointer;
+// |sw_q_id|: the global software queue index seen by NFVCtrl.
+// |assigned_packet_count|: the number of packets to be enqueued;
+// |processed_packet_count|: the number of packets seen by the queue;
+// |idle_epoch_count|: the number of epoches with no packet arrivals;
+struct SoftwareQueueState {
+  SoftwareQueueState() = default;
+
+  // Atomic assignment functions
+  void SetUpCoreID(uint16_t core_id) { rte_atomic16_set(&up_core_id, (int16_t)core_id); }
+  void SetDownCoreID(uint16_t core_id) { rte_atomic16_set(&down_core_id, (int16_t)core_id); }
+  uint16_t GetUpCoreID() { return (uint16_t)rte_atomic16_read(&up_core_id); }
+  uint16_t GetDownCoreID() { return (uint16_t)rte_atomic16_read(&down_core_id); }
+
+  // Non atomic states
+  inline bool IsIdle() {
+    return idle_epoch_count == -2;
+  }
+  inline bool IsTerminating() {
+    return idle_epoch_count == -1;
+  }
+  inline bool IsActive() {
+    return idle_epoch_count >= 0;
+  }
+  inline uint32_t QLenAfterAssignment() {
+    return assigned_packet_count;
+  }
+
+  rte_atomic16_t up_core_id;
+  rte_atomic16_t down_core_id;
+
+  struct llring* sw_q;
+  bess::PacketBatch* sw_batch;
+  int sw_q_id;
+  int idle_epoch_count; // -2: idle; -1: terminating; 0 and 0+: active
+  uint32_t assigned_packet_count;
+  uint32_t processed_packet_count;
+};
+
+struct FlowState {
+  FlowState() {
+    rss = 0;
+    short_epoch_packet_count = 0;
+    queued_packet_count = 0;
+    enqueued_packet_count = 0;
+    sw_q_state = nullptr;
+  }
+
+  Flow flow; // for long-term flow counter
+  uint32_t rss; // NIC's RSS-based hash for |flow|
+  uint32_t short_epoch_packet_count; // short-term epoch packet counter
+  uint32_t queued_packet_count; // packet count in the system
+  uint32_t enqueued_packet_count; // packet count in the SplitAndEnqueue process
+  SoftwareQueueState *sw_q_state; // |this| flow sent to software queue w/ valid |sw_q_state|
+};
 
 // Used in measure, ironside_ingress
 extern std::shared_mutex nfvctrl_worker_mu;
@@ -101,62 +162,6 @@ extern uint64_t pc_max_batch_delay[100]; // Quadrant
 
 extern uint64_t pcpb_packet_count[DEFAULT_INVALID_CORE_ID][512]; // Ironside
 extern uint64_t pcpb_flow_count[DEFAULT_INVALID_CORE_ID][512]; // Ironside
-
-/// States for maintaining software packet queues, normal and reserved cores.
-// |SoftwareQueueState| tracks the mapping of (NFVCore, sw_q, NFVRCore)
-// |sw_q|: the software queue's pointer;
-// |sw_q_id|: the global software queue index seen by NFVCtrl.
-// |assigned_packet_count|: the number of packets to be enqueued;
-// |processed_packet_count|: the number of packets seen by the queue;
-// |idle_epoch_count|: the number of epoches with no packet arrivals;
-class SoftwareQueueState {
- public:
-  SoftwareQueueState() = default;
-
-  // Atomic assignment functions
-  void SetUpCoreID(uint16_t core_id) { rte_atomic16_set(&up_core_id, (int16_t)core_id); }
-  void SetDownCoreID(uint16_t core_id) { rte_atomic16_set(&down_core_id, (int16_t)core_id); }
-  uint16_t GetUpCoreID() { return (uint16_t)rte_atomic16_read(&up_core_id); }
-  uint16_t GetDownCoreID() { return (uint16_t)rte_atomic16_read(&down_core_id); }
-
-  // Non atomic states
-  inline bool IsIdle() {
-    return idle_epoch_count == -2;
-  }
-  inline bool IsTerminating() {
-    return idle_epoch_count == -1;
-  }
-  inline bool IsActive() {
-    return idle_epoch_count >= 0;
-  }
-  inline uint32_t QLenAfterAssignment() {
-    return assigned_packet_count;
-  }
-  inline void EnqueueBatch() {
-    if (sw_batch->cnt() > 0) {
-      processed_packet_count += sw_batch->cnt();
-      int queued = llring_sp_enqueue_burst(sw_q, (void**)sw_batch->pkts(), sw_batch->cnt());
-      if (queued < 0) {
-        queued = queued & (~RING_QUOT_EXCEED);
-      }
-      if (queued < sw_batch->cnt()) {
-        int to_drop = sw_batch->cnt() - queued;
-        bess::Packet::Free(sw_batch->pkts() + queued, to_drop);
-      }
-      sw_batch->clear();
-    }
-  }
-
-  rte_atomic16_t up_core_id;
-  rte_atomic16_t down_core_id;
-
-  struct llring* sw_q;
-  bess::PacketBatch* sw_batch;
-  int sw_q_id;
-  int idle_epoch_count; // -2: idle; -1: terminating; 0 and 0+: active
-  uint32_t assigned_packet_count;
-  uint32_t processed_packet_count;
-};
 
 extern SoftwareQueueState* sw_q_state[DEFAULT_SWQ_COUNT];
 extern SoftwareQueueState* rcore_booster_q_state;

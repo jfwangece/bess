@@ -105,7 +105,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
   // Egress 5: drop (|local_q_| overflow)
   SpEnqueue(local_batch_, local_q_);
   for (auto& q : active_sw_q_) {
-    q->EnqueueBatch();
+    SpEnqueue(q->sw_batch, q->sw_q);
   }
   MpEnqueue(local_rboost_batch_, bess::ctrl::rcore_boost_q);
   MpEnqueue(system_dump_batch_, bess::ctrl::system_dump_q);
@@ -194,7 +194,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
       continue;
     }
 
-    state->enqueued_packet_count += 1;
+    // state->enqueued_packet_count += 1;
     local_batch_->add(pkt);
   }
 
@@ -202,7 +202,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
   // Egress 11: drop (|local_q_| overflow)
   SpEnqueue(local_batch_, local_q_);
   for (auto& q : active_sw_q_) {
-    q->EnqueueBatch();
+    SpEnqueue(q->sw_batch, q->sw_q);
   }
   MpEnqueue(local_rboost_batch_, bess::ctrl::rcore_boost_q);
   MpEnqueue(system_dump_batch_, bess::ctrl::system_dump_q);

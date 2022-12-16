@@ -302,8 +302,8 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
     uint32_t curr_rcore = curr_rcore_;
 
-    ShortEpochProcess();
-    SplitQToSwQ(local_q_);
+    // ShortEpochProcess();
+    // SplitQToSwQ(local_q_);
 
     // Update CPU core usage
     uint64_t now = tsc_to_ns(rdtsc());

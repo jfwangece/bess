@@ -143,5 +143,3 @@ for i in ncore_boosters:
 for i in rcores:
     bess.add_worker(wid=i, core=socket1_cores[i])
     pinc0[i].attach_task(wid=i)
-
-bess.resume_all()

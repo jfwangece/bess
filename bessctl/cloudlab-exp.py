@@ -144,7 +144,7 @@ def start_remote_bessd(ip, runtime="bess"):
     run_remote_command(ip, cmd)
     # start the new one
     bessd = "/local/bess/core/bessd"
-    bessd_cmd = "sudo {} --dpdk=true --buffers=1048576 -m=4096 -k".format(bessd)
+    bessd_cmd = "sudo {} --dpdk=true --buffers=1048576 -k".format(bessd)
     run_remote_command(ip, bessd_cmd)
     return
 
@@ -693,7 +693,7 @@ def run_worker_exp(slo):
 ## Rack-scale experiments
 # run nfvctrl/cloud_pcap_replay BESS_NUM_WORKER=4, BESS_IG=3
 # run nfvctrl/cloud_pcap_replay_mc BESS_NUM_WORKER=4, BESS_IG=3, BESS_PKT_RATE_THRESH=3000000
-# run nfvctrl/cloud_chain4 BESS_SPROFILE="./short.prof", BESS_LPROFILE="./long.prof"
+# run nfvctrl/cloud_chain4 BESS_SPROFILE="./short.prof", BESS_LPROFILE="./long.prof", TRAFFIC_MAC="b8:ce:f6:d2:3b:12"
 def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     exp_duration = 50
     selected_worker_ips = []

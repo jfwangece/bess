@@ -19,27 +19,11 @@ using bess::utils::FlowRoutingRule;
 using bess::utils::CoreStats;
 using bess::utils::BucketStats;
 using bess::ctrl::SoftwareQueueState;
+using bess::ctrl::FlowState;
 
 // Assumption:
 // if |active_flow_count| increases, |packet_count| will decrease
 // Then, the admission process can be a packing problem.
-
-struct FlowState {
-  FlowState() {
-    rss = 0;
-    short_epoch_packet_count = 0;
-    queued_packet_count = 0;
-    enqueued_packet_count = 0;
-    sw_q_state = nullptr;
-  }
-
-  Flow flow;
-  uint32_t rss; // NIC's RSS-based hash for |flow|
-  uint32_t short_epoch_packet_count; // short-term epoch packet counter
-  uint32_t queued_packet_count; // packet count in the system
-  uint32_t enqueued_packet_count; // packet count in the SplitAndEnqueue process
-  SoftwareQueueState *sw_q_state; // |this| flow sent to software queue w/ valid |sw_q_state|
-};
 
 class NFVCore final : public Module {
  public:
@@ -93,13 +77,20 @@ class NFVCore final : public Module {
         queued = queued & (~RING_QUOT_EXCEED);
       }
       if (queued < batch->cnt()) {
+        bess::Packet *pkt = nullptr;
+        FlowState *state = nullptr;
         int to_drop = batch->cnt() - queued;
-        LOG(INFO) << "sp";
+        for (int i = 0; i < to_drop; ++i) {
+          pkt = batch->pkts()[queued + i];
+          state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
+          state->queued_packet_count -= 1;
+        }
         bess::Packet::Free(batch->pkts() + queued, to_drop);
       }
       batch->clear();
     }
   }
+
   // - (mp) Enqueue all packets in |batch| to the software queue |q|
   inline void MpEnqueue(bess::PacketBatch *batch, llring *q) {
     if (batch->cnt()) {
@@ -108,7 +99,14 @@ class NFVCore final : public Module {
         queued = queued & (~RING_QUOT_EXCEED);
       }
       if (queued < batch->cnt()) {
+        bess::Packet *pkt = nullptr;
+        FlowState *state = nullptr;
         int to_drop = batch->cnt() - queued;
+        for (int i = 0; i < to_drop; ++i) {
+          pkt = batch->pkts()[queued + i];
+          state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
+          state->queued_packet_count -= 1;
+        }
         bess::Packet::Free(batch->pkts() + queued, to_drop);
       }
       batch->clear();
