@@ -44,13 +44,12 @@ struct llring* rcore_boost_q = nullptr;
 struct llring* local_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
 struct llring* local_boost_q[DEFAULT_LOCALQ_COUNT] = {nullptr};
 struct llring* local_mc_q[DEFAULT_NICQ_COUNT] = {nullptr};
-
 struct llring* sw_q[DEFAULT_SWQ_COUNT] = {nullptr};
 
 // sw_q can be assigned if |up_core_id| is invalid
-SoftwareQueueState* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr};
 SoftwareQueueState* rcore_booster_q_state = nullptr;
 SoftwareQueueState* system_dump_q_state = nullptr;
+SoftwareQueueState* sw_q_state[DEFAULT_SWQ_COUNT] = {nullptr};
 
 // The number of dedicated cores and aux cores in an Ironside worker.
 int ncore = 0;
@@ -155,6 +154,7 @@ void NFVCtrlMsgInit() {
   rcore_booster_q_state->sw_q = rcore_boost_q;
   rcore_booster_q_state->sw_batch = reinterpret_cast<bess::PacketBatch *>
         (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+  rcore_booster_q_state->sw_batch->clear();
 
   system_dump_q = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
   if (system_dump_q) {
@@ -168,6 +168,7 @@ void NFVCtrlMsgInit() {
   system_dump_q_state->sw_q = system_dump_q;
   system_dump_q_state->sw_batch = reinterpret_cast<bess::PacketBatch *>
         (std::aligned_alloc(alignof(bess::PacketBatch), sizeof(bess::PacketBatch)));
+  system_dump_q_state->sw_batch->clear();
 
   LOG(INFO) << "NFV control messages are initialized";
 }
@@ -248,47 +249,40 @@ void NFVCtrlCheckAllComponents() {
 
 // Transfer the ownership of (at most) |n| software packet queues
 // to NFVCore (who calls this function)
-std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n) {
-  if (nfv_cores[core_id] == nullptr) {
-    LOG(FATAL) << "Core " << core_id << " is used but not created";
+// std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n) {
+//   if (nfv_cores[core_id] == nullptr) {
+//     LOG(FATAL) << "Core " << core_id << " is used but not created";
+//     // To register all normal CPU cores
+//     for (int i = 0; i < DEFAULT_INVALID_CORE_ID; i++){
+//       std::string core_name = "nfv_core" + std::to_string(i);
+//       for (const auto &it : ModuleGraph::GetAllModules()) {
+//         if (it.first.find(core_name) != std::string::npos) {
+//           nfv_cores[i] = ((NFVCore *)(it.second));
+//         }
+//       }
+//     }
+//   }
+//   if (nfv_ctrl == nullptr) {
+//     LOG(FATAL) << "NFVCtrl is used but not created";
+//     std::vector<int> assigned;
+//     return assigned;
+//   }
+//   return nfv_ctrl->RequestNSwQ(core_id, n);
+// }
 
-    // To register all normal CPU cores
-    for (int i = 0; i < DEFAULT_INVALID_CORE_ID; i++){
-      std::string core_name = "nfv_core" + std::to_string(i);
-      for (const auto &it : ModuleGraph::GetAllModules()) {
-        if (it.first.find(core_name) != std::string::npos) {
-          nfv_cores[i] = ((NFVCore *)(it.second));
-        }
-      }
-    }
-  }
+// int NFVCtrlNotifyRCoreToWork(cpu_core_t core_id, int q_id) {
+//   if (nfv_ctrl == nullptr) {
+//     return -1;
+//   }
+//   return nfv_ctrl->NotifyRCoreToWork(core_id, q_id);
+// }
 
-  if (nfv_ctrl == nullptr) {
-    LOG(FATAL) << "NFVCtrl is used but not created";
-    std::vector<int> assigned;
-    return assigned;
-  }
-
-  return nfv_ctrl->RequestNSwQ(core_id, n);
-}
-
-void NFVCtrlReleaseNSwQ(cpu_core_t core_id, std::vector<int> q_ids) {
-  nfv_ctrl->ReleaseNSwQ(core_id, q_ids);
-}
-
-int NFVCtrlNotifyRCoreToWork(cpu_core_t core_id, int q_id) {
-  if (nfv_ctrl == nullptr) {
-    return -1;
-  }
-  return nfv_ctrl->NotifyRCoreToWork(core_id, q_id);
-}
-
-int NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id) {
-  if (nfv_ctrl == nullptr) {
-    return -1;
-  }
-  return nfv_ctrl->NotifyRCoreToRest(core_id, q_id);
-}
+// int NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id) {
+//   if (nfv_ctrl == nullptr) {
+//     return -1;
+//   }
+//   return nfv_ctrl->NotifyRCoreToRest(core_id, q_id);
+// }
 
 } // namespace ctrl
 } // namespace bess

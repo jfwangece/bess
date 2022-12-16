@@ -145,13 +145,10 @@ extern uint32_t worker_packet_rate[DEFAULT_INVALID_WORKER_ID];
 // A pool of software packet queues
 extern struct llring* rcore_boost_q; // to boost rcores
 extern struct llring* system_dump_q; // to drop
-
 extern struct llring* local_q[DEFAULT_LOCALQ_COUNT]; // for ncores
 extern struct llring* local_boost_q[DEFAULT_LOCALQ_COUNT]; // to boost ncores
-
-extern struct llring* sw_q[DEFAULT_SWQ_COUNT]; // for rcores
-
 extern struct llring* local_mc_q[DEFAULT_NICQ_COUNT]; // for metron / quadrant
+extern struct llring* sw_q[DEFAULT_SWQ_COUNT]; // for rcores
 
 /// Worker-layer core mapping
 extern int ncore;
@@ -163,9 +160,9 @@ extern uint64_t pc_max_batch_delay[100]; // Quadrant
 extern uint64_t pcpb_packet_count[DEFAULT_INVALID_CORE_ID][512]; // Ironside
 extern uint64_t pcpb_flow_count[DEFAULT_INVALID_CORE_ID][512]; // Ironside
 
-extern SoftwareQueueState* sw_q_state[DEFAULT_SWQ_COUNT];
 extern SoftwareQueueState* rcore_booster_q_state;
 extern SoftwareQueueState* system_dump_q_state;
+extern SoftwareQueueState* sw_q_state[DEFAULT_SWQ_COUNT];
 
 extern bool core_state[DEFAULT_INVALID_CORE_ID];
 extern bool rcore_state[DEFAULT_INVALID_CORE_ID];
@@ -184,21 +181,21 @@ void NFVCtrlCheckAllComponents();
 // Request |n| software queues from the global software queue pool.
 // The return value is a bit-mask that records the assignment of
 // software queues: if (1 << i) is set, then sw_q[i] is assigned.
-std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n);
+// std::vector<int> NFVCtrlRequestNSwQ(cpu_core_t core_id, int n);
 
 // Release software queues according to |q_mask|.
 // Note: a sw_q goes back to the pool only if core |core_id| owns it.
-void NFVCtrlReleaseNSwQ(cpu_core_t core_id, std::vector<int> q_ids);
+// void NFVCtrlReleaseNSwQ(cpu_core_t core_id, std::vector<int> q_ids);
 
 // Request a reserved core to work on the software queue |q_id|.
 // Return 0 if an idle reserved core is found and notified to work.
-int NFVCtrlNotifyRCoreToWork(cpu_core_t core_id, int q_id);
+// int NFVCtrlNotifyRCoreToWork(cpu_core_t core_id, int q_id);
 
 // If sw_q |q_id| is currently handled by a reserved core.
 // This function will un-schedule the NFVRCore and make it idle.
 // Afterwards, the NFVRCore is ready to handle another sw_q.
 // Return 0 if the reserved core is released.
-int NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id);
+// int NFVCtrlNotifyRCoreToRest(cpu_core_t core_id, int q_id);
 
 } // namespace ctrl
 } // namespace bess
