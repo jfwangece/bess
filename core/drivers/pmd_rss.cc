@@ -140,11 +140,12 @@ void PMDPort::UpdateRssFlow() {
   action[aid].conf = &rss;
   ++aid;
 
-  std::string output;
-  for (auto x : reta_table_) {
-    output += std::to_string(x);
-  }
-  LOG(INFO) << output;
+  // Debug log
+  // std::string output;
+  // for (auto x : reta_table_) {
+  //   output += std::to_string(x);
+  // }
+  // LOG(INFO) << output;
 
   action[aid].type = RTE_FLOW_ACTION_TYPE_END;
   ++aid;

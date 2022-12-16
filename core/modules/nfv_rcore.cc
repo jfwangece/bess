@@ -144,7 +144,7 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
         is_cleanup_ = false;
         bess::ctrl::sw_q_state[core_id_]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
         bess::ctrl::rcore_state[core_id_] = true;
-        LOG(INFO) << "q" << core_id_ << " is released at rcore" << core_id_;
+        // LOG(INFO) << "q" << core_id_ << " is released at rcore" << core_id_;
       }
     }
   }
