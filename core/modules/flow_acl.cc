@@ -1,4 +1,5 @@
 #include "flow_acl.h"
+#include "nfv_core.h"
 #include "nfv_ctrl_msg.h"
 
 #include "../utils/ether.h"
@@ -27,11 +28,6 @@ CommandResponse FlowACL::Init(const bess::pb::FlowACLArg &arg) {
         .drop = rule.drop()};
     rules_.push_back(new_rule);
   }
-
-  // Read the metadata
-  std::string attr_name = "flow_stats";
-  using AccessMode = bess::metadata::Attribute::AccessMode;
-  flow_stats_attr_id_ = AddMetadataAttr(attr_name, sizeof(FlowState*), AccessMode::kRead);
 
   return CommandSuccess();
 }
@@ -75,7 +71,7 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     bool emitted = false;
 
     if (bess::ctrl::exp_id <= 1) { // Ironside      
-      FlowState *state = *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
+      FlowState *state = bess::ctrl::nfv_cores[0]->GetFlowState(pkt);
 
       if (state->acl.pkt_cnt_ == 0) {
         state->acl.pkt_cnt_ = 1;

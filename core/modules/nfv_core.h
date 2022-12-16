@@ -113,6 +113,8 @@ class NFVCore final : public Module {
     }
   }
 
+  FlowState* GetFlowState(bess::Packet* pkt);
+
   // std::string GetDesc() const override;
   CommandResponse CommandClear(const bess::pb::EmptyArg &arg);
   CommandResponse CommandSetBurst(const bess::pb::NFVCoreCommandSetBurstArg &arg);

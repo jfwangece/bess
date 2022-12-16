@@ -19,6 +19,10 @@ const Commands NFVCore::cmds = {
 };
 
 // NFVCore member functions
+FlowState* NFVCore::GetFlowState(bess::Packet* pkt) {
+  return *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
+}
+
 CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   const char *port_name;
   task_id_t tid;
