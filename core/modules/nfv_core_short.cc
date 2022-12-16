@@ -317,7 +317,7 @@ bool NFVCore::ShortEpochProcess() {
         if (!assigned) {
           int qid = bess::ctrl::nfv_ctrl->RequestRCore();
           if (qid != -1) {
-            LOG(INFO) << "core " << core_id_ << " gets q" << qid;
+            LOG(INFO) << "core " << core_id_ << " gets q" << qid << ". rcores=" << curr_rcore_;;
             q = bess::ctrl::sw_q_state[qid];
             active_sw_q_.emplace(q);
             curr_rcore_ += 1;
@@ -345,7 +345,7 @@ bool NFVCore::ShortEpochProcess() {
     if (q->idle_epoch_count >= max_idle_epoch_count_) { // idle for a while
       q->idle_epoch_count = -1; // terminating
       bess::ctrl::nfv_ctrl->ReleaseRCore(q->sw_q_id);
-      LOG(INFO) << "core " << core_id_ << " releases q" << q->sw_q_id;
+      LOG(INFO) << "core " << core_id_ << " releases q" << q->sw_q_id << ". rcores=" << curr_rcore_;
 
       active_sw_q_.erase(qit++);
       terminating_sw_q_.emplace(q);
