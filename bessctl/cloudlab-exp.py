@@ -723,7 +723,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
 
     # mode: 0 min core; 1 min traffic; 2 max core; 3 max traffic
     ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
-    slo_to_pkt_thresh = {100000: 2000000, 200000: 2000000, 300000: 3000000, 400000: 3000000, 500000: 3000000}
+    slo_to_pkt_thresh = {100000: 2000000, 200000: 2000000, 300000: 3000000, 400000: 3000000, 500000: 3000000, 600000: 3000000}
     ig_mode = 3
     for tip in traffic_ip:
         start_traffic_ironside_ingress(tip, num_worker, ig_mode, slo_to_pkt_thresh[slo])
