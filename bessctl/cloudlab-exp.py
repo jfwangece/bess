@@ -456,7 +456,7 @@ def long_term_profile_once(slo, flow, pkt_rate):
     long_profile = "./nf_profiles/long_term_base.pro"
     pids = []
     for i, wip in enumerate(selected_worker_ips):
-        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
+        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
         p.start()
         pids.append(p)
     wait_pids(pids)
@@ -541,9 +541,9 @@ def run_long_term_profile(slo, flow_range, rate_range):
     return
 
 def run_long_profile_under_slos():
-    target_slos = [100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000]
-    flow_range = range(500, 4000, 500)
-    rate_range = range(1100000, 2000000, 20000)
+    target_slos = [100000, 200000, 300000, 400000, 500000, 600000,]
+    flow_range = range(500, 5500, 500)
+    rate_range = range(1300000, 2000000, 20000)
 
     for slo in target_slos:
         run_long_term_profile(slo, flow_range, rate_range)
@@ -986,9 +986,9 @@ def run_compare_exp():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
-    run_metron = False
-    run_quadrant = False
-    run_dyssect = True
+    run_metron = True
+    run_quadrant = True
+    run_dyssect = False
 
     metron_results = []
     dyssect_results = []
@@ -1134,11 +1134,11 @@ def main():
     # run_traffic()
 
     ## Ready to profile an NF chain
-    # run_long_profile_under_slos()
+    run_long_profile_under_slos()
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    run_test_exp()
+    # run_test_exp()
     # run_main_exp()
     # run_compare_exp()
 

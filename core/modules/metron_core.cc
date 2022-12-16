@@ -33,8 +33,10 @@ CommandResponse MetronCore::Init(const bess::pb::MetronCoreArg& arg) {
     core_id_ = arg.core_id();
   }
 
+  // Default: Metron (3)
+  bess::ctrl::exp_id = 3;
   if (arg.mode() > 0) {
-    bess::ctrl::exp_id = 3;
+    bess::ctrl::exp_id = 4;
   }
 
   local_queue_ = bess::ctrl::local_mc_q[core_id_];
@@ -124,7 +126,7 @@ struct task_result MetronCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     bess::Packet *pkt = batch->pkts()[i];
     total_bytes += pkt->total_len();
 
-    if (bess::ctrl::exp_id == 3) {
+    if (bess::ctrl::exp_id == 4) {
       // Quadrant gets the per-batch queueing delay
       if (i == cnt - 1) {
         bess::utils::GetUint64(pkt, WorkerDelayTsTagOffset, &enqueue_ts);

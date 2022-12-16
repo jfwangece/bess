@@ -122,7 +122,7 @@ void NFVCore::UpdateStatsPreProcessBatch(bess::PacketBatch *batch) {
   }
 
   // Update for NFVMonitor (the current epoch info)
-  if (bess::ctrl::exp_id == 1) {
+  if (bess::ctrl::exp_id == 2) {
     // Update per-epoch packet counter
     epoch_packet_processed_ += cnt;
     epoch_packet_queued_ = llring_count(local_q_);
@@ -359,7 +359,7 @@ bool NFVCore::ShortEpochProcess() {
 
   // Clear
   epoch_flow_cache_.clear();
-  if (bess::ctrl::exp_id == 1) {
+  if (bess::ctrl::exp_id == 2) {
     CoreStats* stats_ptr = nullptr;
     while (all_core_stats_chan[core_id_]->Size()) {
       all_core_stats_chan[core_id_]->Pop(stats_ptr);

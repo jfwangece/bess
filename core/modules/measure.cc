@@ -48,32 +48,6 @@ using bess::utils::Tcp;
 using bess::utils::GetUint32;
 using bess::utils::add_debug_tag_nfvcore;
 
-// Ethernet::Address INFO_SRC("ec:0d:9a:67:ff:68");
-// Ethernet::Address BG_DST("00:00:00:00:00:01");
-
-// static bool IsWorkerInfo(bess::Packet *pkt) {
-//   if (bess::ctrl::exp_id != -1) {
-//     return false;
-//   }
-//   Ethernet *eth = pkt->head_data<Ethernet *>();
-//   if (eth->src_addr != INFO_SRC) {
-//     return false;
-//   }
-//   Ipv4* ip = reinterpret_cast<Ipv4 *>(eth + 1);
-//   if (ip->src.value() != 12345 || ip->protocol != Ipv4::Proto::kTcp) {
-//     return false;
-//   }
-//   Tcp* tcp = reinterpret_cast<Tcp *>(ip + 1);
-//   int worker_id = tcp->src_port.value();
-//   int ncore = tcp->dst_port.value();
-//   uint32_t rate = tcp->seq_num.value();
-//   bess::ctrl::nfvctrl_worker_mu.lock();
-//   bess::ctrl::worker_ncore[worker_id] = ncore;
-//   bess::ctrl::worker_packet_rate[worker_id] = rate;
-//   bess::ctrl::nfvctrl_worker_mu.unlock();
-//   return true;
-// }
-
 static bool IsTimestamped(bess::Packet *pkt, size_t offset, uint64_t *time) {
   auto *marker = pkt->head_data<Timestamp::MarkerType *>(offset);
 
@@ -110,7 +84,7 @@ void Measure::QuadrantUnpauseUpdates() {
   rte_atomic16_dec(&lb_core_pausing_updates_);
 }
 void Measure::IsCoreInfo(bess::Packet *pkt) {
-  if (bess::ctrl::exp_id != 3 ||
+  if (bess::ctrl::exp_id != 4 ||
       rte_atomic16_read(&lb_core_pausing_updates_) > 0) {
     return;
   }

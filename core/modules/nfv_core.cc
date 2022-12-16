@@ -236,18 +236,21 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   // Boost if 1) the core has pulled many packets (i.e. 128) in this round; 2) |local_q_| is large.
   uint32_t queued_pkts = llring_count(local_q_);
-  if (last_boost_ts_ns_ == 0) {
-    if (update_bucket_stats_ ||
-        epoch_advanced ||
-        pull_rounds >= busy_pull_round_thresh_ ||
-        queued_pkts >= large_queue_packet_thresh_) {
-      last_boost_ts_ns_ = tsc_to_ns(rdtsc()); // boost!
-    }
-  } else {
-    if (queued_pkts * 2 < large_queue_packet_thresh_) {
-      uint64_t core_diff = tsc_to_ns(rdtsc()) - last_boost_ts_ns_;
-      rte_atomic64_add(&sum_core_time_ns_, core_diff);
-      last_boost_ts_ns_ = 0;
+  if (bess::ctrl::exp_id == 0) {
+    // Turn on boost mode only for Ironside's runtime
+    if (last_boost_ts_ns_ == 0) {
+      if (update_bucket_stats_ ||
+          epoch_advanced ||
+          pull_rounds >= busy_pull_round_thresh_ ||
+          queued_pkts >= large_queue_packet_thresh_) {
+        last_boost_ts_ns_ = tsc_to_ns(rdtsc()); // boost!
+      }
+    } else {
+      if (queued_pkts * 2 < large_queue_packet_thresh_) {
+        uint64_t core_diff = tsc_to_ns(rdtsc()) - last_boost_ts_ns_;
+        rte_atomic64_add(&sum_core_time_ns_, core_diff);
+        last_boost_ts_ns_ = 0;
+      }
     }
   }
 
@@ -288,7 +291,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
 
   if (epoch_advanced) {
     // Get latency summaries to be used by the performance profiler.
-    if (bess::ctrl::exp_id == 1 &&
+    if (bess::ctrl::exp_id == 2 &&
         bess::ctrl::nfv_monitors[core_id_] != nullptr) {
       bess::ctrl::nfv_monitors[core_id_]->update_traffic_stats(curr_epoch_id_);
     }
