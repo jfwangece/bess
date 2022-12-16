@@ -88,7 +88,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
         // epoch_drop4_ += 1;
         continue;
       }
-      if (!q_state->IsActive()) {
+      if (curr_rcores_.find(q_state->sw_q_id) == curr_rcores_.end()) {
         /// Option 1: go back to ncore
         state->sw_q_state = nullptr;
         local_batch_->add(pkt);
@@ -329,6 +329,7 @@ bool NFVCore::ShortEpochProcess() {
 
             active_sw_q_.emplace(q);
             curr_rcore_ += 1;
+            curr_rcores_.emplace(qid);
             state->sw_q_state = q;
             assigned = true;
             LOG(INFO) << "core " << core_id_ << " gets q" << qid << ". rcores=" << active_sw_q_.size();
@@ -354,6 +355,7 @@ bool NFVCore::ShortEpochProcess() {
       bess::ctrl::nfv_ctrl->ReleaseRCore(q->sw_q_id);
 
       active_sw_q_.erase(qit++);
+      curr_rcores_.erase(q->sw_q_id);
       terminating_sw_q_.emplace(q);
       curr_rcore_ -= 1;
       LOG(INFO) << "core " << core_id_ << " releases q" << q->sw_q_id << ". rcores=" << active_sw_q_.size();

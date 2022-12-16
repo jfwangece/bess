@@ -104,6 +104,8 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   }
 
   curr_rcore_ = 0;
+  curr_rcores_.clear();
+
   last_boost_ts_ns_ = 0;
   rte_atomic64_set(&sum_core_time_ns_, 0);
 

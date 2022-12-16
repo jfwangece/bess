@@ -162,6 +162,7 @@ class NFVCore final : public Module {
 
   // Core-related
   uint32_t curr_rcore_ = 0;
+  std::set<int> curr_rcores_;
   rte_atomic64_t sum_core_time_ns_;
 
   // Per-core admission control to avoid latency SLO violations
