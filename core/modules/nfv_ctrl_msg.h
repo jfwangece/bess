@@ -27,7 +27,7 @@ using bess::utils::Flow;
 #define DEFAULT_NICQ_COUNT 40
 
 // Default queue size
-#define DEFAULT_SWQ_SIZE 1024
+#define DEFAULT_SWQ_SIZE 2048
 #define DEFAULT_DUMPQ_SIZE 4096
 
 // Forward declaration

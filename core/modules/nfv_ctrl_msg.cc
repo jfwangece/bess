@@ -102,7 +102,7 @@ void NFVCtrlMsgInit() {
     // |sw_q| used by all aux cores:
     // single-producer and single-consumer
     sw_q[i] = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-    ret = llring_init(sw_q[i], sw_qsize, 1, 1);
+    ret = llring_init(sw_q[i], sw_qsize, 0, 1);
     if (ret) {
       std::free(sw_q[i]);
       LOG(FATAL) << "llring_init failed on software queue " << i;

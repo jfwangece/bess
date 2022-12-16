@@ -34,7 +34,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       bess::Packet::Free(pkt);
       continue;
     }
-    if (i == 0) LOG(INFO) << "1";
+
     // Update per-core flow states
     auto state_it = per_flow_states_.Find(flow);
     if (state_it == nullptr) {
@@ -51,7 +51,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     // Append flow's stats pointer to pkt's metadata
     *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt)) = state;
     // LOG(INFO) << "set: " << *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
-    if (i == 0) LOG(INFO) << "2";
+
     // update per-bucket packet counter and per-bucket flow cache.
     uint32_t id = state->rss;
     local_bucket_stats_.per_bucket_packet_counter[id] += 1;
@@ -66,9 +66,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
 
     // Determine the packet's destination queue
     auto& q_state = state->sw_q_state;
-    if (i == 0) LOG(INFO) << "3";
     if (q_state != nullptr) {
-      if (i == 0) LOG(INFO) << "4";
       if (q_state == system_dump_q_state_) {
         // Egress 1: drop (no sw_q)
         state->queued_packet_count -= 1;
@@ -98,18 +96,17 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       q_state->sw_batch->add(pkt);
       continue;
     }
-    if (i == 0) LOG(INFO) << "5";
+
     local_batch_->add(pkt);
   }
 
   // Update per-epoch packet counter
   epoch_packet_arrival_ += cnt;
-  LOG(INFO) << "6";
 
   // Egress 5: drop (|local_q_| overflow)
   SpEnqueue(local_batch_, local_q_);
   for (auto& q : active_sw_q_) {
-    SpEnqueue(q->sw_batch, q->sw_q);
+    MpEnqueue(q->sw_batch, q->sw_q);
   }
   MpEnqueue(local_rboost_batch_, bess::ctrl::rcore_boost_q);
   MpEnqueue(system_dump_batch_, bess::ctrl::system_dump_q);
