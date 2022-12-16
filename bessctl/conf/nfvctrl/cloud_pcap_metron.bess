@@ -30,6 +30,7 @@ pcap_port = {}
 src = {}
 queue = {}
 re = {}
+ig_queue = {}
 ig = {}
 qout = {}
 
@@ -55,12 +56,13 @@ for i in range(num_cores):
         queue[i] = Queue(size=pow(2,20), pcap_backpressure=True)
     else:
         queue[i] = Queue(size=pow(2,20))
-
     re[i] = Replayer(offset=tag_offset, dynamic_traffic_conf=playback_speed_conf)
+
+    ig_queue[i] = Queue(size=pow(2,20))
     ig[i] = MetronIngress(mode=ig_mode, endpoints=workers, rewrite=i, pkt_rate_thresh=per_core_pkt_rate_thresh, slo_ns=slo)
     qout[i] = QueueOut(port=pmd_port0, qid=i)
 
-    queue[i] -> re[i] -> ig[i] -> Timestamp(offset=tag_offset) -> qout[i]
+    queue[i] -> re[i] -> ig_queue[i] -> ig[i] -> Timestamp(offset=tag_offset) -> qout[i]
 
 repl1:0 -> queue[0]
 repl1:1 -> queue[1]
@@ -92,7 +94,9 @@ replq1.attach_task(wid=3)
 replq2.attach_task(wid=4)
 
 for i in range(num_cores):
-    bess.add_worker(wid=5+i, core=socket1_cores[5+i])
-    queue[i].attach_task(wid=5+i)
+    bess.add_worker(wid=5+2*i, core=socket1_cores[5+2*i])
+    bess.add_worker(wid=6+2*i, core=socket1_cores[6+2*i])
+    queue[i].attach_task(wid=5+2*i)
+    ig_queue[i].attach_task(wid=6+2*i)
 
 bess.resume_all()
