@@ -217,7 +217,7 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
             "BESS_SPROFILE='{}'".format(remote_short),
             "BESS_LPROFILE='{}'".format(remote_long),
             "BESS_LPERIOD={}".format(2000000000)]
-    if exp_id == 1:
+    if exp_id == 1 or exp_id == 2:
         # Profiling mode
         extra_cmds.append("BESS_EXP_ID={}".format(exp_id))
     cmds.append(", ".join(extra_cmds))
@@ -541,12 +541,11 @@ def run_long_term_profile(slo, flow_range, rate_range):
     return
 
 def run_long_profile_under_slos():
-    target_slos = [100000, 200000, 300000, 400000, 500000, 600000,]
-    flow_range = range(500, 5500, 500)
-    rate_range = range(1500000, 2000000, 20000)
+    target_slos = [100000]
+    flow_range = range(500, 6500, 500)
+    rate_range = range(1800000, 2200000, 20000)
 
-    for slo in target_slos:
-        run_long_term_profile(slo, flow_range, rate_range)
+    run_long_term_profile(target_slos, flow_range, rate_range)
     return
 
 ## Short-term profile
@@ -574,7 +573,7 @@ def short_term_profile_once(slo):
     long_profile = "./nf_profiles/long_{}_p50.pro".format(slo/1000)
     pids = []
     for i, wip in enumerate(selected_worker_ips):
-        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
+        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 2))
         p.start()
         pids.append(p)
     wait_pids(pids)
@@ -622,8 +621,7 @@ def run_short_term_profile(slo):
     return
 
 def run_short_profile_under_slos():
-    # target_slos = [100000, 200000, 300000, 400000, 500000, 600000, 700000, 800000]
-    target_slos = [100000, 200000, 300000, 400000, 500000]
+    target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
 
     for slo in target_slos:
         run_short_term_profile(slo)
@@ -959,14 +957,14 @@ def run_test_exp():
 
 def run_main_exp():
     worker_cnt = 3
-    # target_slos = [100000, 200000, 300000, 400000, 500000]
-    target_slos = [200000]
+    target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
+    target_chain = "chain4"
 
     ironside_results = []
     for slo in target_slos:
         slo_us = slo / 1000
-        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
-        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        short_prof = "./nf_profiles/{}/short_{}.pro".format(target_chain, slo_us)
+        long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(target_chain, slo_us)
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
         if r == None:
             continue
@@ -984,7 +982,7 @@ def run_main_exp():
 
 def run_compare_exp():
     worker_cnt = 3
-    target_slos = [100000, 200000, 300000, 400000, 500000]
+    target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
 
     run_metron = True
     run_quadrant = True
@@ -1031,7 +1029,7 @@ def run_compare_exp():
 # Ablation experiments
 def run_ablation_server_mapper():
     worker_cnt = 3
-    target_slos = [100000, 200000, 300000, 400000, 500000]
+    target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
 
     exp_results = []
     for slo in target_slos:
@@ -1074,7 +1072,7 @@ def run_ablation_server_mapper():
 
 def run_ablation_core_mapper():
     worker_cnt = 3
-    target_slos = [100000, 200000, 300000, 400000, 500000]
+    target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
 
     exp_results = []
     exp_results = []
@@ -1124,7 +1122,7 @@ def main():
     # install_mlnx_for_all()
     # get_macs_for_all()
     # fetch_bess_for_all()
-    install_bess_for_all()
+    # install_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()
@@ -1134,12 +1132,12 @@ def main():
     # run_traffic()
 
     ## Ready to profile an NF chain
-    run_long_profile_under_slos()
+    # run_long_profile_under_slos()
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
     # run_test_exp()
-    # run_main_exp()
+    run_main_exp()
     # run_compare_exp()
 
     # Ablation: the server mapper
