@@ -1,4 +1,6 @@
 #include "flow_lb.h"
+#include "nfv_core.h"
+#include "nfv_ctrl_msg.h"
 
 #include "../utils/checksum.h"
 #include "../utils/ether.h"
@@ -52,42 +54,66 @@ void FlowLB::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     Tcp *tcp =
         reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
 
-    Flow flow;
-    flow.src_ip = ip->src;
-    flow.dst_ip = ip->dst;
-    flow.src_port = tcp->src_port;
-    flow.dst_port = tcp->dst_port;
-
     uint64_t now = ctx->current_ns;
+    be32_t next_endpoint;
 
-    // Find existing flow, if we have one.
-    std::unordered_map<Flow, FlowRecord, FlowHash>::iterator it =
-        flow_cache_.find(flow);
+    if (bess::ctrl::exp_id <= 1) { // Ironside
+      FlowState *state = bess::ctrl::nfv_cores[0]->GetFlowState(pkt);
 
-    if (it != flow_cache_.end()) {
-      if (now >= it->second.ExpiryTime()) { // an outdated flow
+      if (state->lb.pkt_cnt_ == 0) {
+        state->lb.pkt_cnt_ = 1;
+        size_t hashed = rte_hash_crc(&ip->src, sizeof(be32_t), 0);
+        size_t endpoint_index = hashed % endpoints_.size();
+        state->lb.SetDstIP(endpoints_[endpoint_index]);
+      }
+
+      next_endpoint = state->lb.DstIP();
+
+      state->lb.SetExpiryTime(now + TIME_OUT_NS);
+    }
+    else {
+      Flow flow;
+      flow.src_ip = ip->src;
+      flow.dst_ip = ip->dst;
+      flow.src_port = tcp->src_port;
+      flow.dst_port = tcp->dst_port;
+
+      // Find existing flow, if we have one.
+      std::unordered_map<Flow, FlowRecord, FlowHash>::iterator it =
+          flow_cache_.find(flow);
+
+      if (it != flow_cache_.end()) {
+        if (now >= it->second.ExpiryTime()) { // an outdated flow
+          flow_cache_.erase(it);
+          active_flows_ -= 1;
+          it = flow_cache_.end();
+        }
+      }
+
+      if (it == flow_cache_.end()) {
+        std::tie(it, std::ignore) = flow_cache_.emplace(
+            std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
+
+        size_t hashed = rte_hash_crc(&ip->src, sizeof(be32_t), 0);
+        size_t endpoint_index = hashed % endpoints_.size();
+        it->second.SetDstIP(endpoints_[endpoint_index]);
+        active_flows_ += 1;
+      }
+
+      next_endpoint = it->second.DstIP();
+
+      it->second.SetExpiryTime(now + TIME_OUT_NS);
+
+      if (tcp->flags & Tcp::Flag::kFin) {
         flow_cache_.erase(it);
         active_flows_ -= 1;
-        it = flow_cache_.end();
       }
     }
 
-    if (it == flow_cache_.end()) {
-      std::tie(it, std::ignore) = flow_cache_.emplace(
-          std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
-
-      size_t hashed = rte_hash_crc(&ip->src, sizeof(be32_t), 0);
-      size_t endpoint_index = hashed % endpoints_.size();
-      it->second.SetDstIP(endpoints_[endpoint_index]);
-      active_flows_ += 1;
-    }
-
-    it->second.SetExpiryTime(now + TIME_OUT_NS);
-
     // Modify the packet's destination endpoint, and update IP checksum.
     be32_t before = ip->dst;
-    be32_t after = it->second.DstIP();
-    ip->dst = it->second.DstIP();
+    be32_t after = next_endpoint;
+    ip->dst = next_endpoint;
 
     uint32_t l3_increment =
       ChecksumIncrement32(before.raw_value(), after.raw_value());
@@ -95,11 +121,6 @@ void FlowLB::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     uint32_t l4_increment = l3_increment;
     tcp->checksum = UpdateChecksumWithIncrement(tcp->checksum, l4_increment);
-
-    if (tcp->flags & Tcp::Flag::kFin) {
-      flow_cache_.erase(it);
-      active_flows_ -= 1;
-    }
   }
 
   RunNextModule(ctx, batch);
