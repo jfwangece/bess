@@ -72,6 +72,9 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     if (bess::ctrl::exp_id <= 1) { // Ironside
       FlowState *state = bess::ctrl::nfv_cores[0]->GetFlowState(pkt);
+      if (now >= state->acl.ExpiryTime()) {
+        state->acl.pkt_cnt_ = 0;
+      }
 
       if (state->acl.pkt_cnt_ == 0) {
         state->acl.pkt_cnt_ = 1;

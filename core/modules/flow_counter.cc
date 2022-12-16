@@ -1,4 +1,6 @@
 #include "flow_counter.h"
+#include "nfv_core.h"
+#include "nfv_ctrl_msg.h"
 
 #include <unistd.h>
 
@@ -61,30 +63,39 @@ void FlowCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     uint64_t now = ctx->current_ns;
 
-    // Find existing flow, if we have one.
-    std::unordered_map<Flow, FlowRecord, FlowHash>::iterator it =
-        flow_cache_.find(flow);
+    if (bess::ctrl::exp_id <= 1) { // Ironside
+      FlowState *state = bess::ctrl::nfv_cores[0]->GetFlowState(pkt);
+      if (now >= state->monitor.ExpiryTime()) {
+        state->monitor.pkt_cnt_ = 0;
+      }
 
-    if (it != flow_cache_.end()) {
-      if (now >= it->second.ExpiryTime()) { // an outdated flow
+      state->monitor.pkt_cnt_ += 1;
+      state->monitor.SetExpiryTime(now + TIME_OUT_NS);
+    }
+    else {
+      // Find existing flow, if we have one.
+      std::unordered_map<Flow, FlowRecord, FlowHash>::iterator it = flow_cache_.find(flow);
+      if (it != flow_cache_.end()) {
+        if (now >= it->second.ExpiryTime()) { // an outdated flow
+          flow_cache_.erase(it);
+          active_flows_ -= 1;
+          it = flow_cache_.end();
+        }
+      }
+
+      if (it == flow_cache_.end()) {
+        std::tie(it, std::ignore) = flow_cache_.emplace(
+            std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
+        active_flows_ += 1;
+      }
+
+      it->second.pkt_cnt_ += 1;
+      it->second.SetExpiryTime(now + TIME_OUT_NS);
+
+      if (tcp->flags & Tcp::Flag::kFin) {
         flow_cache_.erase(it);
         active_flows_ -= 1;
-        it = flow_cache_.end();
       }
-    }
-
-    if (it == flow_cache_.end()) {
-      std::tie(it, std::ignore) = flow_cache_.emplace(
-          std::piecewise_construct, std::make_tuple(flow), std::make_tuple());
-      active_flows_ += 1;
-    }
-
-    it->second.pkt_cnt_ += 1;
-    it->second.SetExpiryTime(now + TIME_OUT_NS);
-
-    if (tcp->flags & Tcp::Flag::kFin) {
-      flow_cache_.erase(it);
-      active_flows_ -= 1;
     }
   }
 
