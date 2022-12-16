@@ -104,7 +104,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   }
 
   curr_rcore_ = 0;
-  curr_rcores_.clear();
+  // curr_rcores_.clear();
 
   last_boost_ts_ns_ = 0;
   rte_atomic64_set(&sum_core_time_ns_, 0);
@@ -305,7 +305,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     uint32_t curr_rcore = curr_rcore_;
 
     ShortEpochProcess();
-    // SplitQToSwQ(local_q_);
+    SplitQToSwQ(local_q_);
 
     // Update CPU core usage
     uint64_t now = tsc_to_ns(rdtsc());

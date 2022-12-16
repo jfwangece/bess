@@ -88,7 +88,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
         // epoch_drop4_ += 1;
         continue;
       }
-      if (curr_rcores_.find(q_state->sw_q_id) == curr_rcores_.end()) {
+      if (active_sw_q_.find(q_state) != active_sw_q_.end()) {
         /// Option 1: go back to ncore
         state->sw_q_state = nullptr;
         local_batch_->add(pkt);
@@ -186,7 +186,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
         // epoch_drop4_ += 1;
         continue;
       }
-      if (!q_state->IsActive()) {
+      if (active_sw_q_.find(q_state) != active_sw_q_.end()) {
         /// Option 1: go back to ncore
         state->sw_q_state = nullptr;
         local_batch_->add(pkt);
@@ -208,7 +208,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
   // Egress 11: drop (|local_q_| overflow)
   SpEnqueue(local_batch_, local_q_);
   for (auto& q : active_sw_q_) {
-    SpEnqueue(q->sw_batch, q->sw_q);
+    MpEnqueue(q->sw_batch, q->sw_q);
   }
   MpEnqueue(local_rboost_batch_, bess::ctrl::rcore_boost_q);
   MpEnqueue(system_dump_batch_, bess::ctrl::system_dump_q);
@@ -329,10 +329,9 @@ bool NFVCore::ShortEpochProcess() {
 
             active_sw_q_.emplace(q);
             curr_rcore_ += 1;
-            curr_rcores_.emplace(qid);
             state->sw_q_state = q;
             assigned = true;
-            LOG(INFO) << "core " << core_id_ << " gets q" << qid << ". rcores=" << active_sw_q_.size();
+            // LOG(INFO) << "core " << core_id_ << " gets q" << qid << ". rcores=" << active_sw_q_.size();
           } else {
             // All rcores are busy now! Need to clean this flow anyway.
             state->sw_q_state = system_dump_q_state_;
@@ -355,10 +354,9 @@ bool NFVCore::ShortEpochProcess() {
       bess::ctrl::nfv_ctrl->ReleaseRCore(q->sw_q_id);
 
       active_sw_q_.erase(qit++);
-      curr_rcores_.erase(q->sw_q_id);
       terminating_sw_q_.emplace(q);
       curr_rcore_ -= 1;
-      LOG(INFO) << "core " << core_id_ << " releases q" << q->sw_q_id << ". rcores=" << active_sw_q_.size();
+      // LOG(INFO) << "core " << core_id_ << " releases q" << q->sw_q_id << ". rcores=" << active_sw_q_.size();
     } else {
       ++qit;
     }
