@@ -42,6 +42,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
       state = new FlowState();
       state->flow = flow;
       state->rss = bess::utils::bucket_stats->RSSHashToID(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
+      state->sw_q_state = nullptr;
       per_flow_states_.Insert(flow, state);
     } else {
       state = state_it->second;
@@ -288,16 +289,15 @@ bool NFVCore::ShortEpochProcess() {
   }
 
   // Greedy assignment: first-fit
-  uint32_t local_large_flow = 0;
   uint32_t local_flow_count = epoch_flow_cache_.size();
-  uint32_t local_pkt_thresh = GetMaxPktCountFromShortTermProfile(local_flow_count) - 32;
+  uint32_t local_pkt_thresh = GetMaxPktCountFromShortTermProfile(local_flow_count);
   uint32_t local_pkt_assigned = 0;
 
   for (auto it = unoffload_flows_.begin(); it != unoffload_flows_.end(); ++it) {
     FlowState *state = *it;
     uint32_t task_size = state->queued_packet_count;
 
-    if (task_size <= local_pkt_thresh) {
+    if (task_size <= epoch_packet_thresh_) {
       if (local_pkt_assigned + task_size < local_pkt_thresh) {
         local_pkt_assigned += task_size;
       } else {
@@ -325,17 +325,14 @@ bool NFVCore::ShortEpochProcess() {
             state->sw_q_state = q;
             q->assigned_packet_count += task_size;
             assigned = true;
-          }
-
-          // All rcores are busy now! Need to clean this flow anyway.
-          if (!assigned) {
+          } else {
+            // All rcores are busy now! Need to clean this flow anyway.
             state->sw_q_state = system_dump_q_state_;
           }
         }
       }
     } else {
       // This flow cannot be handled by only 1 core.
-      local_large_flow += task_size;
       state->sw_q_state = rcore_booster_q_state_;
     }
   }
