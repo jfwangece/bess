@@ -130,6 +130,9 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
   if (mode_ == 1) {
     int16_t qid = rte_atomic16_read(&sw_q_id_);
     if (qid != -1) {
+      if (qid != core_id_) {
+        LOG(FATAL) << qid << ", " << core_id_;
+      }
       is_cleanup_ = true;
       rte_atomic16_set(&sw_q_id_, -1);
     }
@@ -141,7 +144,7 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
         is_cleanup_ = false;
         bess::ctrl::sw_q_state[core_id_]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
         bess::ctrl::rcore_state[core_id_] = true;
-        LOG(INFO) << "q" << core_id_ << " is released";
+        LOG(INFO) << "q" << core_id_ << " is released at rcore" << core_id_;
       }
     }
   }

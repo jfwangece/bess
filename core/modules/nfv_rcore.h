@@ -42,7 +42,7 @@ class NFVRCore final : public Module {
     llring_mp_enqueue(to_remove_queue_, (void*)q);
   }
   inline void RemoveQueue(int16_t qid) {
-    rte_atomic16_set(&sw_q_id_, 200+qid);
+    rte_atomic16_set(&sw_q_id_, qid);
   }
 
   CommandResponse CommandSetBurst(const bess::pb::NFVRCoreCommandSetBurstArg &arg);
