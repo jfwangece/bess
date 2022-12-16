@@ -58,7 +58,7 @@ class NFVRCore final : public Module {
   rte_atomic16_t sw_q_id_;
 
   // Set by myself after reading |sw_q_id_|
-  int16_t qid_;
+  bool is_cleanup_;
   struct llring* sw_q_;
   int burst_;
 

@@ -80,7 +80,7 @@ CommandResponse NFVRCore::Init(const bess::pb::NFVRCoreArg &arg) {
   }
 
   // Run!
-  qid_ = -1;
+  is_cleanup_ = false;
   rte_atomic16_set(&sw_q_id_, -1);
   rte_atomic16_set(&disabled_, 0);
   return CommandSuccess();
@@ -92,7 +92,7 @@ void NFVRCore::DeInit() {
   while (rte_atomic16_read(&disabled_) == 2) { usleep(100000); }
 
   // Clean the software queue that is currently being processed
-  qid_ = -1;
+  is_cleanup_ = false;
   rte_atomic16_set(&sw_q_id_, -1);
   sw_q_ = nullptr;
 
@@ -130,22 +130,19 @@ struct task_result NFVRCore::RunTask(Context *ctx, bess::PacketBatch *batch, voi
   if (mode_ == 1) {
     int16_t qid = rte_atomic16_read(&sw_q_id_);
     if (qid != -1) {
-      if (qid > 200 && sw_q_ == bess::ctrl::sw_q[qid - 200]) {
-        qid_ = qid - 200;
-      }
+      is_cleanup_ = true;
       rte_atomic16_set(&sw_q_id_, -1);
     }
-  }
 
-  // Done with processing |sw_q_|.
-  // Tell everyone that |this| rcore can take any new work
-  if (mode_ == 1 && qid_ != -1) {
-    if (llring_count(sw_q_) < 128) {
-      LOG(INFO) << "q" << qid_ << " is released";
-      qid_ = -1;
-      bess::ctrl::sw_q_state[qid_]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
-      bess::ctrl::rcore_state[core_id_] = true;
-      return {.block = false, .packets = 0, .bits = 0};
+    // Done with processing |sw_q_|.
+    // Tell everyone that |this| rcore can take any new work
+    if (is_cleanup_) {
+      if (llring_count(sw_q_) < 128) {
+        is_cleanup_ = false;
+        bess::ctrl::sw_q_state[core_id_]->SetUpCoreID(DEFAULT_INVALID_CORE_ID);
+        bess::ctrl::rcore_state[core_id_] = true;
+        LOG(INFO) << "q" << core_id_ << " is released";
+      }
     }
   }
 
