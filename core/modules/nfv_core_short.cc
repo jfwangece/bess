@@ -40,7 +40,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
     if (state_it == nullptr) {
       // Init a flow
       state = new FlowState();
-      state->flow = flow;
+      // state->flow = flow;
       state->rss = bess::utils::bucket_stats->RSSHashToID(reinterpret_cast<rte_mbuf*>(pkt)->hash.rss);
       state->sw_q_state = nullptr;
       per_flow_states_.Insert(flow, state);
@@ -58,7 +58,8 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
 
     if (state->short_epoch_packet_count == 0) {
       // Update the per-epoch flow count
-      local_bucket_stats_.per_bucket_flow_cache[id].emplace(state->flow, true);
+      // local_bucket_stats_.per_bucket_flow_cache[id].emplace(state->flow, true);
+      local_bucket_stats_.per_bucket_flow_cache[id].emplace((char*)state);
       epoch_flow_cache_.emplace(state);
     }
     state->short_epoch_packet_count += 1;

@@ -112,14 +112,15 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   epoch_packet_processed_ = 0;
   epoch_packet_queued_ = 0;
   num_epoch_with_large_queue_ = 0;
-  epoch_flow_cache_.clear();
-  unoffload_flows_.clear();
+
+  epoch_flow_cache_.clear(); // std::set
+  unoffload_flows_.clear(); // std::set
   per_flow_states_.Clear(); // CuckooMap
 
   update_bucket_stats_ = false;
   for (int i = 0; i < RETA_SIZE; i++) {
     local_bucket_stats_.per_bucket_packet_counter[i] = 0;
-    local_bucket_stats_.per_bucket_flow_cache[i].clear();
+    local_bucket_stats_.per_bucket_flow_cache[i].clear(); // std::set
   }
 
   // Run!
