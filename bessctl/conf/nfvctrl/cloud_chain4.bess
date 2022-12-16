@@ -65,7 +65,7 @@ nfvctrl::NFVCtrl(wid=wid, ncore=ncore_cnt, rcore=rcore_cnt, qid=total_core_cnt,
 
 port0::PMDPort(pci=pcie0,
     num_inc_q=ncore_cnt,
-    num_out_q=total_core_cnt,
+    num_out_q=total_core_cnt + 1,
     bench_rss=False)
 
 pinc0 = {}
@@ -118,7 +118,8 @@ for i in rcores:
 # aux-core booster
 rbooster::NFVRCore(mode=2) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> QueueOut(port=port0, qid=rcore_boost_core)
 
-sys_dump::NFVRCore(mode=3) -> Sink()
+# system-level dumper
+sys_dump::NFVRCore(mode=3) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> QueueOut(port=port0, qid=sys_dump_core)
 
 ## Core Assignment
 # Do not use core 0
