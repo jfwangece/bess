@@ -88,7 +88,7 @@ void NFVCore::UpdateStatsOnFetchBatch(bess::PacketBatch *batch) {
         // epoch_drop4_ += 1;
         continue;
       }
-      if (active_sw_q_.find(q_state) != active_sw_q_.end()) {
+      if (active_sw_q_.find(state->sw_q_state) == active_sw_q_.end()) {
         /// Option 1: go back to ncore
         state->sw_q_state = nullptr;
         local_batch_->add(pkt);
@@ -186,7 +186,7 @@ void NFVCore::SplitAndEnqueue(bess::PacketBatch* batch) {
         // epoch_drop4_ += 1;
         continue;
       }
-      if (active_sw_q_.find(q_state) != active_sw_q_.end()) {
+      if (active_sw_q_.find(state->sw_q_state) == active_sw_q_.end()) {
         /// Option 1: go back to ncore
         state->sw_q_state = nullptr;
         local_batch_->add(pkt);
