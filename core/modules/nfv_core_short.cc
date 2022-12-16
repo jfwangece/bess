@@ -317,14 +317,16 @@ bool NFVCore::ShortEpochProcess() {
         if (!assigned) {
           int qid = bess::ctrl::nfv_ctrl->RequestRCore();
           if (qid != -1) {
-            LOG(INFO) << "core " << core_id_ << " gets q" << qid << ". rcores=" << curr_rcore_;;
             q = bess::ctrl::sw_q_state[qid];
+            q->SetUpCoreID(core_id_);
+            q->idle_epoch_count = 0;
+            q->assigned_packet_count = task_size;
+
             active_sw_q_.emplace(q);
             curr_rcore_ += 1;
-
             state->sw_q_state = q;
-            q->assigned_packet_count += task_size;
             assigned = true;
+            LOG(INFO) << "core " << core_id_ << " gets q" << qid << ". rcores=" << active_sw_q_.size();
           } else {
             // All rcores are busy now! Need to clean this flow anyway.
             state->sw_q_state = system_dump_q_state_;
@@ -345,11 +347,11 @@ bool NFVCore::ShortEpochProcess() {
     if (q->idle_epoch_count >= max_idle_epoch_count_) { // idle for a while
       q->idle_epoch_count = -1; // terminating
       bess::ctrl::nfv_ctrl->ReleaseRCore(q->sw_q_id);
-      LOG(INFO) << "core " << core_id_ << " releases q" << q->sw_q_id << ". rcores=" << curr_rcore_;
 
       active_sw_q_.erase(qit++);
       terminating_sw_q_.emplace(q);
       curr_rcore_ -= 1;
+      LOG(INFO) << "core " << core_id_ << " releases q" << q->sw_q_id << ". rcores=" << active_sw_q_.size();
     } else {
       ++qit;
     }
