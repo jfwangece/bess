@@ -4,8 +4,15 @@
 import scapy.all as scapy
 
 num_cores = 4
-pcie0 = $BESS_DEV!"81:00.0"
 num_workers = int($BESS_NUM_WORKER!"4")
+node_type = $BESS_NODE_TYPE!"c6525"
+
+if node_type == "r6525":
+    pcie0 = "81:00.0"
+elif node_type == "c6525":
+    pcie0 = "41:00.0"
+else:
+    raise Exception("node type is not supported")
 
 ips = ["10.10.1.{}".format(x) for x in [2,3,5]]
 macs = ["b8:ce:f6:cc:8e:c4", "b8:ce:f6:cc:96:e4", "b8:ce:f6:cc:a2:c4"]
@@ -13,9 +20,9 @@ workers=[{"ip": ips[i], "mac": macs[i]} for i in range(num_workers)]
 
 # 0: min core; 1: min rate; 2: max core; 3: max rate
 ig_mode = int($BESS_IG!'3')
-ncore=int($BESS_NCORE!'4')
 pkt_rate_thresh=int($BESS_PKT_RATE_THRESH!'10000000')
 per_core_pkt_rate_thresh = pkt_rate_thresh / num_cores
+ncore=int($BESS_NCORE!'4')
 
 # Backbone
 PCAPFILE = $PCAP!"/local/bess/experiment_conf/20190117-130000.tcp.pcap"
@@ -78,26 +85,49 @@ for i in range(num_cores):
     queue[i].set_burst(burst=burst_size)
 
 ## Core Assignment
-socket0_cores = [i for i in range(1, 32, 1)]
-socket1_cores = [i for i in range(32, 64, 1)]
+if node_type == "r6525":
+    socket0_cores = [i for i in range(1, 32, 1)]
+    socket1_cores = [i for i in range(32, 64, 1)]
+    socket_cores = socket1_cores
 
-# traffic inc
-bess.add_worker(wid=1, core=socket1_cores[1])
-pinc0.attach_task(wid=1)
+    # traffic inc
+    bess.add_worker(wid=1, core=socket_cores[1])
+    pinc0.attach_task(wid=1)
 
-# traffic out
-bess.add_worker(wid=2, core=socket1_cores[2])
-src[0].attach_task(wid=2)
+    # traffic out
+    bess.add_worker(wid=2, core=socket_cores[2])
+    src[0].attach_task(wid=2)
 
-bess.add_worker(wid=3, core=socket1_cores[3])
-bess.add_worker(wid=4, core=socket1_cores[4])
-replq1.attach_task(wid=3)
-replq2.attach_task(wid=4)
+    bess.add_worker(wid=3, core=socket_cores[3])
+    bess.add_worker(wid=4, core=socket_cores[4])
+    replq1.attach_task(wid=3)
+    replq2.attach_task(wid=4)
 
-for i in range(num_cores):
-    bess.add_worker(wid=5+2*i, core=socket1_cores[5+2*i])
-    bess.add_worker(wid=6+2*i, core=socket1_cores[6+2*i])
-    queue[i].attach_task(wid=5+2*i)
-    ig_queue[i].attach_task(wid=6+2*i)
+    for i in range(num_cores):
+        bess.add_worker(wid=5+2*i, core=socket_cores[5+2*i])
+        bess.add_worker(wid=6+2*i, core=socket_cores[6+2*i])
+        queue[i].attach_task(wid=5+2*i)
+        ig_queue[i].attach_task(wid=6+2*i)
 
-bess.resume_all()
+if node_type == "c6525":
+    socket0_cores = [i for i in range(3, 24, 1)]
+    socket_cores = socket0_cores
+
+    # traffic inc
+    bess.add_worker(wid=1, core=socket_cores[1])
+    pinc0.attach_task(wid=1)
+
+    # traffic out
+    bess.add_worker(wid=2, core=socket_cores[2])
+    src[0].attach_task(wid=2)
+
+    bess.add_worker(wid=3, core=socket_cores[3])
+    bess.add_worker(wid=4, core=socket_cores[4])
+    replq1.attach_task(wid=3)
+    replq2.attach_task(wid=4)
+
+    for i in range(num_cores):
+        bess.add_worker(wid=5+2*i, core=socket_cores[5+2*i])
+        bess.add_worker(wid=6+2*i, core=socket_cores[6+2*i])
+        queue[i].attach_task(wid=5+2*i)
+        ig_queue[i].attach_task(wid=6+2*i)

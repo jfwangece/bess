@@ -20,19 +20,22 @@ AS_TRACE  = "202209011400.tcp.pcap"
 # Places to edit MACs
 # * in cloud_pcap_relay.pcap: edit macs
 # * in nfv_ctrl_long.cc: edit traffic dst mac
-all_ips = ["130.127.134.97", "130.127.134.77", "130.127.134.91", "130.127.134.94"]
-all_macs = ["b8:ce:f6:d2:3b:12", "b8:ce:f6:cc:8e:c4", "b8:ce:f6:cc:96:e4", "b8:ce:f6:cc:a2:c4"]
 
-# CLuster 1
-# dev = "41:00.0"
-# traffic_ip = ["128.110.219.154"]
-# worker_ip = ["128.110.219.147", "128.110.219.145", "128.110.219.148", "128.110.219.131"]
+# CLuster 1 (c6525-100g)
+node_type = "c6525"
+all_ips = ["128.110.219.186", "128.110.219.159", "128.110.219.167", "128.110.219.184"]
+all_macs = ["0c:42:a1:8c:db:fc", "0c:42:a1:8c:dc:94", "0c:42:a1:8c:dc:54", "0c:42:a1:8c:dc:24"]
+dev = "41:00.0"
 
 # Cluster 2 (r6525)
-dev = "81:00.0"
+# node_type = "r6525"
+# dev = "81:00.0"
+# all_ips = ["130.127.134.186", "130.127.134.159", "130.127.134.91", "130.127.134.94"]
+# all_macs = ["b8:ce:f6:d2:3b:12", "b8:ce:f6:cc:8e:c4", "b8:ce:f6:cc:96:e4", "b8:ce:f6:cc:a2:c4"]
+
+# The first server is used for traffic gen; other servers are used for workers
 traffic_ip = all_ips[:1]
 worker_ip = all_ips[1:]
-
 
 def wait_pids(pids):
     for p in pids:
@@ -85,8 +88,13 @@ def reset_grub(ip):
 
     cmd = "git clone https://github.com/jwangee/FaaS-Setup.git"
     run_remote_command(ip, cmd)
-    cmd = "cd ./FaaS-Setup && git pull && ./ironside-update-grub.sh"
-    run_remote_command(ip, cmd)    
+
+    if node_type == "c6525":
+        cmd = "cd ./FaaS-Setup && git pull && ./ironside-update-grub.sh"
+        run_remote_command(ip, cmd)
+    if node_type == "r6525":
+        cmd = "cd ./FaaS-Setup && git pull && ./ironside-update-grub.sh"
+        run_remote_command(ip, cmd)
     return
 
 def install_mlnx(ip):
@@ -98,6 +106,7 @@ def install_mlnx(ip):
     run_remote_command(ip, cmd)
     cmd = "git clone https://github.com/jwangee/FaaS-Setup.git"
     run_remote_command(ip, cmd)
+
     # Download MLNX OFED
     cmd = "scp {}:{}/{} /local".format(FILE_SERVER, FILE_DIR, MLNX_OFED)
     run_remote_command(ip, cmd)
@@ -391,11 +400,14 @@ def fetch_bess_for_all():
     return
 
 def fetch_traffic_trace(ip):
-    # Download all traffic traces used in the evaluation
+    ## Download all traffic traces used in the evaluation
+    # Backbone
     cmd = "scp {}:{}/{} /local/bess/experiment_conf".format(FILE_SERVER, FILE_DIR, BACKBONE_TRACE)
     run_remote_command(ip, cmd)
-    cmd = "scp {}:{}/{} /local/bess/experiment_conf".format(FILE_SERVER, FILE_DIR, AS_TRACE)
-    run_remote_command(ip, cmd)
+
+    # AS
+    # cmd = "scp {}:{}/{} /local/bess/experiment_conf".format(FILE_SERVER, FILE_DIR, AS_TRACE)
+    # run_remote_command(ip, cmd)
 
     print("Done fetching traffic traces")
     return
@@ -1136,8 +1148,8 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    # run_test_exp()
-    run_main_exp()
+    run_test_exp()
+    # run_main_exp()
     # run_compare_exp()
 
     # Ablation: the server mapper

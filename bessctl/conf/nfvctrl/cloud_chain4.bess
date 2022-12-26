@@ -4,9 +4,16 @@
 #
 
 wid = int($BESS_WID!"0")
-pcie0 = $BESS_DEV!"81:00.0"
+node_type = $BESS_NODE_TYPE!"c6525"
 experiment_index = int($BESS_EXP_ID!"0")
 pipeline_index = int($BESS_PIPELINE_ID!"1")
+
+if node_type == "r6525":
+    pcie0 = "81:00.0"
+elif node_type == "c6525":
+    pcie0 = "41:00.0"
+else:
+    raise Exception("node type is not supported")
 
 # the traffic generator's routing information
 traffic_ip = "10.10.1.1"
@@ -21,13 +28,18 @@ acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 long_epoch_period = int($BESS_LPERIOD!"2000000000")
 short_epoch_period = int((slo - 40000) / 2)
-ncore = int($BESS_NCORE!"5")
 queue_scale = 1
 
 # NFVCtrl runs on its own core
-rcore_boost_core = 29
-sys_dump_core = 30
-nfvctrl_core = 31
+ncore = int($BESS_NCORE!"4")
+if node_type == "r6525":
+    rcore_boost_core = 29
+    sys_dump_core = 30
+    nfvctrl_core = 31
+if node_type == "c6525":
+    rcore_boost_core = 21
+    sys_dump_core = 22
+    nfvctrl_core = 23
 
 ncore_cnt = ncore
 ncore_booster_cnt = ncore
@@ -123,24 +135,50 @@ sys_dump::NFVRCore(mode=3) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) 
 
 ## Core Assignment
 # Do not use core 0
-socket0_cores = [i for i in range(1, 32, 1)]
-socket1_cores = [i for i in range(32, 64, 1)]
 
-bess.add_worker(wid=rcore_boost_core, core=socket1_cores[rcore_boost_core])
-rbooster.attach_task(wid=rcore_boost_core)
+if node_type == "r6525":
+    socket0_cores = [i for i in range(1, 32, 1)]
+    socket1_cores = [i for i in range(32, 64, 1)]
+    socket_cores = socket0_cores
 
-bess.add_worker(wid=sys_dump_core, core=socket1_cores[sys_dump_core])
-sys_dump.attach_task(wid=sys_dump_core)
+    bess.add_worker(wid=rcore_boost_core, core=socket_cores[rcore_boost_core])
+    rbooster.attach_task(wid=rcore_boost_core)
 
-bess.add_worker(wid=nfvctrl_core, core=socket1_cores[nfvctrl_core])
-nfvctrl.attach_task(wid=nfvctrl_core)
+    bess.add_worker(wid=sys_dump_core, core=socket_cores[sys_dump_core])
+    sys_dump.attach_task(wid=sys_dump_core)
 
-for i in ncores:
-    bess.add_worker(wid=i, core=socket1_cores[i])
-    pinc0[i].attach_task(wid=i)
-for i in ncore_boosters:
-    bess.add_worker(wid=i, core=socket1_cores[i])
-    pinc0[i].attach_task(wid=i)
-for i in rcores:
-    bess.add_worker(wid=i, core=socket1_cores[i])
-    pinc0[i].attach_task(wid=i)
+    bess.add_worker(wid=nfvctrl_core, core=socket_cores[nfvctrl_core])
+    nfvctrl.attach_task(wid=nfvctrl_core)
+
+    for i in ncores:
+        bess.add_worker(wid=i, core=socket_cores[i])
+        pinc0[i].attach_task(wid=i)
+    for i in ncore_boosters:
+        bess.add_worker(wid=i, core=socket_cores[i])
+        pinc0[i].attach_task(wid=i)
+    for i in rcores:
+        bess.add_worker(wid=i, core=socket_cores[i])
+        pinc0[i].attach_task(wid=i)
+
+if node_type == "c6525":
+    socket0_cores = [i for i in range(3, 24, 1)]
+    socket_cores = socket0_cores
+
+    bess.add_worker(wid=rcore_boost_core, core=socket_cores[rcore_boost_core])
+    rbooster.attach_task(wid=rcore_boost_core)
+
+    bess.add_worker(wid=sys_dump_core, core=socket_cores[sys_dump_core])
+    sys_dump.attach_task(wid=sys_dump_core)
+
+    bess.add_worker(wid=nfvctrl_core, core=socket_cores[nfvctrl_core])
+    nfvctrl.attach_task(wid=nfvctrl_core)
+
+    for i in ncores:
+        bess.add_worker(wid=i, core=socket_cores[i])
+        pinc0[i].attach_task(wid=i)
+    for i in ncore_boosters:
+        bess.add_worker(wid=i, core=socket_cores[i])
+        pinc0[i].attach_task(wid=i)
+    for i in rcores:
+        bess.add_worker(wid=i, core=socket_cores[i])
+        pinc0[i].attach_task(wid=i)
