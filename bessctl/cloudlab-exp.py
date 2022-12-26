@@ -1137,7 +1137,7 @@ def main():
     install_bess_for_all()
 
     ## Config
-    # setup_cpu_hugepage_for_all()
+    setup_cpu_hugepage_for_all()
     # fetch_traffic_trace(traffic_ip[0])
 
     ## Ready to produce traffic
