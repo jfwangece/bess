@@ -512,9 +512,11 @@ def long_term_profile_once(slo, flow, pkt_rate):
 # The input determines the target latency SLO and traffic input metrics.
 # |flow_range|: a list of active flow counts to profile.
 # |rate_range|: a list of packet rates to profile.
-def run_long_term_profile(slo, flow_range, rate_range):
+def run_long_term_profile(slo_range, flow_range, rate_range):
     start_time = time.time()
 
+    # cover the maximum slo target
+    slo = max(slo_range)
     nf_profile_p50 = {}
     nf_profile_p90 = {}
     for f in sorted(flow_range):
@@ -530,23 +532,28 @@ def run_long_term_profile(slo, flow_range, rate_range):
                 # early break for saving time (|slo| is in ns)
                 break
 
-    fp1 = open("./long_{}_p50.pro".format(slo/1000), "w+")
-    keys = sorted(nf_profile_p50.keys())
-    for key in keys:
-        if key not in nf_profile_p50:
-            continue
-        val = nf_profile_p50[key]
-        fp1.write("{} {}\n".format(key ,val))
-    fp1.close()
+    for slo in slo_range:
+        slo_us = int(slo / 1000)
 
-    fp2 = open("./long_{}_p90.pro".format(slo/1000), "w+")
-    keys = sorted(nf_profile_p90.keys())
-    for key in keys:
-        if key not in nf_profile_p90:
-            continue
-        val = nf_profile_p90[key]
-        fp2.write("{} {}\n".format(key ,val))
-    fp2.close()
+        fp1 = open("./long_{}_p50.pro".format(slo_us), "w+")
+        keys = sorted(nf_profile_p50.keys())
+        for key in keys:
+            if key not in nf_profile_p50:
+                continue
+            val = nf_profile_p50[key]
+            fp1.write("{} {}\n".format(key ,val))
+        fp1.close()
+
+        fp2 = open("./long_{}_p90.pro".format(slo_us), "w+")
+        keys = sorted(nf_profile_p90.keys())
+        for key in keys:
+            if key not in nf_profile_p90:
+                continue
+            val = nf_profile_p90[key]
+            fp2.write("{} {}\n".format(key ,val))
+        fp2.close()
+
+        print("Finish long-term profile under SLO = {} us", slo_us)
 
     end_time = time.time()
     diff = int(end_time - start_time)
@@ -554,10 +561,16 @@ def run_long_term_profile(slo, flow_range, rate_range):
     return
 
 def run_long_profile_under_slos():
-    target_slos = [100000]
-    flow_range = range(500, 6500, 500)
-    rate_range = range(1800000, 2200000, 20000)
+    if NF_CHAIN == "chain2":
+        target_slos = range(100000, 700000, 100000) # 100-600 us
+        flow_range = range(500, 6500, 500)
+        rate_range = range(200000, 1000000, 50000)
+    if NF_CHAIN == "chain4":
+        target_slos = range(100000, 700000, 100000) # 100-600 us
+        flow_range = range(500, 6500, 500)
+        rate_range = range(1800000, 2200000, 20000)
 
+    # Run!
     run_long_term_profile(target_slos, flow_range, rate_range)
     return
 
@@ -1147,11 +1160,11 @@ def main():
     # run_traffic()
 
     ## Ready to profile an NF chain
-    # run_long_profile_under_slos()
+    run_long_profile_under_slos()
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    run_test_exp()
+    # run_test_exp()
     # run_main_exp()
     # run_compare_exp()
 
