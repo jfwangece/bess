@@ -512,29 +512,40 @@ def long_term_profile_once(slo, flow, pkt_rate):
 # The input determines the target latency SLO and traffic input metrics.
 # |flow_range|: a list of active flow counts to profile.
 # |rate_range|: a list of packet rates to profile.
-def run_long_term_profile(slo_range, flow_range, rate_range):
+def run_long_term_profile(slo, flow_range, rate_range):
     start_time = time.time()
 
-    # cover the maximum slo target
-    slo = max(slo_range)
+    slo_us = int(slo / 1000)
     nf_profile_p50 = {}
     nf_profile_p90 = {}
     for f in sorted(flow_range):
-        for r in sorted(rate_range):
-            delay = long_term_profile_once(slo, f, r)
-            if delay==None or len(delay) == 0:
-                continue
-            if delay[1] * 1000 <= slo:
-                nf_profile_p90[f] = r
-            if delay[0] * 1000 <= slo:
-                nf_profile_p50[f] = r
+        left, right = 0, len(rate_range) - 1
+        while left <= right:
+            mid = (left + right) // 2
+            delay = long_term_profile_once(slo, f, rate_range[mid])
+            if delay[0] <= slo_us:
+                left = mid + 1
             else:
-                # early break for saving time (|slo| is in ns)
-                break
+                right = mid - 1
 
-    for slo in slo_range:
-        slo_us = int(slo / 1000)
+        target_idx = left - 1
+        if target_idx == -1:
+            raise Exception("The min rate cannot meet the target slo")
+        else:
+            nf_profile_p50[f] = rate_range[target_idx]
 
+        # for r in sorted(rate_range):
+        #     if delay==None or len(delay) == 0:
+        #         continue
+        #     if delay[1] * 1000 <= slo:
+        #         nf_profile_p90[f] = r
+        #     if delay[0] * 1000 <= slo:
+        #         nf_profile_p50[f] = r
+        #     else:
+        #         # early break for saving time (|slo| is in ns)
+        #         break
+
+    if len(nf_profile_p50) > 0:
         fp1 = open("./long_{}_p50.pro".format(slo_us), "w+")
         keys = sorted(nf_profile_p50.keys())
         for key in keys:
@@ -544,6 +555,7 @@ def run_long_term_profile(slo_range, flow_range, rate_range):
             fp1.write("{} {}\n".format(key ,val))
         fp1.close()
 
+    if len(nf_profile_p90) > 0:
         fp2 = open("./long_{}_p90.pro".format(slo_us), "w+")
         keys = sorted(nf_profile_p90.keys())
         for key in keys:
@@ -553,7 +565,7 @@ def run_long_term_profile(slo_range, flow_range, rate_range):
             fp2.write("{} {}\n".format(key ,val))
         fp2.close()
 
-        print("Finish long-term profile under SLO = {} us", slo_us)
+    print("Finish long-term profile under SLO = {} us", slo_us)
 
     end_time = time.time()
     diff = int(end_time - start_time)
@@ -562,16 +574,17 @@ def run_long_term_profile(slo_range, flow_range, rate_range):
 
 def run_long_profile_under_slos():
     if NF_CHAIN == "chain2":
-        target_slos = range(100000, 700000, 100000) # 100-600 us
+        target_slos = range(200000, 700000, 100000) # 100-600 us
         flow_range = range(500, 6500, 500)
-        rate_range = range(200000, 1000000, 50000)
+        rate_range = range(500000, 800000, 20000)
     if NF_CHAIN == "chain4":
         target_slos = range(100000, 700000, 100000) # 100-600 us
         flow_range = range(500, 6500, 500)
         rate_range = range(1800000, 2200000, 20000)
 
     # Run!
-    run_long_term_profile(target_slos, flow_range, rate_range)
+    for slo in target_slos:
+        run_long_term_profile(slo, flow_range, rate_range)
     return
 
 ## Short-term profile
@@ -608,8 +621,9 @@ def short_term_profile_once(slo):
 
     ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
     ig_mode = 3
+    pkt_thresh = 3000000
     for tip in traffic_ip:
-        start_traffic_ironside_ingress(tip, num_worker, ig_mode)
+        start_traffic_ironside_ingress(tip, num_worker, ig_mode, pkt_thresh)
     print("exp: traffic started")
 
     time.sleep(exp_duration)
@@ -1160,8 +1174,8 @@ def main():
     # run_traffic()
 
     ## Ready to profile an NF chain
-    run_long_profile_under_slos()
-    # run_short_profile_under_slos()
+    # run_long_profile_under_slos()
+    run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
     # run_test_exp()
