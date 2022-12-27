@@ -1,0 +1,165 @@
+#
+# Test NF chain #4: a stateful NF chain
+# ACL -> LB -> Monitor
+#
+
+wid = int($BESS_WID!"0")
+node_type = $BESS_NODE_TYPE!"c6525"
+experiment_index = int($BESS_EXP_ID!"0")
+
+if node_type == "r6525":
+    pcie0 = "81:00.0"
+elif node_type == "c6525":
+    pcie0 = "41:00.0"
+else:
+    raise Exception("node type is not supported")
+
+# the traffic generator's routing information
+traffic_ip = "10.10.1.1"
+traffic_mac = $TRAFFIC_MAC!"0c:42:a1:8c:db:fc"
+
+slo = int($BESS_SLO!"100000")
+short_profile = $BESS_SPROFILE!"/local/bess/nf_profiles/short_100.pro"
+long_profile = $BESS_LPROFILE!"/local/bess/nf_profiles/long_100_p50.pro"
+
+burst_size=int($BESS_BURST!'32')
+acl_cnt=int($BESS_ACL!'2000')
+lb_cnt=int($BESS_LB!'100')
+long_epoch_period = int($BESS_LPERIOD!"2000000000")
+short_epoch_period = int((slo - 40000) / 2)
+queue_scale = 1
+
+# NFVCtrl runs on its own core
+ncore = int($BESS_NCORE!"5")
+if node_type == "r6525":
+    # 2-socket, full 32-core
+    rcore_boost_core = 29
+    sys_dump_core = 30
+    nfvctrl_core = 31
+if node_type == "c6525":
+    # 1-socket, not full 23-core (0 is skipped)
+    rcore_boost_core = 20
+    sys_dump_core = 21
+    nfvctrl_core = 22
+
+ncore_cnt = ncore
+ncore_booster_cnt = ncore
+rcore_cnt = rcore_boost_core - (ncore + ncore_booster_cnt)
+# [1, sys_dump_core]
+total_core_cnt = sys_dump_core
+
+ncores = [i for i in range(ncore_cnt)]
+ncore_boosters = [ncore_cnt + i for i in range(ncore_cnt)]
+rcores = [2*ncore_cnt + i for i in range(rcore_cnt)]
+
+print("total cores: %d" %(total_core_cnt))
+print("{} normal cores: {}".format(len(ncores), ncores))
+print("{} normal booster cores: {}".format(len(ncore_boosters), ncore_boosters))
+print("{} reserved cores: {}".format(len(rcores), rcores))
+
+acl_rules = []
+for i in range(acl_cnt / 50):
+    for j in range(50):
+        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
+acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
+
+blacklist_rules = [
+    {'host': 'www.%d.com' % i, 'path': '/'} for i in range(100)]
+
+# Module
+# nfvctrl must be declared before PMDPort 
+nfvctrl::NFVCtrl(wid=wid, ncore=ncore_cnt, rcore=rcore_cnt, qid=total_core_cnt,
+                slo_ns=slo,
+                long_epoch_period_ns=long_epoch_period,
+                nf_short_term_profile=short_profile, nf_long_term_profile=long_profile,
+                exp_id=experiment_index)
+
+port0::PMDPort(pci=pcie0,
+    num_inc_q=ncore_cnt,
+    num_out_q=total_core_cnt + 1,
+    bench_rss=False)
+
+pinc0 = {}
+pout0 = {}
+fw = {}
+ids = {}
+chacha = {}
+nfvmo = {}
+
+# Pipeline
+for i in ncores:
+    pinc0[i] = NFVCore(core_id=i, port=port0, qid=i, short_epoch_period_ns=short_epoch_period, large_queue_scale=queue_scale)
+    fw[i] = FlowACL(rules=acl_rules)
+    ids[i] = UrlFilter(blacklist=blacklist_rules)
+    chacha[i] = CHACHA()
+    nfvmo[i] = NFVMonitor(core_id=i)
+    pout0[i] = QueueOut(port=port0, qid=i)
+
+    # Default: Chain 4 w/ NFVMonitor
+    pinc0[i] -> fw[i] -> ids[i] -> chacha[i] -> nfvmo[i] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
+
+for i in ncore_boosters:
+    pinc0[i] = NFVRCore(mode=0, core_id=i-ncore_cnt)
+    pout0[i] = QueueOut(port=port0, qid=i)
+    pinc0[i] -> FlowACL(rules=acl_rules) -> UrlFilter(blacklist=blacklist_rules) -> CHACHA() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
+
+for i in rcores:
+    pinc0[i] = NFVRCore(mode=1, core_id=i-2*ncore_cnt)
+    pout0[i] = QueueOut(port=port0, qid=i)
+    pinc0[i] -> FlowACL(rules=acl_rules) -> UrlFilter(blacklist=blacklist_rules) -> CHACHA() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
+
+# aux-core booster
+rbooster::NFVRCore(mode=2) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> QueueOut(port=port0, qid=rcore_boost_core)
+
+# system-level dumper
+sys_dump::NFVRCore(mode=3) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> QueueOut(port=port0, qid=sys_dump_core)
+
+## Core Assignment
+# Do not use core 0
+
+if node_type == "r6525":
+    socket0_cores = [i for i in range(1, 32, 1)]
+    socket1_cores = [i for i in range(32, 64, 1)]
+    socket_cores = socket0_cores
+
+    bess.add_worker(wid=rcore_boost_core, core=socket_cores[rcore_boost_core])
+    rbooster.attach_task(wid=rcore_boost_core)
+
+    bess.add_worker(wid=sys_dump_core, core=socket_cores[sys_dump_core])
+    sys_dump.attach_task(wid=sys_dump_core)
+
+    bess.add_worker(wid=nfvctrl_core, core=socket_cores[nfvctrl_core])
+    nfvctrl.attach_task(wid=nfvctrl_core)
+
+    for i in ncores:
+        bess.add_worker(wid=i, core=socket_cores[i])
+        pinc0[i].attach_task(wid=i)
+    for i in ncore_boosters:
+        bess.add_worker(wid=i, core=socket_cores[i])
+        pinc0[i].attach_task(wid=i)
+    for i in rcores:
+        bess.add_worker(wid=i, core=socket_cores[i])
+        pinc0[i].attach_task(wid=i)
+
+if node_type == "c6525":
+    socket0_cores = [i for i in range(1, 24, 1)]
+    socket_cores = socket0_cores
+
+    bess.add_worker(wid=rcore_boost_core, core=socket_cores[rcore_boost_core])
+    rbooster.attach_task(wid=rcore_boost_core)
+
+    bess.add_worker(wid=sys_dump_core, core=socket_cores[sys_dump_core])
+    sys_dump.attach_task(wid=sys_dump_core)
+
+    bess.add_worker(wid=nfvctrl_core, core=socket_cores[nfvctrl_core])
+    nfvctrl.attach_task(wid=nfvctrl_core)
+
+    for i in ncores:
+        bess.add_worker(wid=i, core=socket_cores[i])
+        pinc0[i].attach_task(wid=i)
+    for i in ncore_boosters:
+        bess.add_worker(wid=i, core=socket_cores[i])
+        pinc0[i].attach_task(wid=i)
+    for i in rcores:
+        bess.add_worker(wid=i, core=socket_cores[i])
+        pinc0[i].attach_task(wid=i)

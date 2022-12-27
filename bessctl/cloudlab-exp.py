@@ -15,6 +15,7 @@ FILE_DIR = "/home/jfwang/ironside/large-files"
 MLNX_OFED = "MLNX_OFED_LINUX-5.4-3.5.8.0-ubuntu18.04-x86_64.tgz"
 BACKBONE_TRACE = "20190117-130000.tcp.pcap"
 AS_TRACE  = "202209011400.tcp.pcap"
+NF_CHAIN = "chain2"
 
 ## Server info
 # Places to edit MACs
@@ -219,7 +220,7 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     send_remote_file(wip, long, remote_long)
     print("ironside worker {} gets short-term and long-term profiles".format(worker_id))
 
-    cmds = ["run", "nfvctrl/cloud_chain4"]
+    cmds = ["run", "nfvctrl/cloud_{}".format(NF_CHAIN)]
     extra_cmds = ["TRAFFIC_MAC='{}'".format(all_macs[0]),
             "BESS_WID={}".format(worker_id),
             "BESS_SLO={}".format(slo),
@@ -233,7 +234,7 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
     run_remote_command(wip, run_bess_cmd)
-    print("ironside worker {} starts".format(wip))
+    print("ironside worker {} starts: {}".format(wip, NF_CHAIN))
 
 def start_dummy_worker(wip):
     cmds = ["run", "nfvctrl/cloud_dummy"]
@@ -242,25 +243,25 @@ def start_dummy_worker(wip):
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
     run_remote_command(wip, run_bess_cmd)
-    print("ironside (dummy) worker {} starts".format(wip))
+    print("ironside (dummy) worker {} starts: dummy chain".format(wip))
 
 def start_metron_worker(wip, worker_id):
-    cmds = ["run", "nfvctrl/cloud_metron_chain4"]
+    cmds = ["run", "nfvctrl/cloud_metron_{}".format(NF_CHAIN)]
     extra_cmd = "BESS_EXP_ID=2, TRAFFIC_MAC='{}', BESS_WID={}".format(all_macs[0], worker_id)
     cmds.append(extra_cmd)
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
     run_remote_command(wip, run_bess_cmd)
-    print("metron worker {} starts".format(wip))
+    print("metron worker {} starts: {}".format(wip, NF_CHAIN))
 
 def start_quadrant_worker(wip, worker_id):
-    cmds = ["run", "nfvctrl/cloud_metron_chain4"]
+    cmds = ["run", "nfvctrl/cloud_metron_{}".format(NF_CHAIN)]
     extra_cmd = "BESS_EXP_ID=3, BESS_SWITCH_CORE=2, BESS_WORKER_CORE=16, TRAFFIC_MAC='{}', BESS_WID={}".format(all_macs[0], worker_id)
     cmds.append(extra_cmd)
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
     run_remote_command(wip, run_bess_cmd)
-    print("quadrant worker {} starts".format(wip))
+    print("quadrant worker {} starts {}".format(wip, NF_CHAIN))
 
 def start_dyssect_worker(wip, worker_id, slo):
     cmd = "sudo pkill -f bessd"
@@ -1137,7 +1138,7 @@ def main():
     install_bess_for_all()
 
     ## Config
-    setup_cpu_hugepage_for_all()
+    # setup_cpu_hugepage_for_all()
     # fetch_traffic_trace(traffic_ip[0])
 
     ## Ready to produce traffic
