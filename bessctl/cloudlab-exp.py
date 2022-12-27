@@ -562,11 +562,12 @@ def run_long_profile_under_slos():
     return
 
 ## Short-term profile
-# |slo| is the target latency SLO (in us).
+# |slo| is the target latency SLO (in ns).
 def short_term_profile_once(slo):
     num_worker = 1
     selected_worker_ips = worker_ip[:num_worker]
     exp_duration = 15
+    slo_us = int(slo / 1000)
 
     # Start all bessd
     pids = []
@@ -583,7 +584,7 @@ def short_term_profile_once(slo):
 
     # Run all workers
     short_profile = "./nf_profiles/short_term_base.pro"
-    long_profile = "./nf_profiles/long_{}_p50.pro".format(slo/1000)
+    long_profile = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
     pids = []
     for i, wip in enumerate(selected_worker_ips):
         p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 2))
@@ -625,8 +626,10 @@ def short_term_profile_once(slo):
     return short_profile
 
 def run_short_term_profile(slo):
-    slo_us = slo / 1000
     short_profile = short_term_profile_once(slo)
+
+    # write |short_profile| to a local file
+    slo_us = slo / 1000
     fp = open("./short_{}.pro".format(slo_us), "w+")
     for flow_count, pkt_count in short_profile:
         fp.write("{} {}\n".format(flow_count, pkt_count))
@@ -951,8 +954,8 @@ def run_test_exp():
     exp_results = []
     for slo in target_slos:
         slo_us = slo / 1000
-        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
-        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
+        long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
         if r == None:
             continue
@@ -971,13 +974,12 @@ def run_test_exp():
 def run_main_exp():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
-    target_chain = "chain4"
 
     ironside_results = []
     for slo in target_slos:
         slo_us = slo / 1000
-        short_prof = "./nf_profiles/{}/short_{}.pro".format(target_chain, slo_us)
-        long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(target_chain, slo_us)
+        short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
+        long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
         r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
         if r == None:
             continue
@@ -1048,22 +1050,22 @@ def run_ablation_server_mapper():
     for slo in target_slos:
         slo_us = slo / 1000
         # Ironside
-        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
-        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
+        long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
         r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
         # Static-safe: higher cpu usage
         # It uses more dedicated cores, and less on-demand cores.
-        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
-        long_prof = "./nf_profiles/long_{}_p50_safe.pro".format(slo_us)
+        short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
+        long_prof = "./nf_profiles/{}/long_{}_p50_safe.pro".format(NF_CHAIN, slo_us)
         r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
         # Static-unsafe: higher cpu usage?
         # Suppose the core mapepr can handle excessive loads on a dedicated core.
         # Latency should be okay. However, more packet migrations are required,
         # which requires a slightly higher CPU core usage.
-        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
-        long_prof = "./nf_profiles/long_{}_p50_unsafe.pro".format(slo_us)
+        short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
+        long_prof = "./nf_profiles/{}/long_{}_p50_unsafe.pro".format(NF_CHAIN, slo_us)
         r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
         exp_results.append([r1, r2, r3])
@@ -1092,23 +1094,23 @@ def run_ablation_core_mapper():
     for slo in target_slos:
         slo_us = slo / 1000
         # Ironside
-        short_prof = "./nf_profiles/short_{}.pro".format(slo_us)
-        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
+        long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
         r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
         # Static-safe: similar latency && higher cpu usage
-        short_prof = "./nf_profiles/short_{}_safe.pro".format(slo_us)
-        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        short_prof = "./nf_profiles/{}/short_{}_safe.pro".format(NF_CHAIN, slo_us)
+        long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
         r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
         # Static-unsafe: higher latency
-        short_prof = "./nf_profiles/short_{}_unsafe.pro".format(slo_us)
-        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        short_prof = "./nf_profiles/{}/short_{}_unsafe.pro".format(NF_CHAIN, slo_us)
+        long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
         r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
         # No core mapper: super high latency
-        short_prof = "./nf_profiles/short_term_base.pro"
-        long_prof = "./nf_profiles/long_{}_p50.pro".format(slo_us)
+        short_prof = "./nf_profiles/{}/short_term_baNF_CHAIN, se.pro"
+        long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
         r4 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
         exp_results.append((r1, r2, r3, r4))
