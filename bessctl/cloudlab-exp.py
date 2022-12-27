@@ -522,7 +522,7 @@ def run_long_term_profile(slo_range, flow_range, rate_range):
     for f in sorted(flow_range):
         for r in sorted(rate_range):
             delay = long_term_profile_once(slo, f, r)
-            if len(delay) == 0:
+            if delay==None or len(delay) == 0:
                 continue
             if delay[1] * 1000 <= slo:
                 nf_profile_p90[f] = r

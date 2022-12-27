@@ -5,34 +5,10 @@ import scapy.all as scapy
 
 num_cores = 1
 num_workers = 1
-pcie0 = $BESS_DEV!"81:00.0"
-
-offset0 = 0
-ips = ["10.10.1.{}".format(x) for x in [2,3,5]]
-macs = ["b8:ce:f6:cc:8e:c4", "b8:ce:f6:cc:96:e4", "b8:ce:f6:cc:a2:c4"]
-workers=[{'ip': ips[i], 'mac': macs[i]} for i in range(num_workers)]
-
-PACKET_OVERHEAD = 24
-tag_offset = 72
-burst_size=32
-
-# Packet size, rate, and flow count determine the traffic input
-pkt_size=int($BESS_PKT_SIZE!'500')
-total_pkt_rate=int($BESS_PKT_RATE!'10000000')
-num_flows=int($BESS_FLOW!'1000')
-flow_time=int($BESS_FLOW_TIME!'10') # in Seconds
-traffic_pattern=int($BESS_TRAFFIC_DIST!'1')
-
-if traffic_pattern == 0:
-    arrival_dist = "uniform"
-    duration_dist = "uniform"
-elif traffic_pattern == 1:
-    arrival_dist = "exponential"
-    duration_dist = "pareto"
-else:
-    print("Incorrect traffic pattern")
+node_type = $BESS_NODE_TYPE!"c6525"
 
 # Each flowgen has its own unique set of flows
+PACKET_OVERHEAD = 24
 def get_pkt_template(core_id):
     src_ether = 'ec:0d:9a:67:ff:68'
     src_ip = '204.57.%d.1' %(core_id)
@@ -51,6 +27,36 @@ def get_pkt_template(core_id):
     pkt_data = bytes(pkt)
     print("Packet size = %d bytes" %(len(pkt_data)))
     return pkt_data
+
+if node_type == "r6525":
+    pcie0 = "81:00.0"
+elif node_type == "c6525":
+    pcie0 = "41:00.0"
+else:
+    raise Exception("node type is not supported")
+
+ips = ["10.10.1.{}".format(x) for x in [2,3,5]]
+macs = ["b8:ce:f6:cc:8e:c4", "b8:ce:f6:cc:96:e4", "b8:ce:f6:cc:a2:c4"]
+workers=[{'ip': ips[i], 'mac': macs[i]} for i in range(num_workers)]
+
+# Packet size, rate, and flow count determine the traffic input
+pkt_size=int($BESS_PKT_SIZE!'500')
+total_pkt_rate=int($BESS_PKT_RATE!'10000000')
+num_flows=int($BESS_FLOW!'1000')
+flow_time=int($BESS_FLOW_TIME!'10') # in Seconds
+traffic_pattern=int($BESS_TRAFFIC_DIST!'1')
+
+if traffic_pattern == 0:
+    arrival_dist = "uniform"
+    duration_dist = "uniform"
+elif traffic_pattern == 1:
+    arrival_dist = "exponential"
+    duration_dist = "pareto"
+else:
+    print("Incorrect traffic pattern")
+
+tag_offset = 72
+burst_size=32
 
 pkt_data = get_pkt_template(0)
 print("BESS: flow arrival rate={}".format(num_flows / flow_time))
@@ -83,18 +89,34 @@ pinc0.set_burst(burst=burst_size)
 for i in range(num_cores):
     queue[i].set_burst(burst=burst_size)
 
-socket0_cores = [i for i in range(32)]
-socket1_cores = [32 + i for i in range(32)]
+## Core Assignment
+if node_type == "r6525":
+    socket0_cores = [i for i in range(1, 32, 1)]
+    socket1_cores = [i for i in range(32, 64, 1)]
+    socket_cores = socket1_cores
 
-# traffic inc
-bess.add_worker(wid=1, core=socket1_cores[1])
-pinc0.attach_task(wid=1)
+    # traffic inc
+    bess.add_worker(wid=1, core=socket_cores[1])
+    pinc0.attach_task(wid=1)
 
-# traffic out
-for i in range(num_cores):
-    bess.add_worker(wid=2+2*i, core=socket1_cores[2+2*i])
-    bess.add_worker(wid=2+2*i+1, core=socket1_cores[2+2*i+1])
-    src[i].attach_task(wid=2+2*i)
-    queue[i].attach_task(wid=2+2*i+1)
+    # traffic out
+    for i in range(num_cores):
+        bess.add_worker(wid=2+2*i, core=socket_cores[2+2*i])
+        bess.add_worker(wid=2+2*i+1, core=socket_cores[2+2*i+1])
+        src[i].attach_task(wid=2+2*i)
+        queue[i].attach_task(wid=2+2*i+1)
 
-bess.resume_all()
+if node_type == "c6525":
+    socket0_cores = [i for i in range(1, 24, 1)]
+    socket_cores = socket0_cores
+
+    # traffic inc
+    bess.add_worker(wid=1, core=socket_cores[1])
+    pinc0.attach_task(wid=1)
+
+    # traffic out
+    for i in range(num_cores):
+        bess.add_worker(wid=2+2*i, core=socket_cores[2+2*i])
+        bess.add_worker(wid=2+2*i+1, core=socket_cores[2+2*i+1])
+        src[i].attach_task(wid=2+2*i)
+        queue[i].attach_task(wid=2+2*i+1)
