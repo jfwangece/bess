@@ -5,17 +5,21 @@ import io
 import multiprocessing
 import subprocess
 import time
+import threading
 from bessctl import run_cli
 from cloudlabutils import read_core_snapshot, slo_violation_analysis, get_short_term_profile
 
 INIT_SERVER = False
 
+# Global parameters
 FILE_SERVER = "jfwang@68.181.32.207"
 FILE_DIR = "/home/jfwang/ironside/large-files"
 MLNX_OFED = "MLNX_OFED_LINUX-5.4-3.5.8.0-ubuntu18.04-x86_64.tgz"
 BACKBONE_TRACE = "20190117-130000.tcp.pcap"
 AS_TRACE  = "202209011400.tcp.pcap"
 NF_CHAIN = "chain2"
+
+LONG_PERIOD = 2000000000
 
 ## Server info
 # Places to edit MACs
@@ -24,9 +28,9 @@ NF_CHAIN = "chain2"
 
 # CLuster 1 (c6525-100g)
 node_type = "c6525"
+dev = "41:00.0"
 all_ips = ["128.110.219.186", "128.110.219.159", "128.110.219.167", "128.110.219.184"]
 all_macs = ["0c:42:a1:8c:db:fc", "0c:42:a1:8c:dc:94", "0c:42:a1:8c:dc:54", "0c:42:a1:8c:dc:24"]
-dev = "41:00.0"
 
 # Cluster 2 (r6525)
 # node_type = "r6525"
@@ -38,6 +42,7 @@ dev = "41:00.0"
 traffic_ip = all_ips[:1]
 worker_ip = all_ips[1:]
 
+## Helper functions
 def wait_pids(pids):
     for p in pids:
         p.join()
@@ -45,19 +50,32 @@ def wait_pids(pids):
 
 def wait_pids_with_timeout(pids, max_time=10):
     start = time.time()
-    while time.time() < start < max_time:
-        if any(p.is_alive() for p in pids):
+    while time.time() - start < max_time:
+        if any(p.poll() == None for p in pids):
             time.sleep(0.2)
             continue
-        break
-    else:
-        for p in pids:
-            p.terminate()
-            p.join()
+        else:
+            for p in pids:
+                p.join()
+                return
+
+    for p in pids:
+        p.terminate()
+        p.join()
+    return
 
 def send_remote_file(ip, local_path, target_path):
-    remote_cmd = ['scp', local_path, 'uscnsl@{}:{}'.format(ip, target_path), '>/dev/null', '2>&1', '\n']
-    os.system(' '.join(remote_cmd))
+    print(local_path)
+    remote_cmds = ['scp', local_path, 'uscnsl@{}:{}'.format(ip, target_path), '>/dev/null', '2>&1', '\n']
+    # os.system(' '.join(remote_cmds))
+    p = subprocess.Popen(remote_cmds, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    timer = threading.Timer(5, p.kill)
+    try:
+        timer.start()
+        out, err = p.communicate()
+    finally:
+        timer.cancel()
     return
 
 def run_remote_command(ip, cmd):
@@ -78,7 +96,7 @@ def run_remote_besscmd(ip, cmds):
                         stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return p
 
-
+## Basic utility functions
 def get_mac_from_server(ip):
     cmd = "ifconfig | grep 10.10 -A 2 | grep eth"
     run_remote_command_with_output(ip, cmd)
@@ -150,7 +168,7 @@ def setup_cpu_memory(ip):
 
 def start_remote_bessd(ip, runtime="bess"):
     # kill the old one
-    cmd = "sudo pkill -f bessd"
+    cmd = "sudo pkill -9 -f bessd"
     run_remote_command(ip, cmd)
     # start the new one
     bessd = "/local/bess/core/bessd"
@@ -226,7 +244,7 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
             "BESS_SLO={}".format(slo),
             "BESS_SPROFILE='{}'".format(remote_short),
             "BESS_LPROFILE='{}'".format(remote_long),
-            "BESS_LPERIOD={}".format(2000000000)]
+            "BESS_LPERIOD={}".format(LONG_PERIOD)]
     if exp_id == 1 or exp_id == 2:
         # Profiling mode
         extra_cmds.append("BESS_EXP_ID={}".format(exp_id))
@@ -344,6 +362,8 @@ def parse_cpu_epoch_result(wip):
                 return short_profile
     return 0
 
+
+## Running utility functions in a loop
 def get_macs_for_all():
     # Run remote commands one at a time.
     ips = traffic_ip + worker_ip
@@ -601,7 +621,7 @@ def short_term_profile_once(slo):
         p = multiprocessing.Process(target=start_remote_bessd, args=(tip,))
         p.start()
         pids.append(p)
-    for wip in worker_ip:
+    for i, wip in enumerate(selected_worker_ips):
         p = multiprocessing.Process(target=start_remote_bessd, args=(wip,))
         p.start()
         pids.append(p)
@@ -609,9 +629,9 @@ def short_term_profile_once(slo):
     print("exp: all bessd started")
 
     # Run all workers
+    pids = []
     short_profile = "./nf_profiles/short_term_base.pro"
     long_profile = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
-    pids = []
     for i, wip in enumerate(selected_worker_ips):
         p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 2))
         p.start()
@@ -621,9 +641,8 @@ def short_term_profile_once(slo):
 
     ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
     ig_mode = 3
-    pkt_thresh = 3000000
     for tip in traffic_ip:
-        start_traffic_ironside_ingress(tip, num_worker, ig_mode, pkt_thresh)
+        start_traffic_ironside_ingress(tip, num_worker, ig_mode)
     print("exp: traffic started")
 
     time.sleep(exp_duration)
@@ -1164,7 +1183,7 @@ def main():
     # install_mlnx_for_all()
     # get_macs_for_all()
     # fetch_bess_for_all()
-    install_bess_for_all()
+    # install_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()

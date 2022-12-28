@@ -61,6 +61,7 @@ message BPFCommandClearArg {
  */
 message CHACHAArg {
   uint32 chacha_rounds = 1; /// The number of chacha cipher rounds.
+  int32 const_payload_size = 2;
 }
 
 message DistributedFlowCounterArg {

@@ -187,6 +187,11 @@ CommandResponse CHACHA::Init(const bess::pb::CHACHAArg &arg) {
     chacha_rounds_ = DEFAULT_CHACHA_ROUNDS;
   }
 
+  const_payload_size_ = -1;
+  if (arg.const_payload_size() > 0) {
+    const_payload_size_ = arg.const_payload_size();
+  }
+
   // Eth (14) + IP (20) + TCP (20) = 54
   // Then, CHACHA's payload offset: 54 + 30 = 84
   // TS size (marker=4, ts=8) = 12
@@ -225,6 +230,9 @@ void CHACHA::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       continue;
     }
 
+    if (const_payload_size_ != -1) {
+      payload_size = const_payload_size_;
+    }
     process_packet(payload, payload_size);
   }
 

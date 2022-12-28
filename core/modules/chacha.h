@@ -53,6 +53,7 @@ private:
   uint8_t tc_iv_[8];
   //uint8_t tc_res[64];
 
+  int const_payload_size_; // the fixed payload size for all packets (for experiments)
   int chacha_offset_; // the payload offset (chacha starts at the payload+offset byte)
   int chacha_rounds_; // 8, 20 (20 by default)
 };
