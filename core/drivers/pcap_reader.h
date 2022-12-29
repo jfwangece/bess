@@ -57,6 +57,10 @@ class PCAPReader final : public Port {
   // The Ethernet header template for packets without an Ethernet header
   Ethernet eth_template_;
 
+  // If |const_payload_size_| >= 100, then this module generates a fixed-size packet
+  // (total of |const_payload_size_| bytes)
+  int const_payload_size_;
+
   // The module's temporal packet pointer and pcap header
   const uint8_t *pkt_ = nullptr;
   // The module's pcap file handler

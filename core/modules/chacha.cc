@@ -187,6 +187,8 @@ CommandResponse CHACHA::Init(const bess::pb::CHACHAArg &arg) {
     chacha_rounds_ = DEFAULT_CHACHA_ROUNDS;
   }
 
+  // For experiments, |this| module processes a fixed-size
+  // packet if |const_payload_size_| > 0.
   const_payload_size_ = -1;
   if (arg.const_payload_size() > 0) {
     const_payload_size_ = arg.const_payload_size();
@@ -230,9 +232,6 @@ void CHACHA::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       continue;
     }
 
-    if (const_payload_size_ != -1) {
-      payload_size = const_payload_size_;
-    }
     process_packet(payload, payload_size);
   }
 

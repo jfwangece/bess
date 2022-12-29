@@ -60,6 +60,8 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
     init_tnsec_ = _pkthdr.ts.tv_usec;
   }
 
+  const_payload_size_ = 554;
+
   // Initialize the local packet queue and batch (128 K slots)
   uint32_t slots = 131072;
   int bytes = llring_bytes_with_slots(slots);
@@ -147,8 +149,13 @@ int PCAPReader::RecvPackets(queue_t, bess::Packet** pkts, int cnt) {
         bess::Packet::Free(pkt);
         break;
       }
+      // |caplen| is the number of bytes that are captured;
+      // |totallen| is the original packet's byte count;
       int caplen = _pkthdr.caplen;
       int totallen = _pkthdr.len;
+      if (const_payload_size_ >= 100) {
+        totallen = const_payload_size_;
+      }
 
       if (is_eth_missing_) {
         totallen += sizeof(Ethernet);
@@ -159,7 +166,7 @@ int PCAPReader::RecvPackets(queue_t, bess::Packet** pkts, int cnt) {
       }
       if (totallen < (int)offset_ + 8) {
         totallen = (int)offset_ + 8;
-      }    
+      }
 
       // Leave a headroom for prepending data
       char *p = pkt->buffer<char *>() + SNBUF_HEADROOM;
@@ -201,6 +208,11 @@ int PCAPReader::RecvPackets(queue_t, bess::Packet** pkts, int cnt) {
       if (!bess::utils::ParseFlowFromPacket(&_flow, pkt)) {
         bess::Packet::Free(pkt);
         continue;
+      }
+      if (const_payload_size_ >= 100) {
+        Ethernet *eth = pkt->head_data<Ethernet *>();
+        Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
+        ip->length = be16_t(const_payload_size_);
       }
 
       if (is_timestamp_) {

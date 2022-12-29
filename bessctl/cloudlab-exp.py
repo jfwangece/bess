@@ -66,14 +66,19 @@ def wait_pids_with_timeout(pids, max_time=10):
 
 def send_remote_file(ip, local_path, target_path):
     print(local_path)
+    local_path = os.path.abspath(local_path)
     remote_cmds = ['scp', local_path, 'uscnsl@{}:{}'.format(ip, target_path), '>/dev/null', '2>&1', '\n']
-    # os.system(' '.join(remote_cmds))
-    p = subprocess.Popen(remote_cmds, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(' '.join(remote_cmds), shell=True,
+                        universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     timer = threading.Timer(5, p.kill)
     try:
         timer.start()
         out, err = p.communicate()
+        if len(out) > 0:
+            print(out)
+        if len(err) > 0:
+            print(err)
     finally:
         timer.cancel()
     return
@@ -1194,11 +1199,11 @@ def main():
 
     ## Ready to profile an NF chain
     # run_long_profile_under_slos()
-    run_short_profile_under_slos()
+    # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
     # run_test_exp()
-    # run_main_exp()
+    run_main_exp()
     # run_compare_exp()
 
     # Ablation: the server mapper
