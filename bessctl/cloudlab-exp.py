@@ -17,14 +17,15 @@ FILE_DIR = "/home/jfwang/ironside/large-files"
 MLNX_OFED = "MLNX_OFED_LINUX-5.4-3.5.8.0-ubuntu18.04-x86_64.tgz"
 BACKBONE_TRACE = "20190117-130000.tcp.pcap"
 AS_TRACE  = "202209011400.tcp.pcap"
-NF_CHAIN = "chain2"
-# NF_CHAIN = "chain4"
+# NF_CHAIN = "chain2"
+NF_CHAIN = "chain4"
 
 LONG_PERIOD = 2000000000
 
 ## Server info
 # Places to edit MACs
 # * in cloud_pcap_relay.pcap: edit macs
+# * in cloud_pcap_metron.pcap: edit macs
 # * in nfv_ctrl_long.cc: edit traffic dst mac
 
 # CLuster 1 (c6525-100g)
@@ -870,7 +871,7 @@ def run_metron_exp(num_worker, slo=1000000):
     core_usage = []
     for i, wip in enumerate(selected_worker_ips):
         core_usage.append(parse_cpu_time_result(wip, 'mcore0') * 3 / 1000)
-    avg_cores = sum(core_usage) / 1000000.0 / exp_duration
+    avg_cores = sum(core_usage) / 1000000.0 / exp_duration + len(selected_worker_ips) * 3
 
     print("---------------------------------------------------------------")
     print("- Metron rack-scale exp result {}".format(slo))
@@ -929,7 +930,7 @@ def run_quadrant_exp(num_worker, slo):
     core_usage = []
     for i, wip in enumerate(selected_worker_ips):
         core_usage.append(parse_cpu_time_result(wip, 'mcore0') * 3 / 1000)
-    avg_cores = sum(core_usage) / 1000000.0 / exp_duration
+    avg_cores = sum(core_usage) / 1000000.0 / exp_duration + len(selected_worker_ips) * 3
 
     print("---------------------------------------------------------------")
     print("- Quadrant rack-scale exp result {}".format(slo))

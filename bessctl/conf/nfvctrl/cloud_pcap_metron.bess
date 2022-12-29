@@ -15,7 +15,7 @@ else:
     raise Exception("node type is not supported")
 
 ips = ["10.10.1.{}".format(x) for x in [2,3,5]]
-macs = ["b8:ce:f6:cc:8e:c4", "b8:ce:f6:cc:96:e4", "b8:ce:f6:cc:a2:c4"]
+macs = ["0c:42:a1:8c:dc:94", "0c:42:a1:8c:dc:54", "0c:42:a1:8c:dc:24"]
 workers=[{"ip": ips[i], "mac": macs[i]} for i in range(num_workers)]
 
 ig_mode = int($BESS_IG!'0')
