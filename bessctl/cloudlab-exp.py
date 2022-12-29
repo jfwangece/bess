@@ -18,6 +18,7 @@ MLNX_OFED = "MLNX_OFED_LINUX-5.4-3.5.8.0-ubuntu18.04-x86_64.tgz"
 BACKBONE_TRACE = "20190117-130000.tcp.pcap"
 AS_TRACE  = "202209011400.tcp.pcap"
 NF_CHAIN = "chain2"
+# NF_CHAIN = "chain4"
 
 LONG_PERIOD = 2000000000
 
@@ -270,7 +271,7 @@ def start_dummy_worker(wip):
 
 def start_metron_worker(wip, worker_id):
     cmds = ["run", "nfvctrl/cloud_metron_{}".format(NF_CHAIN)]
-    extra_cmd = "BESS_EXP_ID=2, TRAFFIC_MAC='{}', BESS_WID={}".format(all_macs[0], worker_id)
+    extra_cmd = "BESS_EXP_ID=2, BESS_SWITCH_CORE=1, BESS_WORKER_CORE=16, TRAFFIC_MAC='{}', BESS_WID={}".format(all_macs[0], worker_id)
     cmds.append(extra_cmd)
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
@@ -1203,8 +1204,8 @@ def main():
 
     # Main: latency-efficiency comparisons
     # run_test_exp()
-    run_main_exp()
-    # run_compare_exp()
+    # run_main_exp()
+    run_compare_exp()
 
     # Ablation: the server mapper
     # run_ablation_server_mapper()
