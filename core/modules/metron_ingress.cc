@@ -14,9 +14,9 @@
 // installing a flow rule can be 100s milliseconds.
 #define HardwareRuleDelayMs 200
 
-#define QuadrantLoadBalancePeriodMs 500
+#define QuadrantLoadBalancePeriodMs 900
 
-#define RpcCommandDelayMs 50
+#define RpcCommandDelayMs 100
 
 rte_atomic16_t MetronIngress::selected_core_id_;
 
@@ -285,8 +285,11 @@ void MetronIngress::QuadrantProcessOverloads() {
   if (lb_stage_ == 1) {
     if (time_diff_ms < QuadrantLoadBalancePeriodMs + RpcCommandDelayMs) { return; }
 
-    uint8_t migration_core = GetFreeCore();
     uint8_t migration_core_usage = 0;
+    uint8_t migration_core = GetFreeCore();
+    if (migration_core != 255) {
+      in_use_cores_[migration_core] = true;
+    }
 
     for (uint8_t i = 0; i < MaxCoreCount; i++) {
       if (!in_use_cores_[i] || !is_overloaded_cores_[i]) {
@@ -304,15 +307,18 @@ void MetronIngress::QuadrantProcessOverloads() {
 
       migration_core_usage += 1;
       if (migration_core_usage == 8) {
-        migration_core = GetFreeCore();
         migration_core_usage = 0;
+        migration_core = GetFreeCore();
+        if (migration_core != 255) {
+          in_use_cores_[migration_core] = true;
+        }
       }
 
+      // Flow migration
       size_t target_flow_count = quadrant_per_core_flow_ids_[org_core].size() / 8;
       if (target_flow_count == 0) {
-        continue;
+        target_flow_count = 1;
       }
-
       std::vector<uint32_t> to_move_flows;
       for (auto it : quadrant_per_core_flow_ids_[org_core]) {
         to_move_flows.emplace_back(it);
@@ -325,7 +331,8 @@ void MetronIngress::QuadrantProcessOverloads() {
         quadrant_per_core_flow_ids_[new_core].emplace(flow_id);
         flow_cache_[flow_id].encode_ = new_core;
       }
-      in_use_cores_[new_core] = true;
+
+      // Set core states
       is_overloaded_cores_[org_core] = false;
       is_overloaded_cores_[new_core] = false;
 
