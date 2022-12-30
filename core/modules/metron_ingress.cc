@@ -4,7 +4,7 @@
 
 #include "../utils/sys_measure.h"
 
-#define MetronLoadBalancePeriodMs 2000
+#define MetronLoadBalancePeriodMs 1500
 
 // In Metron and Quadrant, the system ingress collects per-core
 // and per-worker avg packet rates to determine if a CPU core or
@@ -354,13 +354,13 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     uint8_t encode = 0;
     uint8_t dst_worker = 0;
-    uint8_t dst_core = 0;
+    // uint8_t dst_core = 0;
     if (mode_ == 0) {
       // |flow_id|: [0, 255]
       uint32_t flow_id = ip->dst.value() & 0xff;
       encode = flow_id_to_core_[flow_id];
       dst_worker = (encode / MaxPerWorkerCoreCount) % MaxWorkerCount;
-      dst_core = encode % MaxPerWorkerCoreCount;
+      // dst_core = encode % MaxPerWorkerCoreCount;
 
       // Monitoring
       per_flow_id_pkt_cnts_[flow_id] += 1;
@@ -378,13 +378,16 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
         encode = it->second;
       }
       dst_worker = (encode / MaxPerWorkerCoreCount) % MaxWorkerCount;
-      dst_core = encode % MaxPerWorkerCoreCount;
+      // dst_core = encode % MaxPerWorkerCoreCount;
 
       // Monitoring
       per_core_pkt_cnts_[encode] += 1;
     } else if (mode_ == 2) {
       dst_worker = 0;
-      dst_core = 0;
+      // dst_core = 0;
+
+      // Monitoring
+      per_core_pkt_cnts_[0] += 1;
     }
 
     // Send to core
