@@ -14,7 +14,7 @@
 // installing a flow rule can be 100s milliseconds.
 #define HardwareRuleDelayMs 200
 
-#define QuadrantLoadBalancePeriodMs 250
+#define QuadrantLoadBalancePeriodMs 500
 
 #define RpcCommandDelayMs 50
 
@@ -244,14 +244,15 @@ void MetronIngress::QuadrantProcessOverloads() {
     bess::ctrl::sys_measure->QuadrantPauseUpdates();
     uint64_t max_delay = 0;
     for (uint8_t i = 0; i < MaxCoreCount; i++) {
-      if (bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns * 85 / 100) {
+      if (per_core_pkt_cnts_[i] * 1000 / time_diff_ms > pkt_rate_thresh_ ||
+          bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns * 90 / 100) {
         if (in_use_cores_[i]) {
           is_overloaded_cores_[i] = true;
           LOG(INFO) << "core " << (int)i << " overloaded. delay: " << bess::ctrl::pc_max_batch_delay[i];
         } else {
           LOG(INFO) << "core " << (int)i << " is strange. delay: " << bess::ctrl::pc_max_batch_delay[i];
         }
-      } else if (bess::ctrl::pc_max_batch_delay[i] < (uint64_t)bess::utils::slo_ns * 40 / 100) {
+      } else if (bess::ctrl::pc_max_batch_delay[i] < (uint64_t)bess::utils::slo_ns * 45 / 100) {
         // pick the core with the highest load among all non-overloaded cores
         if (max_delay == 0) {
           max_delay = 1;
@@ -262,6 +263,7 @@ void MetronIngress::QuadrantProcessOverloads() {
         }
       }
       // reset
+      per_core_pkt_cnts_[i] = 0;
       bess::ctrl::pc_max_batch_delay[i] = 0;
     }
     bess::ctrl::sys_measure->QuadrantUnpauseUpdates();
@@ -362,7 +364,7 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
       // Monitoring
       per_flow_id_pkt_cnts_[flow_id] += 1;
-      per_core_pkt_cnts_[dst_core] += 1;
+      per_core_pkt_cnts_[encode] += 1;
     } else if (mode_ == 1) {
       // Quadrant
       uint32_t flow_id = (ip->src.value() & 0xffff0000) + (ip->dst.value() & 0x0000ffff);
@@ -375,9 +377,11 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       } else {
         encode = it->second;
       }
-
       dst_worker = (encode / MaxPerWorkerCoreCount) % MaxWorkerCount;
       dst_core = encode % MaxPerWorkerCoreCount;
+
+      // Monitoring
+      per_core_pkt_cnts_[encode] += 1;
     } else if (mode_ == 2) {
       dst_worker = 0;
       dst_core = 0;
