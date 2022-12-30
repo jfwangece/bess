@@ -246,8 +246,7 @@ void MetronIngress::QuadrantProcessOverloads() {
     bess::ctrl::sys_measure->QuadrantPauseUpdates();
     uint64_t max_delay = 0;
     for (uint8_t i = 0; i < MaxCoreCount; i++) {
-      if (per_core_pkt_cnts_[i] * 1000 / time_diff_ms > pkt_rate_thresh_ ||
-          bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns * 90 / 100) {
+      if (bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns * 90 / 100) {
         if (in_use_cores_[i]) {
           is_overloaded_cores_[i] = true;
           LOG(INFO) << "core " << (int)i << " overloaded. delay: " << bess::ctrl::pc_max_batch_delay[i];
