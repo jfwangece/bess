@@ -14,9 +14,9 @@
 // installing a flow rule can be 100s milliseconds.
 #define HardwareRuleDelayMs 200
 
-#define QuadrantLoadBalancePeriodMs 350
+#define QuadrantLoadBalancePeriodMs 300
 
-#define RpcCommandDelayMs 50
+#define RpcCommandDelayMs 10
 
 rte_atomic16_t MetronIngress::selected_core_id_;
 
@@ -383,14 +383,14 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       uint32_t flow_id = (ip->src.value() & 0xffff0000) + (ip->dst.value() & 0x0000ffff);
       auto it = flow_cache_.find(flow_id);
       if (it == flow_cache_.end()) {
+        encode = selected_core;
         // This is a new flow
         flow_cache_.emplace(std::piecewise_construct,
                             std::forward_as_tuple(flow_id),
                             std::forward_as_tuple());
-        flow_cache_[flow_id].encode_ = encode;
+        flow_cache_[flow_id].encode_ = selected_core;
         flow_cache_[flow_id].pkt_cnt_ += 1;
         quadrant_per_core_flow_ids_[selected_core].emplace(flow_id);
-        encode = selected_core;
       } else {
         encode = it->second.encode_;
         it->second.pkt_cnt_ += 1;
