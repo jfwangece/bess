@@ -246,14 +246,14 @@ void MetronIngress::QuadrantProcessOverloads() {
     bess::ctrl::sys_measure->QuadrantPauseUpdates();
     uint64_t max_delay = 0;
     for (uint8_t i = 0; i < MaxCoreCount; i++) {
-      if (bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns * 90 / 100) {
+      if (bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns) {
         if (in_use_cores_[i]) {
           is_overloaded_cores_[i] = true;
           LOG(INFO) << "core " << (int)i << " overloaded. delay: " << bess::ctrl::pc_max_batch_delay[i];
         } else {
           LOG(INFO) << "core " << (int)i << " is strange. delay: " << bess::ctrl::pc_max_batch_delay[i];
         }
-      } else if (bess::ctrl::pc_max_batch_delay[i] < (uint64_t)bess::utils::slo_ns * 45 / 100) {
+      } else if (bess::ctrl::pc_max_batch_delay[i] < (uint64_t)bess::utils::slo_ns * 50 / 100) {
         // pick the core with the highest load among all non-overloaded cores
         if (max_delay == 0) {
           max_delay = 1;
@@ -291,9 +291,12 @@ void MetronIngress::QuadrantProcessOverloads() {
       // Migrate flows from overloaded CPU cores
       uint8_t org_core = i;
       uint8_t new_core = selected_core;
+      if (new_core == 255) {
+        continue;
+      }
 
       // Flow migration
-      size_t target_flow_count = quadrant_per_core_flow_ids_[org_core].size() / 4 + 1;
+      size_t target_flow_count = quadrant_per_core_flow_ids_[org_core].size() / 2 + 1;
       std::vector<uint32_t> to_move_flows;
       for (auto it : quadrant_per_core_flow_ids_[org_core]) {
         to_move_flows.emplace_back(it);
@@ -308,8 +311,8 @@ void MetronIngress::QuadrantProcessOverloads() {
       }
 
       // Set core states
-      per_core_pkt_cnts_[new_core] += per_core_pkt_cnts_[org_core] / 4;
-      per_core_pkt_cnts_[org_core] -= per_core_pkt_cnts_[org_core] / 4;
+      per_core_pkt_cnts_[new_core] += per_core_pkt_cnts_[org_core] / 2;
+      per_core_pkt_cnts_[org_core] -= per_core_pkt_cnts_[org_core] / 2;
       is_overloaded_cores_[org_core] = false;
       is_overloaded_cores_[new_core] = false;
 
@@ -326,6 +329,7 @@ void MetronIngress::QuadrantProcessOverloads() {
       // }
     }
 
+    // Reset
     for (uint8_t i = 0; i < MaxCoreCount; i++) {
       per_core_pkt_cnts_[i] = 0;
     }
