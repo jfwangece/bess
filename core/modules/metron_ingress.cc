@@ -303,12 +303,12 @@ void MetronIngress::QuadrantProcessOverloads() {
       }
 
       migration_core_usage += 1;
-      if (migration_core_usage == 3) {
+      if (migration_core_usage == 8) {
         migration_core = GetFreeCore();
         migration_core_usage = 0;
       }
 
-      size_t target_flow_count = quadrant_per_core_flow_ids_[org_core].size() / 2;
+      size_t target_flow_count = quadrant_per_core_flow_ids_[org_core].size() / 8;
       if (target_flow_count == 0) {
         continue;
       }
