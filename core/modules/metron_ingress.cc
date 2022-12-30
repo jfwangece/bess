@@ -14,9 +14,9 @@
 // installing a flow rule can be 100s milliseconds.
 #define HardwareRuleDelayMs 200
 
-#define QuadrantLoadBalancePeriodMs 300
+#define QuadrantLoadBalancePeriodMs 250
 
-#define RpcCommandDelayMs 10
+#define RpcCommandDelayMs 50
 
 rte_atomic16_t MetronIngress::selected_core_id_;
 
@@ -244,14 +244,14 @@ void MetronIngress::QuadrantProcessOverloads() {
     bess::ctrl::sys_measure->QuadrantPauseUpdates();
     uint64_t max_delay = 0;
     for (uint8_t i = 0; i < MaxCoreCount; i++) {
-      if (bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns) {
+      if (bess::ctrl::pc_max_batch_delay[i] > (uint64_t)bess::utils::slo_ns * 85 / 100) {
         if (in_use_cores_[i]) {
           is_overloaded_cores_[i] = true;
           LOG(INFO) << "core " << (int)i << " overloaded. delay: " << bess::ctrl::pc_max_batch_delay[i];
         } else {
           LOG(INFO) << "core " << (int)i << " is strange. delay: " << bess::ctrl::pc_max_batch_delay[i];
         }
-      } else if (bess::ctrl::pc_max_batch_delay[i] < (uint64_t)bess::utils::slo_ns / 2) {
+      } else if (bess::ctrl::pc_max_batch_delay[i] < (uint64_t)bess::utils::slo_ns * 40 / 100) {
         // pick the core with the highest load among all non-overloaded cores
         if (max_delay == 0) {
           max_delay = 1;
@@ -272,6 +272,7 @@ void MetronIngress::QuadrantProcessOverloads() {
     } else {
       LOG(INFO) << "core " << (int)selected_core << " is selected";
     }
+
     rte_atomic16_set(&selected_core_id_, selected_core);
     lb_stage_ = 1;
   }
@@ -334,8 +335,10 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     LOG(FATAL) << "unknown core-level ingress mode " << mode_;
   }
 
-  int cnt = batch->cnt();
+  // Determined by NFV's controller
   uint8_t selected_core = rte_atomic16_read(&selected_core_id_);
+
+  int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
 

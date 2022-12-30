@@ -209,7 +209,7 @@ def start_traffic_metron_ingress(tip, num_worker, mode, slo=100000):
     (such as Metron's and Quadrant's ingress).
     |mode|: 0 for Metron; 1 for Quadrant;
     """
-    pkt_thresh = 900000
+    pkt_thresh = 850000
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
     x = ' '.join(cmds)
@@ -1050,9 +1050,10 @@ def run_main_exp():
 
 def run_compare_exp():
     worker_cnt = 3
-    target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
+    # target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
+    target_slos = [100000]
 
-    run_metron = True
+    run_metron = False
     run_quadrant = True
     run_dyssect = False
 

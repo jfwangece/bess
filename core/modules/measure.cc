@@ -83,6 +83,7 @@ void Measure::QuadrantPauseUpdates() {
 void Measure::QuadrantUnpauseUpdates() {
   rte_atomic16_dec(&lb_core_pausing_updates_);
 }
+
 void Measure::IsCoreInfo(bess::Packet *pkt) {
   if (bess::ctrl::exp_id != 4 ||
       rte_atomic16_read(&lb_core_pausing_updates_) > 0) {

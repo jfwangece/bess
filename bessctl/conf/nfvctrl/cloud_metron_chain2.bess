@@ -1,0 +1,87 @@
+#
+# Test NF chain #4: a stateful NF chain
+# ACL -> LB -> Monitor
+#
+
+wid = int($BESS_WID!"0")
+pcie0 = $BESS_DEV!"81:00.0"
+experiment_index = int($BESS_EXP_ID!"0")
+offset0 = 1
+
+# the traffic generator's routing information
+traffic_ip = "10.10.1.1"
+traffic_mac = $TRAFFIC_MAC!"b8:ce:f6:d2:3b:1a"
+
+slo = int($BESS_SLO!"200000")
+burst_size=int($BESS_BURST!'32')
+acl_cnt=int($BESS_ACL!'2000')
+lb_cnt=int($BESS_LB!'100')
+
+switch_core_cnt = int($BESS_SWITCH_CORE!"1")
+worker_core_cnt = int($BESS_WORKER_CORE!"25")
+total_core_cnt = switch_core_cnt + worker_core_cnt
+
+total_cores = [i for i in range(total_core_cnt)]
+worker_cores = total_cores[:worker_core_cnt]
+switch_cores = total_cores[worker_core_cnt:]
+
+print("total cores: %d" %(total_core_cnt))
+print("%d worker cores: %s" %(worker_core_cnt, worker_cores))
+print("%d switch core: %s" %(switch_core_cnt, switch_cores))
+
+# Module configurations
+acl_rules = []
+for i in range(acl_cnt / 50):
+    for j in range(50):
+        acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
+acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
+
+nat_hosts = []
+for i in range(lb_cnt / 20):
+    for j in range(20):
+        nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
+
+# Module
+port0::PMDPort(pci=pcie0,
+    num_inc_q=switch_core_cnt,
+    num_out_q=total_core_cnt,
+    bench_rss=False)
+
+pinc0 = {}
+switch0 = {}
+worker0 = {}
+pout0 = {}
+fw = {}
+lb = {}
+nfvmo = {}
+monitor = {}
+
+# Pipeline
+for i in switch_cores:
+    pinc0[i] = QueueInc(port=port0, qid=i-switch_cores[0])
+    switch0[i] = MetronSwitch(wid=wid, ncore=worker_core_cnt) # switches are dumb
+    pinc0[i] -> switch0[i]
+
+for i in worker_cores:
+    worker0[i] = MetronCore(core_id=i-worker_cores[0], mode=experiment_index)
+    fw[i] = FlowACL(rules=acl_rules)
+    lb[i] = FlowLB(endpoints=nat_hosts)
+    monitor[i] = FlowCounter()
+    nfvmo[i] = NFVMonitor(core_id=i-worker_cores[0])
+    pout0[i] = QueueOut(port=port0, qid=i-worker_cores[0])
+
+    worker0[i] -> Bypass(cycles_per_packet=1000) -> fw[i] -> lb[i] -> monitor[i] -> nfvmo[i] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
+
+# Burst
+for i in switch_cores:
+    pinc0[i].set_burst(burst=burst_size)
+
+# Core
+for i in switch_cores:
+    bess.add_worker(wid=i, core=i + offset0)
+    pinc0[i].attach_task(wid=i)
+for i in worker_cores:
+    bess.add_worker(wid=i, core=i + offset0)
+    worker0[i].attach_task(wid=i)
+
+bess.resume_all()
