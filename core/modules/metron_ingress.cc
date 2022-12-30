@@ -301,7 +301,7 @@ void MetronIngress::QuadrantProcessOverloads() {
         continue;
       }
       migration_core_usage += 1;
-      if (migration_core_usage == 2) {
+      if (migration_core_usage == 1) {
         migration_core = GetFreeCore();
         migration_core_usage = 0;
       }
