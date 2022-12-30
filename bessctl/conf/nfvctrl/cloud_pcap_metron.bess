@@ -14,7 +14,7 @@ elif node_type == "c6525":
 else:
     raise Exception("node type is not supported")
 
-ips = ["10.10.1.{}".format(x) for x in [2,3,5]]
+ips = ["10.10.1.2", "10.10.1.3", "10.10.1.4"]
 macs = ["0c:42:a1:8c:dc:94", "0c:42:a1:8c:dc:54", "0c:42:a1:8c:dc:24"]
 workers=[{"ip": ips[i], "mac": macs[i]} for i in range(num_workers)]
 
