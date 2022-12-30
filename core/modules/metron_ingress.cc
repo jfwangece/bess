@@ -283,13 +283,6 @@ void MetronIngress::QuadrantProcessOverloads() {
   if (lb_stage_ == 1) {
     if (time_diff_ms < QuadrantLoadBalancePeriodMs + RpcCommandDelayMs) { return; }
 
-    uint8_t migration_core = selected_core;
-    if (migration_core != 255) {
-      in_use_cores_[migration_core] = true;
-    } else {
-      LOG(INFO) << "The cluster runs out of free CPU cores";
-    }
-
     for (uint8_t i = 0; i < MaxCoreCount; i++) {
       if (!in_use_cores_[i] || !is_overloaded_cores_[i]) {
         continue;
@@ -297,13 +290,10 @@ void MetronIngress::QuadrantProcessOverloads() {
 
       // Migrate flows from overloaded CPU cores
       uint8_t org_core = i;
-      uint8_t new_core = migration_core;
-      if (new_core == 255) {
-        continue;
-      }
+      uint8_t new_core = selected_core;
 
       // Flow migration
-      size_t target_flow_count = quadrant_per_core_flow_ids_[org_core].size() / 8 + 1;
+      size_t target_flow_count = quadrant_per_core_flow_ids_[org_core].size() / 4 + 1;
       std::vector<uint32_t> to_move_flows;
       for (auto it : quadrant_per_core_flow_ids_[org_core]) {
         to_move_flows.emplace_back(it);
@@ -312,28 +302,28 @@ void MetronIngress::QuadrantProcessOverloads() {
         }
       }
       for (auto flow_id : to_move_flows) {
-        per_core_pkt_cnts_[new_core] += per_core_pkt_cnts_[org_core] / 8;
-        per_core_pkt_cnts_[org_core] -= per_core_pkt_cnts_[org_core] / 8;
         quadrant_per_core_flow_ids_[org_core].erase(flow_id);
         quadrant_per_core_flow_ids_[new_core].emplace(flow_id);
         flow_cache_[flow_id].encode_ = new_core;
       }
 
       // Set core states
+      per_core_pkt_cnts_[new_core] += per_core_pkt_cnts_[org_core] / 4;
+      per_core_pkt_cnts_[org_core] -= per_core_pkt_cnts_[org_core] / 4;
       is_overloaded_cores_[org_core] = false;
       is_overloaded_cores_[new_core] = false;
 
       // Debug info
       LOG(INFO) << "core " << (int)org_core << " overload. " << to_move_flows.size() << " flows migrated to core " << (int)new_core;
 
-      if (per_core_pkt_cnts_[migration_core] * 1000 / time_diff_ms > pkt_rate_thresh_) {
-        migration_core = GetFreeCore();
-        if (migration_core != 255) {
-          in_use_cores_[migration_core] = true;
-        } else {
-          LOG(INFO) << "The cluster runs out of free CPU cores";
-        }
-      }
+      // if (per_core_pkt_cnts_[selected_core] * 1000 / time_diff_ms > pkt_rate_thresh_) {
+      //   migration_core = GetFreeCore();
+      //   if (migration_core != 255) {
+      //     in_use_cores_[migration_core] = true;
+      //   } else {
+      //     LOG(INFO) << "The cluster runs out of free CPU cores";
+      //   }
+      // }
     }
 
     for (uint8_t i = 0; i < MaxCoreCount; i++) {
