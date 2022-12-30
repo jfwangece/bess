@@ -14,9 +14,9 @@
 // installing a flow rule can be 100s milliseconds.
 #define HardwareRuleDelayMs 200
 
-#define QuadrantLoadBalancePeriodMs 900
+#define QuadrantLoadBalancePeriodMs 350
 
-#define RpcCommandDelayMs 100
+#define RpcCommandDelayMs 50
 
 rte_atomic16_t MetronIngress::selected_core_id_;
 
