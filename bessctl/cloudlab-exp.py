@@ -222,7 +222,7 @@ def start_traffic_quadrant_ingress(tip, num_worker, mode, slo=100000):
     (such as Metron's and Quadrant's ingress).
     |mode|: 0 for Metron; 1 for Quadrant;
     """
-    pkt_thresh = 900000
+    pkt_thresh = 850000
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
     x = ' '.join(cmds)

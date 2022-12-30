@@ -296,12 +296,14 @@ void MetronIngress::QuadrantProcessOverloads() {
       // Migrate flows from overloaded CPU cores
       uint8_t org_core = i;
       uint8_t new_core = migration_core;
-      // uint8_t new_core = selected_core;
       if (new_core == 255) {
+        LOG(INFO) << "The cluster runs out of free CPU cores";
+        new_core = selected_core;
         continue;
       }
+
       migration_core_usage += 1;
-      if (migration_core_usage == 1) {
+      if (migration_core_usage == 2) {
         migration_core = GetFreeCore();
         migration_core_usage = 0;
       }
