@@ -272,7 +272,7 @@ def start_dummy_worker(wip):
 
 def start_metron_worker(wip, worker_id):
     cmds = ["run", "nfvctrl/cloud_metron_{}".format(NF_CHAIN)]
-    extra_cmd = "BESS_EXP_ID=2, BESS_SWITCH_CORE=1, BESS_WORKER_CORE=16, TRAFFIC_MAC='{}', BESS_WID={}".format(all_macs[0], worker_id)
+    extra_cmd = "BESS_EXP_ID=2, BESS_SWITCH_CORE=1, BESS_WORKER_CORE=18, TRAFFIC_MAC='{}', BESS_WID={}".format(all_macs[0], worker_id)
     cmds.append(extra_cmd)
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
@@ -281,7 +281,7 @@ def start_metron_worker(wip, worker_id):
 
 def start_quadrant_worker(wip, worker_id):
     cmds = ["run", "nfvctrl/cloud_metron_{}".format(NF_CHAIN)]
-    extra_cmd = "BESS_EXP_ID=3, BESS_SWITCH_CORE=2, BESS_WORKER_CORE=16, TRAFFIC_MAC='{}', BESS_WID={}".format(all_macs[0], worker_id)
+    extra_cmd = "BESS_EXP_ID=3, BESS_SWITCH_CORE=1, BESS_WORKER_CORE=18, TRAFFIC_MAC='{}', BESS_WID={}".format(all_macs[0], worker_id)
     cmds.append(extra_cmd)
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
