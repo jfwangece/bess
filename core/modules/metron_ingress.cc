@@ -85,6 +85,8 @@ CommandResponse MetronIngress::Init(const bess::pb::MetronIngressArg& arg) {
   rte_atomic16_set(&selected_core_id_, 0);
 
   // Common
+  flow_cache_.clear();
+
   for (uint8_t i = 0; i < MaxCoreCount; i++) {
     quadrant_per_core_flow_ids_[i].clear();
     per_core_pkt_cnts_[i] = 0;
@@ -283,6 +285,9 @@ void MetronIngress::QuadrantProcessOverloads() {
   if (lb_stage_ == 1) {
     if (time_diff_ms < QuadrantLoadBalancePeriodMs + RpcCommandDelayMs) { return; }
 
+    uint8_t migration_core = GetFreeCore();
+    uint8_t migration_core_usage = 0;
+
     for (uint8_t i = 0; i < MaxCoreCount; i++) {
       if (!in_use_cores_[i] || !is_overloaded_cores_[i]) {
         continue;
@@ -290,10 +295,15 @@ void MetronIngress::QuadrantProcessOverloads() {
 
       // Migrate flows from overloaded CPU cores
       uint8_t org_core = i;
-      // uint8_t new_core = GetFreeCore();
-      uint8_t new_core = selected_core;
+      uint8_t new_core = migration_core;
+      // uint8_t new_core = selected_core;
       if (new_core == 255) {
         continue;
+      }
+      migration_core_usage += 1;
+      if (migration_core_usage == 2) {
+        migration_core = GetFreeCore();
+        migration_core_usage = 0;
       }
 
       size_t target_flow_count = quadrant_per_core_flow_ids_[org_core].size() / 2;
@@ -311,7 +321,7 @@ void MetronIngress::QuadrantProcessOverloads() {
       for (auto flow_id : to_move_flows) {
         quadrant_per_core_flow_ids_[org_core].erase(flow_id);
         quadrant_per_core_flow_ids_[new_core].emplace(flow_id);
-        flow_cache_[flow_id] = new_core;
+        flow_cache_[flow_id].encode_ = new_core;
       }
       in_use_cores_[new_core] = true;
       is_overloaded_cores_[org_core] = false;
@@ -371,11 +381,16 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       auto it = flow_cache_.find(flow_id);
       if (it == flow_cache_.end()) {
         // This is a new flow
-        flow_cache_.emplace(flow_id, selected_core);
+        flow_cache_.emplace(std::piecewise_construct,
+                            std::forward_as_tuple(flow_id),
+                            std::forward_as_tuple());
+        flow_cache_[flow_id].encode_ = encode;
+        flow_cache_[flow_id].pkt_cnt_ += 1;
         quadrant_per_core_flow_ids_[selected_core].emplace(flow_id);
         encode = selected_core;
       } else {
-        encode = it->second;
+        encode = it->second.encode_;
+        it->second.pkt_cnt_ += 1;
       }
       dst_worker = (encode / MaxPerWorkerCoreCount) % MaxWorkerCount;
       // dst_core = encode % MaxPerWorkerCoreCount;

@@ -25,6 +25,7 @@ using bess::utils::be16_t;
 using bess::utils::be32_t;
 using bess::utils::Flow;
 using bess::utils::FlowHash;
+using bess::utils::FlowRecord;
 
 class MetronIngress final : public Module {
  public:
@@ -98,7 +99,7 @@ class MetronIngress final : public Module {
   std::map<uint32_t, uint8_t> flow_to_core_;
 
   // Quadrant
-  std::map<uint32_t, uint8_t> flow_cache_;
+  std::map<uint32_t, FlowRecord> flow_cache_;
   std::set<uint32_t> quadrant_per_core_flow_ids_[MaxCoreCount];
 
   // Common

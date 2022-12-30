@@ -187,7 +187,7 @@ class FlowRoutingRule {
 // Used by snort_ids, url_filter
 class FlowRecord {
  public:
-  FlowRecord() : pkt_cnt_(0), done_analyzing_(false), acl_pass_(false), buffer_(128), expiry_time_(0) {}
+  FlowRecord() : encode_(0), pkt_cnt_(0), done_analyzing_(false), acl_pass_(false), buffer_(128), expiry_time_(0) {}
 
   bool IsAnalyzed() { return done_analyzing_; }
   void SetAnalyzed() { done_analyzing_ = true; }
@@ -199,6 +199,7 @@ class FlowRecord {
   uint64_t ExpiryTime() { return expiry_time_; }
   void SetExpiryTime(uint64_t time) { expiry_time_ = time; }
 
+  uint8_t encode_;
   uint64_t pkt_cnt_;
  private:
   bool done_analyzing_;
