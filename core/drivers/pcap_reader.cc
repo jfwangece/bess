@@ -60,7 +60,10 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
     init_tnsec_ = _pkthdr.ts.tv_usec;
   }
 
-  const_payload_size_ = 554;
+  const_payload_size_ = 0;
+  if (arg.const_payload_size() >= 100) {
+    const_payload_size_ = arg.const_payload_size();
+  }
 
   // Initialize the local packet queue and batch (128 K slots)
   uint32_t slots = 131072;

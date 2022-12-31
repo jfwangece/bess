@@ -67,7 +67,7 @@ def wait_pids_with_timeout(pids, max_time=10):
     return
 
 def send_remote_file(ip, local_path, target_path):
-    print(local_path)
+    # print(local_path)
     local_path = os.path.abspath(local_path)
     remote_cmds = ['scp', local_path, 'uscnsl@{}:{}'.format(ip, target_path), '>/dev/null', '2>&1', '\n']
     p = subprocess.Popen(' '.join(remote_cmds), shell=True,
@@ -243,7 +243,7 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     remote_long = "/local/bess/long.prof"
     send_remote_file(wip, short, remote_short)
     send_remote_file(wip, long, remote_long)
-    print("ironside worker {} gets short-term and long-term profiles".format(worker_id))
+    print("ironside worker {} gets short-term and long-term profiles (slo={} us)".format(worker_id, slo))
 
     cmds = ["run", "nfvctrl/cloud_{}".format(NF_CHAIN)]
     extra_cmds = ["TRAFFIC_MAC='{}'".format(all_macs[0]),
@@ -1205,9 +1205,9 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    # run_test_exp()
+    run_test_exp()
     # run_main_exp()
-    run_compare_exp()
+    # run_compare_exp()
 
     # Ablation: the server mapper
     # run_ablation_server_mapper()
