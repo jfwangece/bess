@@ -91,7 +91,7 @@ for i in ncores:
     pinc0[i] = NFVCore(core_id=i, port=port0, qid=i, short_epoch_period_ns=short_epoch_period, large_queue_scale=queue_scale)
     fw[i] = FlowACL(rules=acl_rules)
     ids[i] = UrlFilter(blacklist=blacklist_rules)
-    chacha[i] = CHACHA(const_payload_size=500)
+    chacha[i] = CHACHA()
     nfvmo[i] = NFVMonitor(core_id=i)
     pout0[i] = QueueOut(port=port0, qid=i)
 
@@ -101,12 +101,12 @@ for i in ncores:
 for i in ncore_boosters:
     pinc0[i] = NFVRCore(mode=0, core_id=i-ncore_cnt)
     pout0[i] = QueueOut(port=port0, qid=i)
-    pinc0[i] -> FlowACL(rules=acl_rules) -> UrlFilter(blacklist=blacklist_rules) -> CHACHA(const_payload_size=500) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
+    pinc0[i] -> FlowACL(rules=acl_rules) -> UrlFilter(blacklist=blacklist_rules) -> CHACHA() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
 for i in rcores:
     pinc0[i] = NFVRCore(mode=1, core_id=i-2*ncore_cnt)
     pout0[i] = QueueOut(port=port0, qid=i)
-    pinc0[i] -> FlowACL(rules=acl_rules) -> UrlFilter(blacklist=blacklist_rules) -> CHACHA(const_payload_size=500) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
+    pinc0[i] -> FlowACL(rules=acl_rules) -> UrlFilter(blacklist=blacklist_rules) -> CHACHA() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
 # aux-core booster
 rbooster::NFVRCore(mode=2) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> QueueOut(port=port0, qid=rcore_boost_core)
