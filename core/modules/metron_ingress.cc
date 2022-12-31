@@ -319,14 +319,18 @@ void MetronIngress::QuadrantProcessOverloads() {
       // Debug info
       LOG(INFO) << "core " << (int)org_core << " overload. " << to_move_flows.size() << " flows migrated to core " << (int)new_core;
 
-      // if (per_core_pkt_cnts_[selected_core] * 1000 / time_diff_ms > pkt_rate_thresh_) {
-      //   migration_core = GetFreeCore();
-      //   if (migration_core != 255) {
-      //     in_use_cores_[migration_core] = true;
-      //   } else {
-      //     LOG(INFO) << "The cluster runs out of free CPU cores";
-      //   }
-      // }
+      // Check if |selected_core| is full. If so, get a new free core.
+      if (per_core_pkt_cnts_[selected_core] * 1000 / time_diff_ms > pkt_rate_thresh_) {
+        uint8_t free_core = GetFreeCore();
+        if (free_core != 255) {
+          in_use_cores_[free_core] = true;
+          selected_core = free_core;
+          rte_atomic16_set(&selected_core_id_, free_core);
+        } else {
+          // Do nothing if |free_code| is not a valid core
+          LOG(INFO) << "The cluster runs out of free CPU cores";
+        }
+      }
     }
 
     // Reset
