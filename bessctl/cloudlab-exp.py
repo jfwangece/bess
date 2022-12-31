@@ -17,8 +17,8 @@ FILE_DIR = "/home/jfwang/ironside/large-files"
 MLNX_OFED = "MLNX_OFED_LINUX-5.4-3.5.8.0-ubuntu18.04-x86_64.tgz"
 BACKBONE_TRACE = "20190117-130000.tcp.pcap"
 AS_TRACE  = "202209011400.tcp.pcap"
-# NF_CHAIN = "chain2"
-NF_CHAIN = "chain4"
+NF_CHAIN = "chain2"
+# NF_CHAIN = "chain4"
 
 LONG_PERIOD = 2000000000
 

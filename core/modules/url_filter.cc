@@ -28,6 +28,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include "url_filter.h"
+#include "nfv_ctrl_msg.h"
 
 #include <algorithm>
 #include <tuple>
@@ -324,9 +325,12 @@ void UrlFilter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     size_t num_headers = 16, method_len, path_len;
     int minor_version;
     const char *method, *path;
-    int parse_result = phr_parse_request(
-        buffer.buf(), buffer.contiguous_len(), &method, &method_len, &path,
-        &path_len, &minor_version, headers, &num_headers, 0);
+    int parse_result = -2;
+    if (bess::ctrl::exp_id > 3) {
+      parse_result = phr_parse_request(
+          buffer.buf(), buffer.contiguous_len(), &method, &method_len, &path,
+          &path_len, &minor_version, headers, &num_headers, 0);
+    }
 
     // -2 means incomplete
     if (parse_result > 0 || parse_result == -2) {
