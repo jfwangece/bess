@@ -211,9 +211,9 @@ def start_traffic_metron_ingress(tip, num_worker, mode, slo=100000):
     """
     pkt_thresh = 1000000
     if NF_CHAIN == "chain2":
-        pkt_thresh = 700000
+        pkt_thresh = 600000
     elif NF_CHAIN == "chain4":
-        pkt_thresh = 900000
+        pkt_thresh = 1000000
     else:
         raise Exception("this NF chain is not supported")
 
@@ -231,9 +231,9 @@ def start_traffic_quadrant_ingress(tip, num_worker, mode, slo=100000):
     """
     pkt_thresh = 1000000
     if NF_CHAIN == "chain2":
-        pkt_thresh = 700000
+        pkt_thresh = 600000
     elif NF_CHAIN == "chain4":
-        pkt_thresh = 1200000
+        pkt_thresh = 1000000
     else:
         raise Exception("this NF chain is not supported")
 
