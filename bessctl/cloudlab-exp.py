@@ -209,7 +209,14 @@ def start_traffic_metron_ingress(tip, num_worker, mode, slo=100000):
     (such as Metron's and Quadrant's ingress).
     |mode|: 0 for Metron; 1 for Quadrant;
     """
-    pkt_thresh = 900000
+    pkt_thresh = 1000000
+    if NF_CHAIN == "chain2":
+        pkt_thresh = 700000
+    elif NF_CHAIN == "chain4":
+        pkt_thresh = 900000
+    else:
+        raise Exception("this NF chain is not supported")
+
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
     x = ' '.join(cmds)
@@ -222,7 +229,14 @@ def start_traffic_quadrant_ingress(tip, num_worker, mode, slo=100000):
     (such as Metron's and Quadrant's ingress).
     |mode|: 0 for Metron; 1 for Quadrant;
     """
-    pkt_thresh = 1200000
+    pkt_thresh = 1000000
+    if NF_CHAIN == "chain2":
+        pkt_thresh = 700000
+    elif NF_CHAIN == "chain4":
+        pkt_thresh = 1200000
+    else:
+        raise Exception("this NF chain is not supported")
+
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
     x = ' '.join(cmds)
@@ -1053,7 +1067,7 @@ def run_compare_exp():
     # target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
     target_slos = [100000]
 
-    run_metron = False
+    run_metron = True
     run_quadrant = True
     run_dyssect = False
 
@@ -1206,8 +1220,8 @@ def main():
 
     # Main: latency-efficiency comparisons
     # run_test_exp()
-    run_main_exp()
-    # run_compare_exp()
+    # run_main_exp()
+    run_compare_exp()
 
     # Ablation: the server mapper
     # run_ablation_server_mapper()

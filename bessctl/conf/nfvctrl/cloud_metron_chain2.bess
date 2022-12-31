@@ -74,7 +74,7 @@ for i in worker_cores:
     nfvmo[i] = NFVMonitor(core_id=i-worker_cores[0])
     pout0[i] = QueueOut(port=port0, qid=i-worker_cores[0])
 
-    worker0[i] -> Bypass(cycles_per_packet=1000) -> fw[i] -> ids[i] -> chacha[i] -> nfvmo[i] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
+    worker0[i] -> fw[i] -> ids[i] -> chacha[i] -> nfvmo[i] -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
 # Burst
 for i in switch_cores:
