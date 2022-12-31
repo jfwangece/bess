@@ -18,13 +18,12 @@ else:
 traffic_ip = "10.10.1.1"
 traffic_mac = $TRAFFIC_MAC!"b8:ce:f6:d2:3b:1a"
 
-slo = int($BESS_SLO!"200000")
 burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
 lb_cnt=int($BESS_LB!'100')
 
 switch_core_cnt = int($BESS_SWITCH_CORE!"1")
-worker_core_cnt = int($BESS_WORKER_CORE!"16")
+worker_core_cnt = int($BESS_WORKER_CORE!"18")
 total_core_cnt = switch_core_cnt + worker_core_cnt
 
 total_cores = [i for i in range(total_core_cnt)]

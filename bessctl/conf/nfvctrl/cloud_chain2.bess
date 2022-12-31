@@ -24,7 +24,8 @@ long_profile = $BESS_LPROFILE!"/local/bess/nf_profiles/long_100_p50.pro"
 
 burst_size=int($BESS_BURST!'32')
 acl_cnt=int($BESS_ACL!'2000')
-lb_cnt=int($BESS_LB!'100')
+ids_cnt=int($BESS_IDS!'100')
+
 long_epoch_period = int($BESS_LPERIOD!"2000000000")
 short_epoch_period = int((slo - 40000) / 2)
 queue_scale = 1
@@ -57,6 +58,8 @@ print("{} normal cores: {}".format(len(ncores), ncores))
 print("{} normal booster cores: {}".format(len(ncore_boosters), ncore_boosters))
 print("{} reserved cores: {}".format(len(rcores), rcores))
 
+## Module
+# Module configurations
 acl_rules = []
 for i in range(acl_cnt / 50):
     for j in range(50):
@@ -64,7 +67,7 @@ for i in range(acl_cnt / 50):
 acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
 
 blacklist_rules = [
-    {'host': 'www.%d.com' % i, 'path': '/'} for i in range(100)]
+    {'host': 'www.%d.com' % i, 'path': '/'} for i in range(ids_cnt)]
 
 # Module
 # nfvctrl must be declared before PMDPort 
