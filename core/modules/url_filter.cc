@@ -346,6 +346,8 @@ void UrlFilter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
                     rule_iterator->second.Match(path_str);
         }
       }
+      // For Ironside experiments, do not drop any packets.
+      matched = false;
     }
 
     if (!matched) {

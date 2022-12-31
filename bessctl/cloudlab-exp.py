@@ -1205,8 +1205,8 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    run_test_exp()
-    # run_main_exp()
+    # run_test_exp()
+    run_main_exp()
     # run_compare_exp()
 
     # Ablation: the server mapper
