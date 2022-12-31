@@ -271,8 +271,6 @@ void MetronIngress::QuadrantProcessOverloads() {
     if (!in_use_cores_[selected_core]) {
       in_use_cores_[selected_core] = true;
       LOG(INFO) << "core " << (int)selected_core << " is activated";
-    } else {
-      LOG(INFO) << "core " << (int)selected_core << " is selected";
     }
 
     rte_atomic16_set(&selected_core_id_, selected_core);
@@ -311,8 +309,9 @@ void MetronIngress::QuadrantProcessOverloads() {
       }
 
       // Set core states
-      per_core_pkt_cnts_[new_core] += per_core_pkt_cnts_[org_core] / 2;
-      per_core_pkt_cnts_[org_core] -= per_core_pkt_cnts_[org_core] / 2;
+      uint32_t rate_diff = per_core_pkt_cnts_[org_core] / 2;
+      per_core_pkt_cnts_[org_core] -= rate_diff;
+      per_core_pkt_cnts_[new_core] += rate_diff;
       is_overloaded_cores_[org_core] = false;
       is_overloaded_cores_[new_core] = false;
 
@@ -323,6 +322,7 @@ void MetronIngress::QuadrantProcessOverloads() {
       if (per_core_pkt_cnts_[selected_core] * 1000 / time_diff_ms > pkt_rate_thresh_) {
         uint8_t free_core = GetFreeCore();
         if (free_core != 255) {
+          LOG(INFO) << "core " << (int)selected_core << " is activated";
           in_use_cores_[free_core] = true;
           selected_core = free_core;
           rte_atomic16_set(&selected_core_id_, free_core);
