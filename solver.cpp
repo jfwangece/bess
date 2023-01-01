@@ -305,12 +305,13 @@ void long_solver(int fdIN)
 				offloadings += std::round(e[i].get(GRB_DoubleAttr_X));
 			}
 
-			int fdOUT = open((const char*) solver_OUT, O_CREAT | O_WRONLY);
+			int fdOUT = open((const char*) solver_OUT, O_CREAT | O_WRONLY, 0777);
 			if(fdOUT == -1) 
 			{
 				printf("error: long solver-out %s\n", strerror(errno));
 				return;
 			}
+			printf("succeed: long\n");
 
 			int value = 1;
 			ret = write(fdOUT, &value, sizeof(int));
@@ -320,7 +321,7 @@ void long_solver(int fdIN)
 
 			close(fdOUT);
 		} else {
-			int fdOUT = open((const char*) solver_OUT, O_CREAT | O_WRONLY);
+			int fdOUT = open((const char*) solver_OUT, O_CREAT | O_WRONLY, 0777);
 			if(fdOUT == -1) 
 			{
 				printf("error: %s\n", strerror(errno));
@@ -613,7 +614,7 @@ void short_solver(int fdIN)
 		
 		if(model.get(GRB_IntAttr_Status) == GRB_OPTIMAL) 
 		{
-			int fdOUT = open((const char*) solver_OUT, O_CREAT | O_WRONLY);
+			int fdOUT = open((const char*) solver_OUT, O_CREAT | O_WRONLY, 0777);
 			if(fdOUT == -1) 
 			{
 				printf("error: %s\n", strerror(errno));
@@ -657,7 +658,7 @@ void short_solver(int fdIN)
 			close(fdOUT);
 		} else 
 		{
-			int fdOUT = open((const char*) solver_OUT, O_CREAT | O_WRONLY);
+			int fdOUT = open((const char*) solver_OUT, O_CREAT | O_WRONLY, 0777);
 			if(fdOUT == -1) 
 			{
 				printf("error: %s\n", strerror(errno));
