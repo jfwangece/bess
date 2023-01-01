@@ -49,11 +49,11 @@ sudo pkill -9 solver 1>/dev/null 2>/dev/null &
 cd /users/uscnsl/bess
 echo "Starting BESS daemon..."
 sudo ./bessctl/bessctl daemon start
-sleep 1
+sleep 0.5
 
 echo "Running the optimizer..."
 taskset -c ${SOLVER_CORE} ./solver 1>/dev/null 2>/dev/null &
-sleep 1
+sleep 0.5
 
 echo "Running the Dyssect..."
 sudo ./bessctl/bessctl run nfvctrl/${SCRIPT_NAME} BESS_SLO=${TARGET_SLO}, SHARDS=${SHARDS}, SFC_LENGTH=${SFC_LENGTH}, CONTROLLER_CORE=${CONTROLLER_CORE}, INPUT_PARA=${TARGET_PARA}
