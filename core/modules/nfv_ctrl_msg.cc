@@ -26,7 +26,13 @@ PMDPort* pmd_port = nullptr;
 std::shared_mutex nfvctrl_worker_mu;
 std::shared_mutex nfvctrl_bucket_mu;
 
-// Default: 0, i.e. a normal run
+// 0: Ironside default;
+// 1: Ironside long-term profile;
+// 2: Ironside short-term profile;
+// 3: Metron;
+// 4: Quadrant;
+// 5: Dyssect;
+// 6+: pending;
 int exp_id = 0;
 
 // Long-term and short-term NF profiles

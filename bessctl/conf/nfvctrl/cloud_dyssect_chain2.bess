@@ -23,14 +23,14 @@ traffic_mac = $TRAFFIC_MAC!"b8:ce:f6:d2:3b:1a"
 
 # NF-specific
 acl_cnt=int($BESS_ACL!'2000')
-lb_cnt=int($BESS_LB!'100')
+ids_cnt=int($BESS_IDS!'100')
 
 # org dyssect inputs
 slo_ns              = float($BESS_SLO!"100000") # 100 us
 shards              = int($SHARDS!"64")
 sfc_length          = int($SFC_LENGTH!"3")
 worker_core_cnt     = 20
-dyssect_ctrl_core   = int($CONTROLLER_CORE!"28")
+dyssect_ctrl_core   = int($CONTROLLER_CORE!"22")
 pipe_dir            = "."
 input_para          = float($INPUT_PARA!"10.0")
 #
@@ -49,10 +49,8 @@ for i in range(acl_cnt / 50):
         acl_rules.append({'src_ip': '10.0.%d.%d/32' %(i+1, j+1), 'drop': True})
 acl_rules.append({'src_ip': '0.0.0.0/0', 'drop': False})
 
-nat_hosts = []
-for i in range(lb_cnt / 20):
-    for j in range(20):
-        nat_hosts.append({'endpoint': '192.168.%d.%d' %(i/255, i%255)})
+blacklist_rules = [
+    {'host': 'www.%d.com' % i, 'path': '/'} for i in range(ids_cnt)]
 
 bess.pause_all()
 
@@ -68,8 +66,8 @@ for i in range(queues):
 
     w -> \
         FlowACL(rules=acl_rules) -> \
-        FlowLB(endpoints=nat_hosts) -> \
-        FlowCounter() -> \
+        UrlFilter(blacklist=blacklist_rules) -> \
+        CHACHA() -> \
         NFVMonitor(core_id=i) -> \
         IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> \
         QueueOut(port=poutgoing, qid=i)
@@ -83,8 +81,8 @@ for i in range(n):
 
     o -> \
         FlowACL(rules=acl_rules) -> \
-        FlowLB(endpoints=nat_hosts) -> \
-        FlowCounter() -> \
+        UrlFilter(blacklist=blacklist_rules) -> \
+        CHACHA() -> \
         NFVMonitor(core_id=i) -> \
         IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> \
         QueueOut(port=poutgoing, qid=queues+i)

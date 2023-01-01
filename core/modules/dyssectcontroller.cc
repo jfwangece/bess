@@ -257,6 +257,9 @@ void DyssectController::UpdateRssFlow() {
 
 CommandResponse DyssectController::Init(const bess::pb::DyssectControllerArg &arg) 
 {
+	// Set |exp_id| for Dyssect
+	bess::ctrl::exp_id = 5;
+
 	const auto &it = PortBuilder::all_ports().find(arg.port().c_str());
 	if(it == PortBuilder::all_ports().end())
 	{
