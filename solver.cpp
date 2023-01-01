@@ -692,7 +692,7 @@ int main(int argc, char **argv)
 		status = mkfifo(solver_IN, 0755);
 	}
 
-	int status = mkfifo(solver_OUT, 0755);
+	status = mkfifo(solver_OUT, 0755);
     if(status < 0) 
 	{
 		unlink(solver_OUT);
