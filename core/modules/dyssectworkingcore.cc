@@ -204,15 +204,15 @@ DyssectState* DyssectWorkingCore::ExtractState(bess::Packet *pkt)
 	Tcp *tcp = pkt->head_data<Tcp*>(sizeof(Ethernet) + ip->header_length*4);
 	uint8_t *payload = pkt->head_data<uint8_t*>(sizeof(Ethernet) + ip->header_length*4 + tcp->offset*4);
 
-        uint32_t src_addr = ip->src.raw_value();
-        uint32_t dst_addr = ip->dst.raw_value();
+	uint32_t src_addr = ip->src.raw_value();
+	uint32_t dst_addr = ip->dst.raw_value();
 	uint16_t src_port = tcp->src_port.raw_value();
-        uint16_t dst_port = tcp->dst_port.raw_value();
-        DyssectFlow f = { 	.src_port = src_port, 
-				.dst_port = dst_port, 
-				.src_addr = src_addr, 
-				.dst_addr = dst_addr, 
-				.hash_value = reinterpret_cast<rte_mbuf*>(pkt)->hash.rss };
+	uint16_t dst_port = tcp->dst_port.raw_value();
+	DyssectFlow f = { 	.src_port = src_port, 
+			.dst_port = dst_port, 
+			.src_addr = src_addr, 
+			.dst_addr = dst_addr, 
+			.hash_value = reinterpret_cast<rte_mbuf*>(pkt)->hash.rss };
 
 	DyssectState *state = 0;
 	bool priority = is_priority(ip, tcp);
@@ -253,8 +253,10 @@ DyssectState* DyssectWorkingCore::ExtractState(bess::Packet *pkt)
 		}
 	} else 
 	{
-		state = (DyssectState*) rte_zmalloc(NULL, sizeof(DyssectState), 64);
-		void **global_state = (void**) rte_zmalloc(NULL, sfc_length * sizeof(void*), 64);
+		// state = (DyssectState*) rte_zmalloc(NULL, sizeof(DyssectState), 64);
+		// void **global_state = (void**) rte_zmalloc(NULL, sfc_length * sizeof(void*), 64);
+		state = new DyssectState();
+		void **global_state = (void**) malloc(sfc_length * sizeof(void*));
 
 		state->global_state = global_state;
 
