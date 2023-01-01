@@ -1104,7 +1104,7 @@ bool DyssectController::run_short_solver(uint32_t w, uint32_t e)
 
 	close(fd);
 
-	fd = open((const char*) solver_OUT, O_CREAT | O_RDWR, 0777);
+	fd = open((const char*) solver_OUT, O_RDONLY);
 
 	if(fd == -1)
 	{
@@ -1132,7 +1132,7 @@ bool DyssectController::run_short_solver(uint32_t w, uint32_t e)
 
 bool DyssectController::run_long_solver() 
 {
-	int fd = open((const char*) solver_IN, O_CREAT | O_RDWR, 0777);
+	int fd = open((const char*) solver_IN, O_CREAT | O_WRONLY, 0777);
 
 	if(fd == -1)
 	{

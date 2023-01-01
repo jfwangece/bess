@@ -308,7 +308,7 @@ void long_solver(int fdIN)
 			int fdOUT = open((const char*) solver_OUT, O_CREAT | O_WRONLY, 0777);
 			if(fdOUT == -1) 
 			{
-				printf("error: %s\n", strerror(errno));
+				printf("error: long solver-out %s\n", strerror(errno));
 				return;
 			}
 
