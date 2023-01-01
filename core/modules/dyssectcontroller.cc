@@ -1110,6 +1110,10 @@ bool DyssectController::run_short_solver(uint32_t w, uint32_t e)
 		return false;
 	}
 
+	char buff[128];
+	int __attribute__((unused)) ret = sprintf(buff, "chmod 777 %s 1>/dev/null 2>/dev/null", solver_OUT);
+	ret = system(buff);
+
 	int value;
 	n = read(fd, &value, sizeof(int));
 
@@ -1175,6 +1179,10 @@ bool DyssectController::run_long_solver()
 	{
 		return false;
 	}
+
+	char buff[128];
+	int __attribute__((unused)) ret = sprintf(buff, "chmod 777 %s 1>/dev/null 2>/dev/null", solver_OUT);
+	ret = system(buff);
 
 	int value;
 	n = read(fd, &value, sizeof(int));
