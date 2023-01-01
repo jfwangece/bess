@@ -1222,11 +1222,11 @@ struct task_result DyssectController::RunTask(Context *, bess::PacketBatch *, vo
 		std::ofstream core_usage_log;
 		core_usage_log.exceptions(std::ofstream::failbit | std::ofstream::badbit);
 		try {
-			core_usage_log.open("./dyssect_usage.dat");
+			core_usage_log.open("/tmp/dyssect_usage.dat");
 			core_usage_log << local_sum_core_time_ns_ << std::endl;
 			core_usage_log.close();
 		} catch (std::system_error& e) {
-			LOG(INFO) << e.code().message() << std::endl;
+			LOG(ERROR) << e.code().message() << std::endl;
 		}
 	}
 
