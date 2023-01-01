@@ -330,16 +330,15 @@ CommandResponse DyssectController::Init(const bess::pb::DyssectControllerArg &ar
 	strcat(solver_IN, "/solver_IN");
 	strcat(solver_OUT, "/solver_OUT");
 
-	status = mkfifo(solver_OUT, 0755);
-	if(status < 0) 
-	{
-		unlink(solver_OUT);
-		status = mkfifo(solver_OUT, 0755);
-	}
-
-	char buff[128];
-	int __attribute__((unused)) ret = sprintf(buff, "chmod 777 %s 1>/dev/null 2>/dev/null", solver_OUT);
-	ret = system(buff);
+	// status = mkfifo(solver_OUT, 0755);
+	// if(status < 0) 
+	// {
+	// 	unlink(solver_OUT);
+	// 	status = mkfifo(solver_OUT, 0755);
+	// }
+	// char buff[128];
+	// int __attribute__((unused)) ret = sprintf(buff, "chmod 777 %s 1>/dev/null 2>/dev/null", solver_OUT);
+	// ret = system(buff);
 
 	rte_atomic64_set(&sum_core_time_ns_, 0);
 	last_short_epoch_end_ns_ = tsc_to_ns(rdtsc());
@@ -1138,7 +1137,7 @@ bool DyssectController::run_long_solver()
 	{
 		return false;
 	}
-        
+
 	uint32_t mode = LONG;
 	int __attribute__((unused)) n;
 
