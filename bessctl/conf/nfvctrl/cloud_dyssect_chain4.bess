@@ -70,7 +70,6 @@ for i in range(queues):
         FlowACL(rules=acl_rules) -> \
         FlowLB(endpoints=nat_hosts) -> \
         FlowCounter() -> \
-        NFVMonitor(core_id=i) -> \
         IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> \
         QueueOut(port=poutgoing, qid=i)
 
@@ -85,7 +84,6 @@ for i in range(n):
         FlowACL(rules=acl_rules) -> \
         FlowLB(endpoints=nat_hosts) -> \
         FlowCounter() -> \
-        NFVMonitor(core_id=i) -> \
         IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> \
         QueueOut(port=poutgoing, qid=queues+i)
 

@@ -68,7 +68,6 @@ for i in range(queues):
         FlowACL(rules=acl_rules) -> \
         UrlFilter(blacklist=blacklist_rules) -> \
         CHACHA() -> \
-        NFVMonitor(core_id=i) -> \
         IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> \
         QueueOut(port=poutgoing, qid=i)
 
@@ -83,7 +82,6 @@ for i in range(n):
         FlowACL(rules=acl_rules) -> \
         UrlFilter(blacklist=blacklist_rules) -> \
         CHACHA() -> \
-        NFVMonitor(core_id=i) -> \
         IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> \
         QueueOut(port=poutgoing, qid=queues+i)
 
