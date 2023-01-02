@@ -1113,6 +1113,8 @@ bool DyssectController::run_short_solver(uint32_t w, uint32_t e)
 
 	close(fd);
 
+	rte_delay_ms(10);
+
 	fd = open((const char*) solver_OUT, O_RDONLY);
 
 	if(fd == -1)
@@ -1183,6 +1185,8 @@ bool DyssectController::run_long_solver()
 
 	close(fd);
 
+	rte_delay_ms(10);
+
 	fd = open((const char*) solver_OUT, O_RDONLY);
 
 	if(fd == -1)
@@ -1235,6 +1239,7 @@ struct task_result DyssectController::RunTask(Context *, bess::PacketBatch *, vo
 		update_long_epoch();
 		now = tsc_to_us(rdtsc());
 		next_long = now + LONG_TIME;
+
 		update_short_epoch(false);
 		next_short = tsc_to_us(rdtsc()) + SHORT_TIME;
 
