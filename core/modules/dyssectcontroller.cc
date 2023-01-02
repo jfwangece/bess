@@ -260,6 +260,15 @@ CommandResponse DyssectController::Init(const bess::pb::DyssectControllerArg &ar
 	// Set |exp_id| for Dyssect
 	bess::ctrl::exp_id = 5;
 
+	core_usage_log.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+	try {
+		core_usage_log.open("/tmp/dyssect_usage.dat");
+		core_usage_log << 0 << std::endl;
+		core_usage_log.close();
+	} catch (std::system_error& e) {
+		LOG(ERROR) << e.code().message() << std::endl;
+	}
+
 	const auto &it = PortBuilder::all_ports().find(arg.port().c_str());
 	if(it == PortBuilder::all_ports().end())
 	{
@@ -1129,7 +1138,7 @@ bool DyssectController::run_short_solver(uint32_t w, uint32_t e)
 	}
 
 	close(fd);
-        
+
 	return value == 1;
 }
 
