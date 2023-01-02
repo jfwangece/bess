@@ -48,7 +48,8 @@ double processingtime_r(uint32_t, uint32_t)
 {
 	/* TO COMPLETE FOR YOU OWN PURPOSES */
 
-	return 1 * 1e-6;
+	return 10 * 1e-6; // chain 2
+	// return 1 * 1e-6; // chain 4
 }
 
 static inline 
@@ -56,7 +57,8 @@ double processingtime_p(uint32_t, uint32_t)
 {
 	/* TO COMPLETE FOR YOU OWN PURPOSES */
 
-	return 1 * 1e-6;
+	return 10 * 1e-6; // chain 2
+	// return 1 * 1e-6; // chain 4
 }
 
 const Commands DyssectController::cmds = {
