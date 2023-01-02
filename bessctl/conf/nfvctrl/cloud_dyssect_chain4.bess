@@ -67,9 +67,7 @@ for i in range(queues):
     w=DyssectWorkingCore(name=name, port=pincoming, sfc_length=sfc_length, total_shards=shards, qid=i, id=i)
 
     w -> \
-        FlowACL(rules=acl_rules) -> \
-        FlowLB(endpoints=nat_hosts) -> \
-        FlowCounter() -> \
+        FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> \
         IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> \
         QueueOut(port=poutgoing, qid=i)
 
@@ -81,9 +79,7 @@ for i in range(n):
     o=DyssectOffloadingCore(name=name, id=128+i)
 
     o -> \
-        FlowACL(rules=acl_rules) -> \
-        FlowLB(endpoints=nat_hosts) -> \
-        FlowCounter() -> \
+        FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> \
         IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> \
         QueueOut(port=poutgoing, qid=queues+i)
 
