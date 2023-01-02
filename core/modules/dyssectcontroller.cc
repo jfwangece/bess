@@ -1247,6 +1247,8 @@ struct task_result DyssectController::RunTask(Context *, bess::PacketBatch *, vo
 		} catch (std::system_error& e) {
 			LOG(ERROR) << e.code().message() << std::endl;
 		}
+
+		LOG(INFO) << "long-term op: done; ts = " << tsc_to_us(rdtsc());
 	}
 
 	return {.block = true, .packets = 0, .bits = 0};
