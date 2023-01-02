@@ -260,6 +260,7 @@ CommandResponse DyssectController::Init(const bess::pb::DyssectControllerArg &ar
 	// Set |exp_id| for Dyssect
 	bess::ctrl::exp_id = 5;
 
+	std::ofstream core_usage_log;
 	core_usage_log.exceptions(std::ofstream::failbit | std::ofstream::badbit);
 	try {
 		core_usage_log.open("/tmp/dyssect_usage.dat");
