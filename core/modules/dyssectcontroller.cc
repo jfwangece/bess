@@ -1078,7 +1078,7 @@ bool DyssectController::run_short_solver(uint32_t w, uint32_t e)
 	{
 		return false;
 	}
-        
+
 	uint32_t mode = SHORT;
 	int __attribute__((unused)) n;
 
@@ -1133,7 +1133,7 @@ bool DyssectController::run_short_solver(uint32_t w, uint32_t e)
 		{
 			n = read(fd, &shards[s].r_new, sizeof(double));
 		}
-                
+
 		n = from_pipe(fd, (uint8_t*) newA, total_shards * total_cores * sizeof(uint32_t));
 		n = from_pipe(fd, (uint8_t*) newO, total_cores  * total_cores * sizeof(uint32_t));
 	}
@@ -1201,6 +1201,8 @@ bool DyssectController::run_long_solver()
 	{
 		n = read(fd, &newW, sizeof(uint32_t));
 		n = read(fd, &newE, sizeof(uint32_t));
+		newW += 1;
+		newE += 1;
 	}
 
 	close(fd);

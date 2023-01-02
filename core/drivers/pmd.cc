@@ -393,7 +393,8 @@ CommandResponse PMDPort::Init(const bess::pb::PMDPortArg &arg) {
     return CommandFailure(-ret, "rte_eth_dev_start() failed");
   }
   dpdk_port_id_ = ret_port_id;
-  dpdk_port_conf_ = &eth_conf;
+  // dpdk_port_conf_ = &eth_conf;
+  dpdk_rss_hf_ = eth_conf.rx_adv_conf.rss_conf.rss_hf;
 
   int numa_node = rte_eth_dev_socket_id(static_cast<int>(ret_port_id));
   node_placement_ =
