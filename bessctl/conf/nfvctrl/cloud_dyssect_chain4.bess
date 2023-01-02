@@ -29,14 +29,14 @@ lb_cnt=int($BESS_LB!'100')
 slo_ns              = float($BESS_SLO!"100000") # 100 us
 shards              = int($SHARDS!"64")
 sfc_length          = int($SFC_LENGTH!"3")
-worker_core_cnt     = 20
-dyssect_ctrl_core   = int($CONTROLLER_CORE!"28")
+total_cores         = 23
+dyssect_ctrl_core   = int($CONTROLLER_CORE!"22")
 pipe_dir            = "."
 input_para          = float($INPUT_PARA!"10.0")
 #
 ################################################################################################
 
-core_list       = [i for i in range(1, worker_core_cnt + 1, 1)]
+core_list       = [i for i in range(1, total_cores + 1, 1)]
 queues          = len(core_list)
 
 pincoming       = PMDPort(pci=pcie0, num_inc_q=queues, num_out_q=2*queues)
