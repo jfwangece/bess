@@ -56,6 +56,8 @@ CommandResponse PCAPReader::Init(const bess::pb::PCAPReaderArg& arg) {
     // Decide whether Ethernet headers were removed or not
     is_eth_missing_ = *(uint16_t*)pkt_ == 0x0045 || *(uint16_t*)pkt_ == 0x0845 || *(uint16_t*)pkt_ == 0x4845 || *(uint16_t*)pkt_ == 0x0a14;
 
+    LOG(INFO) << "prepend Ethernet headers: " << is_eth_missing_;
+
     init_tsec_ = _pkthdr.ts.tv_sec;
     init_tnsec_ = _pkthdr.ts.tv_usec;
   }

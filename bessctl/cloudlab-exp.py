@@ -15,8 +15,11 @@ INIT_SERVER = False
 FILE_SERVER = "jfwang@68.181.32.207"
 FILE_DIR = "/home/jfwang/ironside/large-files"
 MLNX_OFED = "MLNX_OFED_LINUX-5.4-3.5.8.0-ubuntu18.04-x86_64.tgz"
+GUROBI_LIB = "gurobi9.1.2_linux64.tar.gz"
 BACKBONE_TRACE = "20190117-130000.tcp.pcap"
-AS_TRACE  = "202209011400.tcp.pcap"
+# AS_TRACE  = "202209011400.tcp.pcap"
+AS_TRACE = "202209011400.tcp.short.pcap"
+TRAFFIC_INPUT = AS_TRACE
 NF_CHAIN = "chain2"
 # NF_CHAIN = "chain4"
 
@@ -140,6 +143,14 @@ def install_mlnx(ip):
     run_remote_command(ip, cmd)
     return
 
+def install_gurobi(ip):
+    # Download gurobi package
+    cmd = "scp {}:{}/{} /local".format(FILE_SERVER, FILE_DIR, GUROBI_LIB)
+    run_remote_command(ip, cmd)
+    cmd = "cd ./FaaS-Setup && git pull && ./gurobi-install.sh"
+    run_remote_command(ip, cmd)
+    return
+
 def install_bess(recompile, ip):
     print("Install BESS daemon for {}".format(ip))
 
@@ -167,10 +178,14 @@ def setup_cpu_memory(ip):
     run_remote_command(ip, cmd)
 
     print("Setup hugepages for {}".format(ip))
-    cmd1 = "echo 8 | sudo tee /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
-    run_remote_command(ip, cmd1)
-    cmd2 = "echo 8 | sudo tee /sys/devices/system/node/node1/hugepages/hugepages-1048576kB/nr_hugepages"
-    run_remote_command(ip, cmd2)
+    if node_type == "r6525":
+        cmd1 = "echo 10 | sudo tee /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
+        run_remote_command(ip, cmd1)
+        cmd2 = "echo 10 | sudo tee /sys/devices/system/node/node1/hugepages/hugepages-1048576kB/nr_hugepages"
+        run_remote_command(ip, cmd2)
+    if node_type == "c6525":
+        cmd1 = "echo 10 | sudo tee /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages"
+        run_remote_command(ip, cmd1)
     return
 
 def start_remote_bessd(ip, runtime="bess"):
@@ -188,8 +203,8 @@ def start_traffic_ironside_ingress(tip, num_worker, mode, pkt_thresh=2500000):
     (such as Ironside's ingress).
     """
     cmds = ["run", "nfvctrl/cloud_pcap_replay_mc",
+            "PCAP='/local/bess/experiment_conf/{}',".format(TRAFFIC_INPUT),
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}".format(num_worker, mode, pkt_thresh)]
-    # cmds = ["run", "nfvctrl/cloud_pcap_replay", "BESS_NUM_WORKER={}, BESS_IG={}".format(num_worker, mode)]
 
     ## rpc method
     # p = run_remote_besscmd(tip, cmds)
@@ -200,7 +215,7 @@ def start_traffic_ironside_ingress(tip, num_worker, mode, pkt_thresh=2500000):
     ## ssh method
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
-    run_remote_command(tip, run_bess_cmd)
+    run_remote_command_with_output(tip, run_bess_cmd)
     print("traffic {} starts: worker-scale routing".format(tip))
 
 # run nfvctrl/cloud_pcap_metron BESS_NUM_WORKER=3, BESS_IG=0, BESS_SLO=100000
@@ -211,7 +226,7 @@ def start_traffic_metron_ingress(tip, num_worker, mode, slo=100000):
     """
     pkt_thresh = 1000000
     if NF_CHAIN == "chain2":
-        pkt_thresh = 600000
+        pkt_thresh = 550000
     elif NF_CHAIN == "chain4":
         pkt_thresh = 1000000
     else:
@@ -231,7 +246,7 @@ def start_traffic_quadrant_ingress(tip, num_worker, mode, slo=100000):
     """
     pkt_thresh = 1000000
     if NF_CHAIN == "chain2":
-        pkt_thresh = 600000
+        pkt_thresh = 550000
     elif NF_CHAIN == "chain4":
         pkt_thresh = 1000000
     else:
@@ -302,7 +317,7 @@ def start_quadrant_worker(wip, worker_id):
     run_remote_command(wip, run_bess_cmd)
     print("quadrant worker {} starts {}".format(wip, NF_CHAIN))
 
-def start_dyssect_worker(wip, worker_id, slo):
+def start_dyssect_worker(wip, worker_id, slo, input_para):
     cmd = "sudo pkill -f bessd"
     run_remote_command(wip, cmd)
     cmd = "sudo pkill -f solver"
@@ -312,14 +327,27 @@ def start_dyssect_worker(wip, worker_id, slo):
     bessd_cmd = "sudo {} --dpdk=true --buffers=1048576 -k".format(bessd)
     run_remote_command(wip, bessd_cmd)
 
-    cmd = "/users/uscnsl/bess/solver 1>/dev/null 2>/dev/null &"
-    run_remote_command_with_output(wip, cmd)
+    # Manual-setup
+    # sudo su
+    # /users/uscnsl/bess/run_dyssect_chain2.sh -p 1000 -s 100000
+    # /users/uscnsl/bess/run_dyssect_chain4.sh -p 1000 -s 100000
+    # print("Run the following command on the dyssect worker:")
+    # print("/users/uscnsl/bess/run_dyssect_{}.sh -p 1000 -s {}".format(NF_CHAIN, slo))
+    # time.sleep(5)
 
-    cmds = ["run", "nfvctrl/cloud_dyssect_chain4",
-            "CONTROLLER_CORE=28," "SHARDS=64,", "BESS_SLO={},".format(slo), "INPUT_PARA=10000,"]
-    extra_cmd = ' '.join(cmds)
-    cmd = "/users/uscnsl/bess/bessctl/bessctl {}".format(extra_cmd)
+    ## Auto-setup
+    cmd = "LD_LIBRARY_PATH=/users/uscnsl/gurobi912/linux64/lib /users/uscnsl/bess/solver 1>/dev/null 2>/dev/null &"
     run_remote_command(wip, cmd)
+
+    cmds = ["run", "nfvctrl/cloud_dyssect_{}".format(NF_CHAIN),
+            "CONTROLLER_CORE=22,",
+            "SHARDS=64,",
+            "TRAFFIC_MAC='{}',".format(traffic_ip[0]),
+            "BESS_SLO={},".format(slo),
+            "INPUT_PARA={},".format(input_para)]
+    x = ' '.join(cmds)
+    run_bess_cmd = r'/users/uscnsl/bess/bessctl/bessctl \"{}\"'.format(x)
+    run_remote_command_with_output(wip, run_bess_cmd)
     print("dyssect worker {} starts".format(wip))
 
 def parse_latency_result(tip):
@@ -340,7 +368,7 @@ def parse_latency_result(tip):
 # For CPU core usage
 def parse_cpu_time_result(wip, runtime='nfv_core0'):
     if runtime == "dyssect":
-        cmds = ["ssh", "uscnsl@{}".format(wip), "cat", "/users/uscnsl/dyssect_usage.dat"]
+        cmds = ["ssh", "uscnsl@{}".format(wip), "cat", "/tmp/dyssect_usage.dat"]
         p = subprocess.Popen(cmds, universal_newlines=True,
                         stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         out, err = p.communicate()
@@ -973,9 +1001,16 @@ def run_dyssect_exp(num_worker, slo):
     print("exp: all bessd (only traffic) started")
 
     # Run all workers
+    if NF_CHAIN == "chain2":
+        input_para = 16000
+    elif NF_CHAIN == "chain4":
+        input_para = 2000
+    else:
+        raise Exception("This NF chain is not supported")
+
     pids = []
     for i, wip in enumerate(selected_worker_ips):
-        p = multiprocessing.Process(target=start_dyssect_worker, args=(wip, i, slo))
+        p = multiprocessing.Process(target=start_dyssect_worker, args=(wip, i, slo, input_para))
         p.start()
         pids.append(p)
     wait_pids(pids)
@@ -998,11 +1033,14 @@ def run_dyssect_exp(num_worker, slo):
     delay = measure_results[1:]
     core_usage = []
     for i, wip in enumerate(selected_worker_ips):
-        core_usage.append(parse_cpu_time_result(wip, 'dyssect') * 3 / 1000)
+        org_cpu_time = parse_cpu_time_result(wip, 'dyssect')
+        print(org_cpu_time)
+        org_cpu_time = (org_cpu_time * 100000000) / total_packets
+        core_usage.append(org_cpu_time * 3 / 1000)
     avg_cores = sum(core_usage) / 1000000.0 / exp_duration
 
     print("---------------------------------------------------------------")
-    print("- Dyssect rack-scale exp result {}".format(slo))
+    print("- Dyssect rack-scale exp result (slo = {} us, para = {})".format(slo, input_para))
     print("- {} Dyssect workers".format(num_worker))
     print("- total packets: {}".format(total_packets))
     print("- pkt delay (in us): {}".format(delay))
@@ -1064,12 +1102,12 @@ def run_main_exp():
 
 def run_compare_exp():
     worker_cnt = 3
-    # target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
-    target_slos = [100000]
+    target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
+    # target_slos = [100000]
 
-    run_metron = True
-    run_quadrant = True
-    run_dyssect = False
+    run_metron = 0
+    run_quadrant = 0
+    run_dyssect = 1
 
     metron_results = []
     dyssect_results = []
@@ -1177,7 +1215,7 @@ def run_ablation_core_mapper():
         r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
         # No core mapper: super high latency
-        short_prof = "./nf_profiles/{}/short_term_baNF_CHAIN, se.pro"
+        short_prof = "./nf_profiles/short_term_base.pro"
         long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
         r4 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
 
@@ -1204,8 +1242,9 @@ def main():
     # reset_grub_for_all()
     # install_mlnx_for_all()
     # get_macs_for_all()
+    # install_gurobi(worker_ip[0])
     # fetch_bess_for_all()
-    install_bess_for_all()
+    # install_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()
@@ -1219,9 +1258,9 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    # run_test_exp()
+    run_test_exp()
     # run_main_exp()
-    run_compare_exp()
+    # run_compare_exp()
 
     # Ablation: the server mapper
     # run_ablation_server_mapper()
