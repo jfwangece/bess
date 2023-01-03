@@ -422,8 +422,9 @@ void MetronIngress::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
       tcp->src_port = tcp->dst_port | tcp_port_mask_;
       tcp->dst_port = tcp->dst_port | tcp_port_mask_;
     }
-    tcp->checksum = CalculateIpv4TcpChecksum(*ip, *tcp);
-    ip->checksum = CalculateIpv4Checksum(*ip);
+
+    // tcp->checksum = CalculateIpv4TcpChecksum(*ip, *tcp);
+    // ip->checksum = CalculateIpv4Checksum(*ip);
 
     EmitPacket(ctx, pkt);
   }

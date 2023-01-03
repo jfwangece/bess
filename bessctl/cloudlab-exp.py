@@ -233,6 +233,7 @@ def start_traffic_metron_ingress(tip, num_worker, mode, slo=100000):
         raise Exception("this NF chain is not supported")
 
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
+            "PCAP='/local/bess/experiment_conf/{}',".format(TRAFFIC_INPUT),
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
@@ -253,6 +254,7 @@ def start_traffic_quadrant_ingress(tip, num_worker, mode, slo=100000):
         raise Exception("this NF chain is not supported")
 
     cmds = ["run", "nfvctrl/cloud_pcap_metron",
+            "PCAP='/local/bess/experiment_conf/{}',".format(TRAFFIC_INPUT),
             "BESS_NUM_WORKER={}, BESS_IG={}, BESS_PKT_RATE_THRESH={}, BESS_SLO={}".format(num_worker, mode, pkt_thresh, slo)]
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
@@ -1105,9 +1107,9 @@ def run_compare_exp():
     target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
     # target_slos = [100000]
 
-    run_metron = 0
-    run_quadrant = 0
-    run_dyssect = 1
+    run_metron = 1
+    run_quadrant = 1
+    run_dyssect = 0
 
     metron_results = []
     dyssect_results = []
@@ -1244,7 +1246,7 @@ def main():
     # get_macs_for_all()
     # install_gurobi(worker_ip[0])
     # fetch_bess_for_all()
-    # install_bess_for_all()
+    install_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()
@@ -1258,9 +1260,9 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    run_test_exp()
+    # run_test_exp()
     # run_main_exp()
-    # run_compare_exp()
+    run_compare_exp()
 
     # Ablation: the server mapper
     # run_ablation_server_mapper()
