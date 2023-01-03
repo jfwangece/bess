@@ -141,7 +141,7 @@ sys_dump::NFVRCore(mode=3) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) 
 if node_type == "r6525":
     socket0_cores = [i for i in range(1, 32, 1)]
     socket1_cores = [i for i in range(32, 64, 1)]
-    socket_cores = socket0_cores
+    socket_cores = socket1_cores
 
     bess.add_worker(wid=rcore_boost_core, core=socket_cores[rcore_boost_core])
     rbooster.attach_task(wid=rcore_boost_core)
