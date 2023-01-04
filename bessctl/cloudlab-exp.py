@@ -19,9 +19,9 @@ GUROBI_LIB = "gurobi9.1.2_linux64.tar.gz"
 BACKBONE_TRACE = "20190117-130000.tcp.pcap"
 # AS_TRACE  = "202209011400.tcp.pcap"
 AS_TRACE = "202209011400.tcp.short.pcap"
-TRAFFIC_INPUT = AS_TRACE
-NF_CHAIN = "chain2"
-# NF_CHAIN = "chain4"
+TRAFFIC_INPUT = BACKBONE_TRACE
+# NF_CHAIN = "chain2"
+NF_CHAIN = "chain4"
 
 LONG_PERIOD = 2000000000
 
@@ -836,7 +836,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
 
     # mode: 0 min core; 1 min traffic; 2 max core; 3 max traffic
     ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
-    slo_to_pkt_thresh = {100000: 2000000, 200000: 2000000, 300000: 3000000, 400000: 3000000, 500000: 3000000, 600000: 3000000}
+    slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 3000000, 400000: 3000000, 500000: 3000000, 600000: 3000000}
     ig_mode = 3
     for tip in traffic_ip:
         start_traffic_ironside_ingress(tip, num_worker, ig_mode, slo_to_pkt_thresh[slo])
@@ -1004,9 +1004,19 @@ def run_dyssect_exp(num_worker, slo):
 
     # Run all workers
     if NF_CHAIN == "chain2":
-        input_para = 16000
+        if TRAFFIC_INPUT == BACKBONE_TRACE:
+            input_para = 8000
+        elif TRAFFIC_INPUT == AS_TRACE:
+            input_para = 10000
+        else:
+            raise Exception("This traffic input is not supported")
     elif NF_CHAIN == "chain4":
-        input_para = 2000
+        if TRAFFIC_INPUT == BACKBONE_TRACE:
+            input_para = 2000
+        elif TRAFFIC_INPUT == AS_TRACE:
+            input_para = 10000
+        else:
+            raise Exception("This traffic input is not supported")
     else:
         raise Exception("This NF chain is not supported")
 
@@ -1036,8 +1046,12 @@ def run_dyssect_exp(num_worker, slo):
     core_usage = []
     for i, wip in enumerate(selected_worker_ips):
         org_cpu_time = parse_cpu_time_result(wip, 'dyssect')
-        print(org_cpu_time)
-        org_cpu_time = (org_cpu_time * 100000000) / total_packets
+        if TRAFFIC_INPUT == BACKBONE_TRACE:
+            org_cpu_time = (org_cpu_time * 100000000) / total_packets
+        elif TRAFFIC_INPUT == AS_TRACE:
+            org_cpu_time = (org_cpu_time * 25000000) / total_packets
+        else:
+            raise Exception("Traffic input is not supported")
         core_usage.append(org_cpu_time * 3 / 1000)
     avg_cores = sum(core_usage) / 1000000.0 / exp_duration
 
@@ -1081,6 +1095,7 @@ def run_test_exp():
 def run_main_exp():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
+    # target_slos = [100000]
 
     ironside_results = []
     for slo in target_slos:
@@ -1104,11 +1119,15 @@ def run_main_exp():
 
 def run_compare_exp():
     worker_cnt = 3
-    target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
+    target_slos = [100000, 200000, 300000, 400000, 500000]
     # target_slos = [100000]
 
+    # run_metron = 1
+    # run_quadrant = 1
+    # run_dyssect = 0
+
     run_metron = 1
-    run_quadrant = 1
+    run_quadrant = 0
     run_dyssect = 0
 
     metron_results = []
@@ -1128,7 +1147,7 @@ def run_compare_exp():
             total_trials = 0
             while total_trials < 10:
                 r = run_dyssect_exp(1, slo)
-                if r[1] > 24:
+                if r[1] > 10:
                     dyssect_results.append(r)
                     break
                 total_trials += 1
@@ -1262,10 +1281,10 @@ def main():
     # Main: latency-efficiency comparisons
     # run_test_exp()
     # run_main_exp()
-    run_compare_exp()
+    # run_compare_exp()
 
     # Ablation: the server mapper
-    # run_ablation_server_mapper()
+    run_ablation_server_mapper()
 
     # Ablation: the core mapper
     # run_ablation_core_mapper()
