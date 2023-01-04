@@ -734,7 +734,7 @@ def run_short_term_profile(slo):
     return
 
 def run_short_profile_under_slos():
-    target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
+    target_slos = [100000, 200000, 300000, 400000, 500000]
 
     for slo in target_slos:
         run_short_term_profile(slo)
@@ -1094,7 +1094,7 @@ def run_test_exp():
 
 def run_main_exp():
     worker_cnt = 3
-    target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
+    target_slos = [100000, 200000, 300000, 400000, 500000]
     # target_slos = [100000]
 
     ironside_results = []
@@ -1171,7 +1171,7 @@ def run_compare_exp():
 # Ablation experiments
 def run_ablation_server_mapper():
     worker_cnt = 3
-    target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
+    target_slos = [100000, 200000, 300000, 400000, 500000]
 
     exp_results = []
     for slo in target_slos:
@@ -1214,7 +1214,7 @@ def run_ablation_server_mapper():
 
 def run_ablation_core_mapper():
     worker_cnt = 3
-    target_slos = [100000, 200000, 300000, 400000, 500000, 600000]
+    target_slos = [100000, 200000, 300000, 400000, 500000]
 
     exp_results = []
     exp_results = []
