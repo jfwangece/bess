@@ -740,8 +740,7 @@ def run_short_term_profile(slo):
     return
 
 def run_short_profile_under_slos():
-    # target_slos = [100000, 200000, 300000, 400000, 500000]
-    target_slos = [400000]
+    target_slos = [100000, 200000, 300000, 400000, 500000]
 
     for slo in target_slos:
         run_short_term_profile(slo)
@@ -845,7 +844,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     if NF_CHAIN == "chain4":
         slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 3000000, 400000: 3000000, 500000: 3000000, 600000: 3000000}
     elif NF_CHAIN == "chain2":
-        slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 2500000, 400000: 2500000, 500000: 2500000, 600000: 2500000}
+        slo_to_pkt_thresh = {100000: 1600000, 200000: 1600000, 300000: 1600000, 400000: 1600000, 500000: 1600000, 600000: 1600000}
     else:
         raise Exception("This NF chain is not supported")
 
@@ -1227,8 +1226,7 @@ def run_ablation_server_mapper():
 
 def run_ablation_core_mapper():
     worker_cnt = 3
-    # target_slos = [100000, 200000, 300000, 400000, 500000]
-    target_slos = [400000]
+    target_slos = [100000, 200000, 300000, 400000, 500000]
 
     exp_selections = [0, 0, 1, 0]
     exp_results = []
@@ -1316,21 +1314,12 @@ def main():
     # run_compare_exp()
 
     # Ablation: the server mapper
-    # run_ablation_server_mapper()
+    TRAFFIC_INPUT = BACKBONE_TRACE
+    NF_CHAIN = "chain4"
+    run_ablation_server_mapper()
 
     # Ablation: the core mapper
-    TRAFFIC_INPUT = BACKBONE_TRACE
-    # NF_CHAIN = "chain4"
     # run_ablation_core_mapper()
-    NF_CHAIN = "chain2"
-    run_ablation_core_mapper()
-    return
-
-    TRAFFIC_INPUT = AS_TRACE
-    NF_CHAIN = "chain4"
-    run_ablation_core_mapper()
-    NF_CHAIN = "chain2"
-    run_ablation_core_mapper()
     return
 
 if __name__ == "__main__":
