@@ -115,7 +115,8 @@ for i in rcores:
 rbooster::NFVRCore(mode=2) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> QueueOut(port=port0, qid=rcore_boost_core)
 
 # system-level dumper
-sys_dump::NFVRCore(mode=3) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> QueueOut(port=port0, qid=sys_dump_core)
+#sys_dump::NFVRCore(mode=3) -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> QueueOut(port=port0, qid=sys_dump_core)
+sys_dump::NFVRCore(mode=3) -> Sink()
 
 ## Core Assignment
 # Do not use core 0
