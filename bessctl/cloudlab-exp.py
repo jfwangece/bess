@@ -16,12 +16,17 @@ FILE_SERVER = "jfwang@68.181.32.207"
 FILE_DIR = "/home/jfwang/ironside/large-files"
 MLNX_OFED = "MLNX_OFED_LINUX-5.4-3.5.8.0-ubuntu18.04-x86_64.tgz"
 GUROBI_LIB = "gurobi9.1.2_linux64.tar.gz"
+
+# Traffic setting
 BACKBONE_TRACE = "20190117-130000.tcp.pcap"
 # AS_TRACE  = "202209011400.tcp.pcap"
 AS_TRACE = "202209011400.tcp.short.pcap"
 TRAFFIC_INPUT = BACKBONE_TRACE
-# NF_CHAIN = "chain2"
-NF_CHAIN = "chain4"
+# TRAFFIC_INPUT = AS_TRACE
+
+# NF chain setting
+NF_CHAIN = "chain2"
+# NF_CHAIN = "chain4"
 
 LONG_PERIOD = 2000000000
 
@@ -590,6 +595,7 @@ def run_long_term_profile(slo, flow_range, rate_range):
     nf_profile_p50 = {}
     nf_profile_p90 = {}
     for f in sorted(flow_range):
+        # binary search
         left, right = 0, len(rate_range) - 1
         while left <= right:
             mid = (left + right) // 2
@@ -645,12 +651,12 @@ def run_long_term_profile(slo, flow_range, rate_range):
 
 def run_long_profile_under_slos():
     if NF_CHAIN == "chain2":
-        target_slos = range(200000, 700000, 100000) # 100-600 us
-        flow_range = range(500, 6500, 500)
-        rate_range = range(500000, 800000, 20000)
+        target_slos = range(100000, 700000, 100000) # 100-600 us
+        flow_range = range(500, 5500, 500)
+        rate_range = range(600000, 800000, 20000)
     if NF_CHAIN == "chain4":
         target_slos = range(100000, 700000, 100000) # 100-600 us
-        flow_range = range(500, 6500, 500)
+        flow_range = range(500, 5500, 500)
         rate_range = range(1800000, 2200000, 20000)
 
     # Run!
@@ -734,7 +740,8 @@ def run_short_term_profile(slo):
     return
 
 def run_short_profile_under_slos():
-    target_slos = [100000, 200000, 300000, 400000, 500000]
+    # target_slos = [100000, 200000, 300000, 400000, 500000]
+    target_slos = [400000]
 
     for slo in target_slos:
         run_short_term_profile(slo)
@@ -835,8 +842,14 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     print("exp: all workers started")
 
     # mode: 0 min core; 1 min traffic; 2 max core; 3 max traffic
+    if NF_CHAIN == "chain4":
+        slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 3000000, 400000: 3000000, 500000: 3000000, 600000: 3000000}
+    elif NF_CHAIN == "chain2":
+        slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 2500000, 400000: 2500000, 500000: 2500000, 600000: 2500000}
+    else:
+        raise Exception("This NF chain is not supported")
+
     ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
-    slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 3000000, 400000: 3000000, 500000: 3000000, 600000: 3000000}
     ig_mode = 3
     for tip in traffic_ip:
         start_traffic_ironside_ingress(tip, num_worker, ig_mode, slo_to_pkt_thresh[slo])
@@ -1214,33 +1227,47 @@ def run_ablation_server_mapper():
 
 def run_ablation_core_mapper():
     worker_cnt = 3
-    target_slos = [100000, 200000, 300000, 400000, 500000]
+    # target_slos = [100000, 200000, 300000, 400000, 500000]
+    target_slos = [400000]
 
-    exp_results = []
+    exp_selections = [0, 0, 1, 0]
     exp_results = []
     for slo in target_slos:
         slo_us = slo / 1000
+
         # Ironside
         short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
         long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
-        r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        if exp_selections[0]:
+            r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        else:
+            r1 = None
 
         # Static-safe: similar latency && higher cpu usage
         short_prof = "./nf_profiles/{}/short_{}_safe.pro".format(NF_CHAIN, slo_us)
         long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
-        r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        if exp_selections[1]:
+            r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        else:
+            r2 = None
 
         # Static-unsafe: higher latency
         short_prof = "./nf_profiles/{}/short_{}_unsafe.pro".format(NF_CHAIN, slo_us)
         long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
-        r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        if exp_selections[2]:
+            r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        else:
+            r3 = None
 
         # No core mapper: super high latency
         short_prof = "./nf_profiles/short_term_base.pro"
         long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
-        r4 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        if exp_selections[3]:
+            r4 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        else:
+            r4 = None
 
-        exp_results.append((r1, r2, r3, r4))
+        exp_results.append((slo_us, r1, r2, r3, r4))
 
     if len(exp_results) == 0:
         print("----------       Ironside exp: no results        ----------")
@@ -1248,17 +1275,22 @@ def run_ablation_core_mapper():
 
     print("-------         Ablation experiment results          ----------")
     for i in range(len(exp_results)):
-        r1, r2, r3, r4 = exp_results[i]
-        slo_us = r1[0]
+        slo_us, r1, r2, r3, r4 = exp_results[i]
         print("SLO: {} us".format(slo_us))
-        print("      - ironside       {:0.2f}, {:0.2f}, {}".format(r1[1], r1[2], r1[3]))
-        print("      - safe           {:0.2f}, {:0.2f}, {}".format(r2[1], r2[2], r2[3]))
-        print("      - unsafe         {:0.2f}, {:0.2f}, {}".format(r3[1], r3[2], r3[3]))
-        print("      - no core-mapper {:0.2f}, {:0.2f}, {}".format(r4[1], r4[2], r4[3]))
+        if r1:
+            print("      - ironside       {:0.2f}, {:0.2f}, {}".format(r1[1], r1[2], r1[3]))
+        if r2:
+            print("      - safe           {:0.2f}, {:0.2f}, {}".format(r2[1], r2[2], r2[3]))
+        if r3:
+            print("      - unsafe         {:0.2f}, {:0.2f}, {}".format(r3[1], r3[2], r3[3]))
+        if r4:
+            print("      - no core-mapper {:0.2f}, {:0.2f}, {}".format(r4[1], r4[2], r4[3]))
     print("---------------------------------------------------------------")
     return
 
 def main():
+    global TRAFFIC_INPUT, NF_CHAIN
+
     ## Pre-install
     # reset_grub_for_all()
     # install_mlnx_for_all()
@@ -1284,10 +1316,21 @@ def main():
     # run_compare_exp()
 
     # Ablation: the server mapper
-    run_ablation_server_mapper()
+    # run_ablation_server_mapper()
 
     # Ablation: the core mapper
+    TRAFFIC_INPUT = BACKBONE_TRACE
+    # NF_CHAIN = "chain4"
     # run_ablation_core_mapper()
+    NF_CHAIN = "chain2"
+    run_ablation_core_mapper()
+    return
+
+    TRAFFIC_INPUT = AS_TRACE
+    NF_CHAIN = "chain4"
+    run_ablation_core_mapper()
+    NF_CHAIN = "chain2"
+    run_ablation_core_mapper()
     return
 
 if __name__ == "__main__":
