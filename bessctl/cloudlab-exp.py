@@ -1327,7 +1327,7 @@ def main():
 
     # Ablation: the server mapper
     TRAFFIC_INPUT = BACKBONE_TRACE
-    NF_CHAIN = "chain4"
+    NF_CHAIN = "chain2"
     run_ablation_server_mapper()
 
     # Ablation: the core mapper
