@@ -1185,19 +1185,26 @@ def run_ablation_server_mapper():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
+    exp_selections = [0, 0, 1]
     exp_results = []
     for slo in target_slos:
         slo_us = slo / 1000
         # Ironside
         short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
         long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
-        r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        if exp_selections[0]:
+            r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        else:
+            r1 = None
 
         # Static-safe: higher cpu usage
         # It uses more dedicated cores, and less on-demand cores.
         short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
         long_prof = "./nf_profiles/{}/long_{}_p50_safe.pro".format(NF_CHAIN, slo_us)
-        r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        if exp_selections[1]:
+            r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        else:
+            r2 = None
 
         # Static-unsafe: higher cpu usage?
         # Suppose the core mapepr can handle excessive loads on a dedicated core.
@@ -1205,9 +1212,12 @@ def run_ablation_server_mapper():
         # which requires a slightly higher CPU core usage.
         short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
         long_prof = "./nf_profiles/{}/long_{}_p50_unsafe.pro".format(NF_CHAIN, slo_us)
-        r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        if exp_selections[2]:
+            r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        else:
+            r3 = None
 
-        exp_results.append([r1, r2, r3])
+        exp_results.append([slo_us, r1, r2, r3])
 
     if len(exp_results) == 0:
         print("----------       Ironside exp: no results        ----------")
@@ -1215,12 +1225,14 @@ def run_ablation_server_mapper():
 
     print("-------         Ablation experiment results          ----------")
     for i in range(len(exp_results)):
-        r1, r2, r3 = exp_results[i]
-        slo_us = r1[0]
+        slo_us, r1, r2, r3 = exp_results[i]
         print("SLO: {} us".format(slo_us))
-        print("      - ironside       {:0.2f}, {:0.2f}, {}".format(r1[1], r1[2], r1[3]))
-        print("      - safe           {:0.2f}, {:0.2f}, {}".format(r2[1], r2[2], r2[3]))
-        print("      - unsafe         {:0.2f}, {:0.2f}, {}".format(r3[1], r3[2], r3[3]))
+        if r1:
+            print("      - ironside       {:0.2f}, {:0.2f}, {}".format(r1[1], r1[2], r1[3]))
+        if r2:
+            print("      - safe           {:0.2f}, {:0.2f}, {}".format(r2[1], r2[2], r2[3]))
+        if r3:
+            print("      - unsafe         {:0.2f}, {:0.2f}, {}".format(r3[1], r3[2], r3[3]))
     print("---------------------------------------------------------------")
     return
 
