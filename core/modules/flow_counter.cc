@@ -63,7 +63,7 @@ void FlowCounter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     uint64_t now = ctx->current_ns;
 
-    if (bess::ctrl::exp_id < 3) { // Ironside
+    if (false && bess::ctrl::exp_id < 3) { // Ironside
       FlowState *state = bess::ctrl::nfv_cores[0]->GetFlowState(pkt);
       if (now >= state->monitor.ExpiryTime()) {
         state->monitor.pkt_cnt_ = 0;
