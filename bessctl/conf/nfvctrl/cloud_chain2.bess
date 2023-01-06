@@ -28,7 +28,7 @@ ids_cnt=int($BESS_IDS!'100')
 
 long_epoch_period = int($BESS_LPERIOD!"2000000000")
 short_epoch_period = int((slo - 40000) / 2)
-queue_scale = 1
+queue_scale = int($BESS_QUEUE_SCALE!"1")
 
 # NFVCtrl runs on its own core
 ncore = int($BESS_NCORE!"5")

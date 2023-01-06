@@ -285,6 +285,7 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     extra_cmds = ["TRAFFIC_MAC='{}'".format(all_macs[0]),
             "BESS_WID={}".format(worker_id),
             "BESS_SLO={}".format(slo),
+            "BESS_QUEUE_SCALE={}".format(3),
             "BESS_SPROFILE='{}'".format(remote_short),
             "BESS_LPROFILE='{}'".format(remote_long),
             "BESS_LPERIOD={}".format(LONG_PERIOD)]
@@ -847,21 +848,32 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile, boost_mode=Tru
     print("exp: all workers started")
 
     # mode: 0 min core; 1 min traffic; 2 max core; 3 max traffic
-    if NF_CHAIN == "chain4":
-        slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 3000000, 400000: 3000000, 500000: 3000000, 600000: 3000000}
-    elif NF_CHAIN == "chain2":
-        slo_to_pkt_thresh = {100000: 1600000, 200000: 1600000, 300000: 1600000, 400000: 1600000, 500000: 1600000, 600000: 1600000}
+    if TRAFFIC_INPUT == BACKBONE_TRACE:
+        if NF_CHAIN == "chain4":
+            slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 3000000, 400000: 3000000, 500000: 3000000, 600000: 3000000}
+        elif NF_CHAIN == "chain2":
+            slo_to_pkt_thresh = {100000: 1600000, 200000: 1600000, 300000: 2000000, 400000: 2000000, 500000: 2000000, 600000: 2000000}
+        else:
+            raise Exception("This NF chain is not supported")
+    elif TRAFFIC_INPUT == AS_TRACE:
+        if NF_CHAIN == "chain4":
+            slo_to_pkt_thresh = {100000: 2000000, 200000: 2000000, 300000: 2000000, 400000: 2000000, 500000: 2000000, 600000: 2000000}
+        elif NF_CHAIN == "chain2":
+            slo_to_pkt_thresh = {100000: 1600000, 200000: 1600000, 300000: 1600000, 400000: 1600000, 500000: 1600000, 600000: 1600000}
+        else:
+            raise Exception("This NF chain is not supported")
     else:
-        raise Exception("This NF chain is not supported")
+        raise Exception("This traffic input is not supported")
+
+    if slo in slo_to_pkt_thresh:
+        per_worker_pkt_thresh = slo_to_pkt_thresh[slo]
+    else:
+        per_worker_pkt_thresh = max(slo_to_pkt_thresh.values())
 
     ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
     ig_mode = 3
     for tip in traffic_ip:
-        if slo in slo_to_pkt_thresh:
-            pkt_thresh = slo_to_pkt_thresh[slo]
-        else:
-            pkt_thresh = slo_to_pkt_thresh[600000]
-        start_traffic_ironside_ingress(tip, num_worker, ig_mode, pkt_thresh)
+        start_traffic_ironside_ingress(tip, num_worker, ig_mode, per_worker_pkt_thresh)
     print("exp: traffic started")
 
     time.sleep(exp_duration)
@@ -1092,7 +1104,7 @@ def run_dyssect_exp(num_worker, slo):
 # Main experiment
 def run_test_exp():
     worker_cnt = 3
-    target_slos = [300000]
+    target_slos = [2000000]
 
     exp_results = []
     for slo in target_slos:
