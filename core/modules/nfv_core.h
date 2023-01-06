@@ -198,8 +198,6 @@ class NFVCore final : public Module {
   // For debugging
   uint32_t epoch_drop1_;
   uint32_t epoch_drop2_;
-  uint32_t epoch_drop3_;
-  uint32_t epoch_drop4_;
 
   // Other threads can set |disabled_| to be 1 to stop this core.
   // Once set, this core will set |disabled_| to be 2 to notify others

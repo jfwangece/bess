@@ -79,13 +79,10 @@ CommandResponse NFVMonitor::CommandClear(const bess::pb::EmptyArg &) {
 }
 
 void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
-  // using bess::utils::Ethernet;
-  // using bess::utils::Ipv4;
-  // using bess::utils::Tcp;
-  // using bess::utils::Udp;
-  // Flow flow;
-  // Tcp *tcp = nullptr;
-  // Udp *udp = nullptr;
+  if (bess::ctrl::exp_id != 2) {
+    RunNextModule(ctx, batch);
+    return;
+  }
 
   // We don't use ctx->current_ns here for better accuracy
   curr_ts_ns_ = tsc_to_ns(rdtsc());
@@ -94,40 +91,6 @@ void NFVMonitor::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
   int cnt = batch->cnt();
   for (int i = 0; i < cnt; i++) {
     bess::Packet *pkt = batch->pkts()[i];
-
-    // Ethernet *eth = pkt->head_data<Ethernet *>();
-    // Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
-    // size_t ip_bytes = ip->header_length << 2;
-
-    // if (ip->protocol == Ipv4::Proto::kTcp) {
-    //   tcp = reinterpret_cast<Tcp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
-    //   flow.src_ip = ip->src;
-    //   flow.dst_ip = ip->dst;
-    //   flow.src_port = tcp->src_port;
-    //   flow.dst_port = tcp->dst_port;
-    //   flow.proto_ip = ip->protocol;
-    // } else if (ip->protocol == Ipv4::Proto::kUdp) {
-    //   udp = reinterpret_cast<Udp *>(reinterpret_cast<uint8_t *>(ip) + ip_bytes);
-    //   flow.src_ip = ip->src;
-    //   flow.dst_ip = ip->dst;
-    //   flow.src_port = udp->src_port;
-    //   flow.dst_port = udp->dst_port;
-    //   flow.proto_ip = ip->protocol;
-    // } else {
-    //   continue;
-    // }
-
-    // // Find existing flow, if we have one.
-    // std::unordered_map<Flow, uint32_t, FlowHash>::iterator it =
-    //     per_flow_packet_counter_.find(flow);
-
-    // if (it == per_flow_packet_counter_.end()) {
-    //   per_flow_packet_counter_.emplace(flow, 1);
-    // } else {
-    //   it->second += 1;
-    // }
-
-    // per_core_latency_sample_.push_back(curr_ts_ns_ - get_hw_timestamp_cpu(pkt));
     epoch_packet_counter_ += 1;
 
     uint64_t pkt_ts_ns = get_hw_timestamp_nic(pkt);

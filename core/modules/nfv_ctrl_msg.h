@@ -130,9 +130,11 @@ extern PMDPort* pmd_port;
 
 // An integer number that identifies an Ironside's experiment.
 // 0: normal run;
-// 1: profiling run;
-// 2: Metron run;
-// 3: Quadrant run;
+// 1: long-term profiling run (no boost mode);
+// 2: short-term profiling run (no boost mode and with monitor);
+// 3: Metron run;
+// 4: Quadrant run;
+// 5: Dyssect run;
 extern int exp_id;
 
 // packet rate threshold given the flow count. Values are found using offline profiling

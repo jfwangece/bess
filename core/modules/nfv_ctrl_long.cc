@@ -68,16 +68,10 @@ void NFVCtrl::InitPMD(PMDPort* port) {
   if (port == nullptr) {
     return;
   }
-
   port_ = port;
-  // start with 0.5x CPU core load
-  active_core_count_ = 2;
-  if (bess::ctrl::exp_id == 1) {
-    active_core_count_ = 1;
-  }
-  if (active_core_count_ < 1) {
-    active_core_count_ = 1;
-  }
+
+  // start with 1 CPU core
+  active_core_count_ = 1;
 
   // Reset PMD's reta table (even-distributed RSS buckets)
   for (uint16_t shard = 0; shard < SHARD_NUM; shard++) {

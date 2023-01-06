@@ -741,6 +741,7 @@ def run_short_term_profile(slo):
 
 def run_short_profile_under_slos():
     target_slos = [100000, 200000, 300000, 400000, 500000]
+    target_slos = [5000000]
 
     for slo in target_slos:
         run_short_term_profile(slo)
@@ -811,7 +812,7 @@ def run_worker_exp(slo):
 # run nfvctrl/cloud_pcap_replay BESS_NUM_WORKER=4, BESS_IG=3
 # run nfvctrl/cloud_pcap_replay_mc BESS_NUM_WORKER=4, BESS_IG=3, BESS_PKT_RATE_THRESH=3000000
 # run nfvctrl/cloud_chain4 BESS_SPROFILE="./short.prof", BESS_LPROFILE="./long.prof", TRAFFIC_MAC="b8:ce:f6:d2:3b:12"
-def run_cluster_exp(num_worker, slo, short_profile, long_profile):
+def run_cluster_exp(num_worker, slo, short_profile, long_profile, boost_mode=True):
     exp_duration = 50
     selected_worker_ips = []
     for i in range(num_worker):
@@ -834,7 +835,10 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     pids = []
     for i, wip in enumerate(selected_worker_ips):
         # p = multiprocessing.Process(target=start_dummy_worker, args=(wip,))
-        p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
+        if not boost_mode:
+            p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
+        else:
+            p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
         p.start()
         pids.append(p)
     wait_pids(pids)
@@ -851,7 +855,11 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile):
     ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
     ig_mode = 3
     for tip in traffic_ip:
-        start_traffic_ironside_ingress(tip, num_worker, ig_mode, slo_to_pkt_thresh[slo])
+        if slo in slo_to_pkt_thresh:
+            pkt_thresh = slo_to_pkt_thresh[slo]
+        else:
+            pkt_thresh = slo_to_pkt_thresh[600000]
+        start_traffic_ironside_ingress(tip, num_worker, ig_mode, pkt_thresh)
     print("exp: traffic started")
 
     time.sleep(exp_duration)
@@ -1082,7 +1090,7 @@ def run_dyssect_exp(num_worker, slo):
 # Main experiment
 def run_test_exp():
     worker_cnt = 3
-    target_slos = [300000]
+    target_slos = [5000000]
 
     exp_results = []
     for slo in target_slos:
@@ -1132,7 +1140,6 @@ def run_main_exp():
 def run_compare_exp():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
-    # target_slos = [100000]
 
     # run_metron = 1
     # run_quadrant = 1
@@ -1185,7 +1192,7 @@ def run_ablation_server_mapper():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
-    exp_selections = [0, 0, 1]
+    exp_selections = [1, 1, 1]
     exp_results = []
     for slo in target_slos:
         slo_us = slo / 1000
@@ -1307,7 +1314,7 @@ def main():
     # get_macs_for_all()
     # install_gurobi(worker_ip[0])
     # fetch_bess_for_all()
-    install_bess_for_all()
+    # install_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()
@@ -1321,14 +1328,22 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    # run_test_exp()
+    run_test_exp()
     # run_main_exp()
     # run_compare_exp()
 
     # Ablation: the server mapper
-    TRAFFIC_INPUT = BACKBONE_TRACE
-    NF_CHAIN = "chain2"
-    run_ablation_server_mapper()
+    # TRAFFIC_INPUT = BACKBONE_TRACE
+    # NF_CHAIN = "chain4"
+    # run_ablation_server_mapper()
+    # NF_CHAIN = "chain2"
+    # run_ablation_server_mapper()
+
+    # TRAFFIC_INPUT = AS_TRACE
+    # NF_CHAIN = "chain4"
+    # run_ablation_server_mapper()
+    # NF_CHAIN = "chain2"
+    # run_ablation_server_mapper()
 
     # Ablation: the core mapper
     # run_ablation_core_mapper()

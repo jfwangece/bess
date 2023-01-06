@@ -234,10 +234,11 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
   }
 
-  // Boost if 1) the core has pulled many packets (i.e. 128) in this round; 2) |local_q_| is large.
-  uint32_t queued_pkts = llring_count(local_q_);
+  // Turn on boost mode only for Ironside's runtime
   if (bess::ctrl::exp_id == 0) {
-    // Turn on boost mode only for Ironside's runtime
+    // Boost if 1) the core has pulled many packets (i.e. 128) in this round; 2) |local_q_| is large.
+    uint32_t queued_pkts = llring_count(local_q_);
+
     if (last_boost_ts_ns_ == 0) {
       if (update_bucket_stats_ ||
           epoch_advanced ||
