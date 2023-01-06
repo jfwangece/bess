@@ -206,7 +206,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::LongTermOptimization(
         per_cpu_pkt_rate[i] += per_shard_pkt_rate[shard];
         per_cpu_flow_count[i] += per_shard_flow_count[shard];
       }
-
+      LOG(INFO) << "core" << i << ": pkt=" << per_cpu_pkt_rate[i] << ", flow=" << per_cpu_flow_count[i];
       bess::ctrl::core_state[i] = true;
       bess::ctrl::core_liveness[i] += 1;
       active_core_count_ += 1;

@@ -848,7 +848,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile, boost_mode=Tru
 
     # mode: 0 min core; 1 min traffic; 2 max core; 3 max traffic
     if NF_CHAIN == "chain4":
-        slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 4000000, 400000: 4000000, 500000: 4000000, 600000: 4000000}
+        slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 4500000, 400000: 4500000, 500000: 4500000, 600000: 4500000}
     elif NF_CHAIN == "chain2":
         slo_to_pkt_thresh = {100000: 1600000, 200000: 1600000, 300000: 1600000, 400000: 1600000, 500000: 1600000, 600000: 1600000}
     else:
@@ -1317,7 +1317,7 @@ def main():
     # get_macs_for_all()
     # install_gurobi(worker_ip[0])
     # fetch_bess_for_all()
-    # install_bess_for_all()
+    install_bess_for_all()
 
     ## Config
     # setup_cpu_hugepage_for_all()
