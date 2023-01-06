@@ -55,11 +55,7 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
 
     Ethernet *eth = pkt->head_data<Ethernet *>();
     Ipv4 *ip = reinterpret_cast<Ipv4 *>(eth + 1);
-
     if (ip->protocol != Ipv4::Proto::kTcp) {
-      if (false) {
-        EmitPacket(ctx, pkt, 0);
-      }
       continue;
     }
 
@@ -70,7 +66,7 @@ void FlowACL::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     uint64_t now = ctx->current_ns;
     bool emitted = false;
 
-    if (bess::ctrl::exp_id < 3) { // Ironside
+    if (false && bess::ctrl::exp_id < 3) { // Ironside
       FlowState *state = bess::ctrl::nfv_cores[0]->GetFlowState(pkt);
       if (now >= state->acl.ExpiryTime()) {
         state->acl.pkt_cnt_ = 0;

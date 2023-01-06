@@ -656,7 +656,9 @@ def run_long_profile_under_slos():
         rate_range = range(600000, 800000, 20000)
     if NF_CHAIN == "chain4":
         target_slos = range(100000, 700000, 100000) # 100-600 us
+        target_slos = [100000]
         flow_range = range(500, 5500, 500)
+        flow_range = [5000]
         rate_range = range(1800000, 2200000, 20000)
 
     # Run!
@@ -846,7 +848,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile, boost_mode=Tru
 
     # mode: 0 min core; 1 min traffic; 2 max core; 3 max traffic
     if NF_CHAIN == "chain4":
-        slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 3000000, 400000: 3000000, 500000: 3000000, 600000: 3000000}
+        slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 4000000, 400000: 4000000, 500000: 4000000, 600000: 4000000}
     elif NF_CHAIN == "chain2":
         slo_to_pkt_thresh = {100000: 1600000, 200000: 1600000, 300000: 1600000, 400000: 1600000, 500000: 1600000, 600000: 1600000}
     else:
@@ -1090,7 +1092,7 @@ def run_dyssect_exp(num_worker, slo):
 # Main experiment
 def run_test_exp():
     worker_cnt = 3
-    target_slos = [2000000]
+    target_slos = [300000]
 
     exp_results = []
     for slo in target_slos:
