@@ -848,7 +848,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile, boost_mode=Tru
 
     # mode: 0 min core; 1 min traffic; 2 max core; 3 max traffic
     if NF_CHAIN == "chain4":
-        slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 4500000, 400000: 4500000, 500000: 4500000, 600000: 4500000}
+        slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 3000000, 400000: 3000000, 500000: 3000000, 600000: 3000000}
     elif NF_CHAIN == "chain2":
         slo_to_pkt_thresh = {100000: 1600000, 200000: 1600000, 300000: 1600000, 400000: 1600000, 500000: 1600000, 600000: 1600000}
     else:

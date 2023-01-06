@@ -67,7 +67,7 @@ for i in range(num_cores):
 
     ig_queue[i] = Queue(size=pow(2,20))
     # Enable flow_rewrite
-    ig[i] = IronsideIngress(mode=ig_mode, endpoints=workers, rewrite=i, ncore_thresh=ncore, pkt_rate_thresh=per_core_pkt_rate_thresh)
+    ig[i] = IronsideIngress(mode=ig_mode, endpoints=workers, rewrite=0, ncore_thresh=ncore, pkt_rate_thresh=per_core_pkt_rate_thresh)
     qout[i] = QueueOut(port=pmd_port0, qid=i)
 
     queue[i] -> re[i] -> ig_queue[i] -> ig[i] -> Timestamp(offset=tag_offset) -> qout[i]
