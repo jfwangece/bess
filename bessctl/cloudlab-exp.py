@@ -25,8 +25,8 @@ TRAFFIC_INPUT = BACKBONE_TRACE
 # TRAFFIC_INPUT = AS_TRACE
 
 # NF chain setting
-NF_CHAIN = "chain2"
-# NF_CHAIN = "chain4"
+# NF_CHAIN = "chain2"
+NF_CHAIN = "chain4"
 
 LONG_PERIOD = 2000000000
 
@@ -741,7 +741,7 @@ def run_short_term_profile(slo):
 
 def run_short_profile_under_slos():
     target_slos = [100000, 200000, 300000, 400000, 500000]
-    target_slos = [5000000]
+    target_slos = [2000000]
 
     for slo in target_slos:
         run_short_term_profile(slo)
@@ -1090,14 +1090,15 @@ def run_dyssect_exp(num_worker, slo):
 # Main experiment
 def run_test_exp():
     worker_cnt = 3
-    target_slos = [5000000]
+    target_slos = [2000000]
 
     exp_results = []
     for slo in target_slos:
         slo_us = slo / 1000
         short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
         long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
-        r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof)
+        r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof, boost_mode=True)
+        # r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof, boost_mode=False)
         if r == None:
             continue
         exp_results.append(r)
