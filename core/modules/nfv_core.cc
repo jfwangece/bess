@@ -296,6 +296,11 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
         bess::ctrl::nfv_monitors[core_id_] != nullptr) {
       bess::ctrl::nfv_monitors[core_id_]->update_traffic_stats(curr_epoch_id_);
     }
+    if (bess::ctrl::exp_id == 6) {
+      if (pull_rounds >= busy_pull_round_thresh_) {
+        bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
+      }
+    }
 
     bool is_active = false;
     if (epoch_packet_arrival_ > 32) {

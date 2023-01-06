@@ -135,6 +135,7 @@ extern PMDPort* pmd_port;
 // 3: Metron run;
 // 4: Quadrant run;
 // 5: Dyssect run;
+// 6: Ironside (no booster and hardware on-demand invocation) run;
 extern int exp_id;
 
 // packet rate threshold given the flow count. Values are found using offline profiling

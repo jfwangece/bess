@@ -35,6 +35,7 @@ std::shared_mutex nfvctrl_bucket_mu;
 // 3: Metron
 // 4: Quadrant
 // 5: Dyssect
+// 6: Ironside (no booster + on-demand invocation)
 int exp_id = 0;
 
 // Long-term and short-term NF profiles

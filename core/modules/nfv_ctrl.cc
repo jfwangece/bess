@@ -352,7 +352,7 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
     }
   } else {
     // Exp 1: do we need the on-demand long-term invocation?
-    if (true || bess::ctrl::exp_id == 2) {
+    if (bess::ctrl::exp_id != 6) {
       rte_atomic16_set(&is_rebalancing_load_now_, 0);
     } else {
       // On-demand long-term op

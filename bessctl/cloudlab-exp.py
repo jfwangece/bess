@@ -815,7 +815,7 @@ def run_worker_exp(slo):
 # run nfvctrl/cloud_pcap_replay BESS_NUM_WORKER=4, BESS_IG=3
 # run nfvctrl/cloud_pcap_replay_mc BESS_NUM_WORKER=4, BESS_IG=3, BESS_PKT_RATE_THRESH=3000000
 # run nfvctrl/cloud_chain4 BESS_SPROFILE="./short.prof", BESS_LPROFILE="./long.prof", TRAFFIC_MAC="b8:ce:f6:d2:3b:12"
-def run_cluster_exp(num_worker, slo, short_profile, long_profile, boost_mode=True):
+def run_cluster_exp(num_worker, slo, short_profile, long_profile, boost_mode=1):
     exp_duration = 50
     selected_worker_ips = []
     for i in range(num_worker):
@@ -838,10 +838,17 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile, boost_mode=Tru
     pids = []
     for i, wip in enumerate(selected_worker_ips):
         # p = multiprocessing.Process(target=start_dummy_worker, args=(wip,))
-        if not boost_mode:
+        if boost_mode == 0:
+            # no boost-mode
             p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
-        else:
+        elif boost_mode == 1:
+            # normal boost-mode
             p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
+        elif boost_mode == 2:
+            # hardware on-demand invocation
+            p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 6))
+        else:
+            raise Exception("Boost-mode {} is not supported".format(boost_mode))
         p.start()
         pids.append(p)
     wait_pids(pids)
@@ -1111,8 +1118,8 @@ def run_test_exp():
         slo_us = slo / 1000
         short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
         long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
-        r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof, boost_mode=True)
-        # r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof, boost_mode=False)
+        r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof, boost_mode=1)
+        # r = run_cluster_exp(worker_cnt, slo, short_prof, long_prof, boost_mode=0)
         if r == None:
             continue
         exp_results.append(r)
@@ -1320,6 +1327,55 @@ def run_ablation_core_mapper():
     print("---------------------------------------------------------------")
     return
 
+def run_ablation_boost_mode():
+    worker_cnt = 3
+    target_slos = [100000, 200000, 300000, 400000, 500000]
+
+    exp_selections = [0, 1, 0]
+    exp_results = []
+    for slo in target_slos:
+        slo_us = slo / 1000
+
+        # Ironside
+        short_prof = "./nf_profiles/{}/short_{}.pro".format(NF_CHAIN, slo_us)
+        long_prof = "./nf_profiles/{}/long_{}_p50.pro".format(NF_CHAIN, slo_us)
+        if exp_selections[0]:
+            r1 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof, boost_mode=1)
+        else:
+            r1 = None
+
+        # No boost-mode
+        if exp_selections[1]:
+            r2 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof, boost_mode=0)
+        else:
+            r2 = None
+
+        # On-demand invocation
+        if exp_selections[2]:
+            r3 = run_cluster_exp(worker_cnt, slo, short_prof, long_prof, boost_mode=2)
+        else:
+            r3 = None
+
+        exp_results.append((slo_us, r1, r2, r3))
+
+    if len(exp_results) == 0:
+        print("----------       Ironside exp: no results        ----------")
+        return
+
+    print("-------         Ablation experiment results          ----------")
+    for i in range(len(exp_results)):
+        slo_us, r1, r2, r3 = exp_results[i]
+        print("SLO: {} us".format(slo_us))
+        if r1:
+            print("      - ironside       {:0.2f}, {:0.2f}, {}".format(r1[1], r1[2], r1[3]))
+        if r2:
+            print("      - no-boost       {:0.2f}, {:0.2f}, {}".format(r2[1], r2[2], r2[3]))
+        if r3:
+            print("      - on-demand      {:0.2f}, {:0.2f}, {}".format(r3[1], r3[2], r3[3]))
+    print("---------------------------------------------------------------")
+    return
+
+
 def main():
     global TRAFFIC_INPUT, NF_CHAIN
 
@@ -1343,22 +1399,18 @@ def main():
     # run_short_profile_under_slos()
 
     # Main: latency-efficiency comparisons
-    run_test_exp()
+    # run_test_exp()
     # run_main_exp()
     # run_compare_exp()
 
     # Ablation: the server mapper
-    # TRAFFIC_INPUT = BACKBONE_TRACE
-    # NF_CHAIN = "chain4"
-    # run_ablation_server_mapper()
-    # NF_CHAIN = "chain2"
     # run_ablation_server_mapper()
 
-    # TRAFFIC_INPUT = AS_TRACE
-    # NF_CHAIN = "chain4"
-    # run_ablation_server_mapper()
-    # NF_CHAIN = "chain2"
-    # run_ablation_server_mapper()
+    TRAFFIC_INPUT = BACKBONE_TRACE
+    NF_CHAIN = "chain4"
+    run_ablation_boost_mode()
+    NF_CHAIN = "chain2"
+    run_ablation_boost_mode()
 
     # Ablation: the core mapper
     # run_ablation_core_mapper()
