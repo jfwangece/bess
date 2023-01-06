@@ -7,8 +7,11 @@
 
 // The amount of space to leave when packing buckets into CPUs
 // org: 0.15, 0.25
-#define MIGRATE_HEAD_ROOM 0.05
-#define ASSIGN_HEAD_ROOM 0.10
+#define MIGRATE_HEAD_ROOM 0.15
+#define ASSIGN_HEAD_ROOM 0.25
+
+// #define MIGRATE_HEAD_ROOM 0.05
+// #define ASSIGN_HEAD_ROOM 0.10
 
 namespace {
 // Template for generating TCP packets without data
