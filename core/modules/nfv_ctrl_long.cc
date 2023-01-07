@@ -363,30 +363,32 @@ std::map<uint16_t, uint16_t> NFVCtrl::OnDemandLongTermOptimization(uint16_t core
         const std::vector<uint64_t>& per_shard_flow_count) {
   std::vector<uint64_t> per_cpu_pkt_rate(bess::ctrl::ncore, 0);
   std::vector<uint64_t> per_cpu_flow_count(bess::ctrl::ncore, 0);
+  active_core_count_ = 0;
 
   for (uint16_t i = 0; i < bess::ctrl::ncore; i++) {
     per_cpu_pkt_rate[i] = 0;
     if (core_shard_mapping_[i].size() > 0) {
-      for (auto it : core_shard_mapping_[i]) {
-        per_cpu_pkt_rate[i] += per_shard_pkt_rate[it];
-        per_cpu_flow_count[i] += per_shard_flow_count[it];
+      for (uint16_t shard : core_shard_mapping_[i]) {
+        per_cpu_pkt_rate[i] += per_shard_pkt_rate[shard];
+        per_cpu_flow_count[i] += per_shard_flow_count[shard];
       }
       bess::ctrl::core_state[i] = true;
       bess::ctrl::core_liveness[i] += 1;
+      active_core_count_ += 1;
     }
   }
 
-  // Add buckets to |to_move_shards|.
+  // Add shards to |to_move_shards|.
   std::vector<uint16_t> to_move_shards;
   uint64_t target_pkt_rate = per_cpu_pkt_rate[core_id] / 2;
   while (per_cpu_pkt_rate[core_id] > target_pkt_rate &&
         core_shard_mapping_[core_id].size() > 0) {
-    uint16_t bucket = core_shard_mapping_[core_id].back();
-    to_move_shards.push_back(bucket);
+    uint16_t shard = core_shard_mapping_[core_id].back();
+    to_move_shards.push_back(shard);
     core_shard_mapping_[core_id].pop_back();
 
-    per_cpu_pkt_rate[core_id] -= per_shard_pkt_rate[bucket];
-    per_cpu_flow_count[core_id] -= per_shard_flow_count[bucket];
+    per_cpu_pkt_rate[core_id] -= per_shard_pkt_rate[shard];
+    per_cpu_flow_count[core_id] -= per_shard_flow_count[shard];
     bess::ctrl::core_liveness[core_id] = 1;
   }
 
@@ -413,11 +415,11 @@ std::map<uint16_t, uint16_t> NFVCtrl::OnDemandLongTermOptimization(uint16_t core
   }
 
   std::map<uint16_t, uint16_t> moves;
-  for (auto bucket : to_move_shards) {
-    per_cpu_pkt_rate[mr_core] += per_shard_pkt_rate[bucket];
-    per_cpu_flow_count[mr_core] += per_shard_flow_count[bucket];
-    moves[bucket] = mr_core;
-    core_shard_mapping_[mr_core].push_back(bucket);
+  for (auto shard : to_move_shards) {
+    per_cpu_pkt_rate[mr_core] += per_shard_pkt_rate[shard];
+    per_cpu_flow_count[mr_core] += per_shard_flow_count[shard];
+    moves[shard] = mr_core;
+    core_shard_mapping_[mr_core].push_back(shard);
   }
   return moves;
 }
