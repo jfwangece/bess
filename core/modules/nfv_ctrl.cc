@@ -360,7 +360,7 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
           // Re-group RSS buckets to cores to adpat to long-term load changes
           uint32_t moves = OnDemandLongEpochProcess(core_id);
           last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
-          if (false && moves > 0) {
+          if (moves > 0) {
             LOG(INFO) << "Long-term op: on-demand, time = " << last_long_epoch_end_ns_;
           }
         }
