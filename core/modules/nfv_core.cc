@@ -298,8 +298,7 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
     }
     if (bess::ctrl::exp_id == 7) {
       uint32_t queued_pkts = llring_count(local_q_);
-      if (pull_rounds >= busy_pull_round_thresh_ ||
-          queued_pkts >= large_queue_packet_thresh_) {
+      if (queued_pkts >= 512) {
         bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
       }
     }
