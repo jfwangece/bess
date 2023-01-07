@@ -25,8 +25,8 @@ TRAFFIC_INPUT = BACKBONE_TRACE
 # TRAFFIC_INPUT = AS_TRACE
 
 # NF chain setting
-# NF_CHAIN = "chain2"
-NF_CHAIN = "chain4"
+NF_CHAIN = "chain2"
+# NF_CHAIN = "chain4"
 
 LONG_PERIOD = 2000000000
 
@@ -285,8 +285,8 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     extra_cmds = ["TRAFFIC_MAC='{}'".format(all_macs[0]),
             "BESS_WID={}".format(worker_id),
             "BESS_SLO={}".format(slo),
-            "BESS_NCORE=8",
-            "BESS_QUEUE_SCALE=1",
+            "BESS_NCORE=10",
+            "BESS_QUEUE_SCALE=2",
             "BESS_SPROFILE='{}'".format(remote_short),
             "BESS_LPROFILE='{}'".format(remote_long),
             "BESS_LPERIOD={}".format(LONG_PERIOD)]
@@ -882,6 +882,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile, boost_mode=1):
     ig_mode_text = ["min core", "min traffic", "max core", "max traffic"]
     ig_mode = 3
     for tip in traffic_ip:
+        per_worker_pkt_thresh = 1600000
         start_traffic_ironside_ingress(tip, num_worker, ig_mode, per_worker_pkt_thresh)
     print("exp: traffic started")
 
@@ -1409,9 +1410,6 @@ def main():
     # run_ablation_server_mapper()
 
     TRAFFIC_INPUT = BACKBONE_TRACE
-    NF_CHAIN = "chain4"
-    run_ablation_boost_mode()
-    return
     NF_CHAIN = "chain2"
     run_ablation_boost_mode()
 
