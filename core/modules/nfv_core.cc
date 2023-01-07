@@ -297,7 +297,9 @@ struct task_result NFVCore::RunTask(Context *ctx, bess::PacketBatch *batch,
       bess::ctrl::nfv_monitors[core_id_]->update_traffic_stats(curr_epoch_id_);
     }
     if (bess::ctrl::exp_id == 7) {
-      if (pull_rounds >= busy_pull_round_thresh_) {
+      uint32_t queued_pkts = llring_count(local_q_);
+      if (pull_rounds >= busy_pull_round_thresh_ ||
+          queued_pkts >= large_queue_packet_thresh_) {
         bess::ctrl::nfv_ctrl->NotifyCtrlLoadBalanceNow(core_id_);
       }
     }
