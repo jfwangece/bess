@@ -285,7 +285,8 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     extra_cmds = ["TRAFFIC_MAC='{}'".format(all_macs[0]),
             "BESS_WID={}".format(worker_id),
             "BESS_SLO={}".format(slo),
-            "BESS_QUEUE_SCALE={}".format(3),
+            "BESS_NCORE=5",
+            "BESS_QUEUE_SCALE=3",
             "BESS_SPROFILE='{}'".format(remote_short),
             "BESS_LPROFILE='{}'".format(remote_long),
             "BESS_LPERIOD={}".format(LONG_PERIOD)]
@@ -859,7 +860,7 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile, boost_mode=1):
         if NF_CHAIN == "chain4":
             slo_to_pkt_thresh = {100000: 2500000, 200000: 2500000, 300000: 3000000, 400000: 3000000, 500000: 3000000, 600000: 3000000}
         elif NF_CHAIN == "chain2":
-            slo_to_pkt_thresh = {100000: 1600000, 200000: 1600000, 300000: 2000000, 400000: 2000000, 500000: 2000000, 600000: 2000000}
+            slo_to_pkt_thresh = {100000: 1800000, 200000: 1800000, 300000: 1800000, 400000: 1800000, 500000: 1800000, 600000: 1800000}
         else:
             raise Exception("This NF chain is not supported")
     elif TRAFFIC_INPUT == AS_TRACE:
@@ -1331,7 +1332,7 @@ def run_ablation_boost_mode():
     worker_cnt = 3
     target_slos = [100000, 200000, 300000, 400000, 500000]
 
-    exp_selections = [0, 1, 0]
+    exp_selections = [0, 0, 1]
     exp_results = []
     for slo in target_slos:
         slo_us = slo / 1000

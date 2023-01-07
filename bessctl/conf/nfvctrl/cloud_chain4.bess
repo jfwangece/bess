@@ -31,7 +31,7 @@ short_epoch_period = int((slo - 40000) / 2)
 queue_scale = int($BESS_QUEUE_SCALE!"1")
 
 # NFVCtrl runs on its own core
-ncore = int($BESS_NCORE!"4")
+ncore = int($BESS_NCORE!"5")
 if node_type == "r6525":
     # 2-socket, full 32-core
     rcore_boost_core = 29
