@@ -285,14 +285,15 @@ def start_ironside_worker(wip, worker_id, slo, short, long, exp_id=0):
     extra_cmds = ["TRAFFIC_MAC='{}'".format(all_macs[0]),
             "BESS_WID={}".format(worker_id),
             "BESS_SLO={}".format(slo),
-            "BESS_NCORE=10",
+            "BESS_NCORE=8",
             "BESS_QUEUE_SCALE=2",
             "BESS_SPROFILE='{}'".format(remote_short),
             "BESS_LPROFILE='{}'".format(remote_long),
             "BESS_LPERIOD={}".format(LONG_PERIOD)]
-    if exp_id == 1 or exp_id == 2:
-        # Profiling mode
+    if exp_id != 0:
+        # Profiling mode / ablation study mode
         extra_cmds.append("BESS_EXP_ID={}".format(exp_id))
+
     cmds.append(", ".join(extra_cmds))
     x = ' '.join(cmds)
     run_bess_cmd = r'/local/bess/bessctl/bessctl \"{}\"'.format(x)
