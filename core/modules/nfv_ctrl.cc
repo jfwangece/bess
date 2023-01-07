@@ -314,7 +314,7 @@ CommandResponse NFVCtrl::CommandGetSummary(const bess::pb::EmptyArg &arg) {
   return CommandSuccess();
 }
 
-struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *) {
+struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *, void *) {
   if (port_ == nullptr) {
     return {.block = false, .packets = 1, .bits = 1};
   }
@@ -326,11 +326,11 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
         bess::ctrl::nfv_cores[i]->UpdateBucketStats();
       }
       msg_mode_ = true;
-      goto cleanup;
+      goto terminate;
     }
 
     if (rte_atomic16_read(&long_term_stats_ready_cores_) != bess::ctrl::ncore) {
-      goto cleanup;
+      goto terminate;
     }
 
     rte_atomic16_set(&long_term_stats_ready_cores_, 0);
@@ -360,7 +360,7 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
           // Re-group RSS buckets to cores to adpat to long-term load changes
           uint32_t moves = OnDemandLongEpochProcess(core_id);
           last_long_epoch_end_ns_ = tsc_to_ns(rdtsc());
-          if (moves > 0) {
+          if (true || moves > 0) {
             LOG(INFO) << "Long-term op: on-demand, time = " << last_long_epoch_end_ns_;
           }
         }
@@ -371,14 +371,7 @@ struct task_result NFVCtrl::RunTask(Context *, bess::PacketBatch *batch, void *)
     }
   }
 
-cleanup:
-  // |to_dump_sw_q_| contains |sw_q| that cannot be assigned to a RCore.
-  // Just simply dump all packets for them.
-  for (auto& it : to_dump_sw_q_) {
-    if (it != NULL) {
-      DumpOnceSoftwareQueue(it, batch);
-    }
-  }
+terminate:
 
   return {.block = false, .packets = 1, .bits = 1};
 }

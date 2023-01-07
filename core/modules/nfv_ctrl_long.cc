@@ -394,7 +394,7 @@ std::map<uint16_t, uint16_t> NFVCtrl::OnDemandLongTermOptimization(uint16_t core
 
   uint16_t mr_core = DEFAULT_INVALID_CORE_ID;
   uint64_t min_rate = 0;
-  for(uint16_t i = 0; i < bess::ctrl::ncore; i++) {
+  for (uint16_t i = 0; i < bess::ctrl::ncore; i++) {
     if (bess::ctrl::nfv_cores[i]) {
       if (mr_core == DEFAULT_INVALID_CORE_ID) {
         mr_core = i;
