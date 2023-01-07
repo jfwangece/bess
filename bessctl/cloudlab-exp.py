@@ -840,13 +840,13 @@ def run_cluster_exp(num_worker, slo, short_profile, long_profile, boost_mode=1):
         # p = multiprocessing.Process(target=start_dummy_worker, args=(wip,))
         if boost_mode == 0:
             # no boost-mode
-            p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 1))
+            p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 6))
         elif boost_mode == 1:
             # normal boost-mode
-            p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile))
+            p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 0))
         elif boost_mode == 2:
             # hardware on-demand invocation
-            p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 6))
+            p = multiprocessing.Process(target=start_ironside_worker, args=(wip, i, slo, short_profile, long_profile, 7))
         else:
             raise Exception("Boost-mode {} is not supported".format(boost_mode))
         p.start()

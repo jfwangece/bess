@@ -326,7 +326,7 @@ void UrlFilter::ProcessBatch(Context *ctx, bess::PacketBatch *batch) {
     int minor_version;
     const char *method, *path;
     int parse_result = 0;
-    if (bess::ctrl::exp_id > 6) {
+    if (bess::ctrl::exp_id > 10) {
       parse_result = phr_parse_request(
           buffer.buf(), buffer.contiguous_len(), &method, &method_len, &path,
           &path_len, &minor_version, headers, &num_headers, 0);

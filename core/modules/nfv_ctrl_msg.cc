@@ -30,12 +30,13 @@ std::shared_mutex nfvctrl_worker_mu;
 std::shared_mutex nfvctrl_bucket_mu;
 
 // 0: Ironside
-// 1: Ironside (no booster)
+// 1: Ironside (no booster + 1-core)
 // 2: Ironside (no booster + with monitor)
 // 3: Metron
 // 4: Quadrant
 // 5: Dyssect
-// 6: Ironside (no booster + on-demand invocation)
+// 6: Ironside (no booster)
+// 7: Ironside (no booster + on-demand invocation)
 int exp_id = 0;
 
 // Long-term and short-term NF profiles
