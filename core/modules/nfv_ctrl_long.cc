@@ -426,20 +426,19 @@ std::map<uint16_t, uint16_t> NFVCtrl::OnDemandLongTermOptimization(uint16_t core
 
 uint32_t NFVCtrl::OnDemandLongEpochProcess(uint16_t core_id) {
   // Per-bucket packet rate and flow count are to be used by the long-term op.
-  std::vector<uint64_t> per_shard_pkt_rate;
-  std::vector<uint64_t> per_shard_flow_count;
+  std::vector<uint64_t> per_shard_pkt_rate(SHARD_NUM, 0);
+  std::vector<uint64_t> per_shard_flow_count(SHARD_NUM, 0);
   uint64_t time_diff_ns = tsc_to_ns(rdtsc()) - last_long_epoch_end_ns_;
   uint64_t pps = 0;
 
-  for (int j = 0; j < bess::ctrl::ncore; j++) {
-    for (int i = 0; i < SHARD_NUM; i++) {
+  for (int i = 0; i < SHARD_NUM; i++) {
+    for (int j = 0; j < bess::ctrl::ncore; j++) {
       per_shard_pkt_rate[i] += bess::ctrl::pcpb_packet_count[j][i];
       per_shard_flow_count[i] += bess::ctrl::pcpb_flow_count[j][i];
       bess::ctrl::pcpb_packet_count[j][i] = 0;
       bess::ctrl::pcpb_flow_count[j][i] = 0;
     }
-  }
-  for (int i = 0; i < SHARD_NUM; i++) {
+    // Get rate per second
     per_shard_pkt_rate[i] = per_shard_pkt_rate[i] * 1000000000ULL / time_diff_ns;
     per_shard_flow_count[i] = per_shard_flow_count[i] * 1000000000ULL / time_diff_ns;
     pps += per_shard_pkt_rate[i];
