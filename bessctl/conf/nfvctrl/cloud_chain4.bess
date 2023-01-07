@@ -32,6 +32,10 @@ queue_scale = int($BESS_QUEUE_SCALE!"1")
 
 # NFVCtrl runs on its own core
 ncore = int($BESS_NCORE!"5")
+boost_mode = 1
+if experiment_index == 6 or experiment_index == 7:
+    boost_mode = 0
+
 if node_type == "r6525":
     # 2-socket, full 32-core
     rcore_boost_core = 29
@@ -43,15 +47,24 @@ if node_type == "c6525":
     sys_dump_core = 21
     nfvctrl_core = 22
 
-ncore_cnt = ncore
-ncore_booster_cnt = ncore
-rcore_cnt = rcore_boost_core - (ncore + ncore_booster_cnt)
 # [1, sys_dump_core]
 total_core_cnt = sys_dump_core
 
+ncore_cnt = ncore
 ncores = [i for i in range(ncore_cnt)]
-ncore_boosters = [ncore_cnt + i for i in range(ncore_cnt)]
-rcores = [2*ncore_cnt + i for i in range(rcore_cnt)]
+
+if boost_mode:
+    ncore_booster_cnt = ncore
+    ncore_boosters = [ncore_cnt + i for i in range(ncore_booster_cnt)]
+
+    rcore_cnt = rcore_boost_core - (ncore + ncore_booster_cnt)
+    rcores = [2*ncore_cnt + i for i in range(rcore_cnt)]
+else:
+    ncore_booster_cnt = 0
+    ncore_boosters = []
+
+    rcore_cnt = rcore_boost_core - (ncore + ncore_booster_cnt)
+    rcores = [ncore_cnt + i for i in range(rcore_cnt)]
 
 print("total cores: %d" %(total_core_cnt))
 print("{} normal cores: {}".format(len(ncores), ncores))
@@ -120,12 +133,12 @@ for i in ncores:
         pinc0[i] -> nfvmo[i] -> pout0[i]
 
 for i in ncore_boosters:
-    pinc0[i] = NFVRCore(mode=0, core_id=i-ncore_cnt)
+    pinc0[i] = NFVRCore(mode=0, core_id=i-ncore_boosters[0])
     pout0[i] = QueueOut(port=port0, qid=i)
     pinc0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 
 for i in rcores:
-    pinc0[i] = NFVRCore(mode=1, core_id=i-2*ncore_cnt)
+    pinc0[i] = NFVRCore(mode=1, core_id=i-rcores[0])
     pout0[i] = QueueOut(port=port0, qid=i)
     pinc0[i] -> FlowACL(rules=acl_rules) -> FlowLB(endpoints=nat_hosts) -> FlowCounter() -> IPRewrite(dst_eth=traffic_mac, dst_ip=traffic_ip) -> pout0[i]
 

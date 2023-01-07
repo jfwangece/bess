@@ -1410,6 +1410,7 @@ def main():
     TRAFFIC_INPUT = BACKBONE_TRACE
     NF_CHAIN = "chain4"
     run_ablation_boost_mode()
+    return
     NF_CHAIN = "chain2"
     run_ablation_boost_mode()
 
