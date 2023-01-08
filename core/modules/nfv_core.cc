@@ -28,8 +28,8 @@ void NFVCore::EnqueueDequeueBatchBenchmark() {
     return;
   }
 
-  bess::PacketBatch* batch[500];
-  for (uint64_t i = 0; i < 32; i++) {
+  bess::PacketBatch* batch[100];
+  for (uint64_t i = 0; i < 100; i++) {
     batch[i] = bess::ctrl::CreatePacketBatch();
     for (uint64_t j = 0; j < 32; j++) {
       bess::Packet *pkt = current_worker.packet_pool()->Alloc();
@@ -41,16 +41,16 @@ void NFVCore::EnqueueDequeueBatchBenchmark() {
   }
 
   uint64_t start = rdtsc();
-  for (uint64_t i = 0; i < 500; i++) {
+  for (uint64_t i = 0; i < 100; i++) {
     SpEnqueue(batch[i], testq);
   }
   uint64_t total_time = rdtsc() - start;
   LOG(INFO) << "Test queue size = " << llring_count(testq);
-  LOG(INFO) << "Enqueue cost = " << total_time / 500;
+  LOG(INFO) << "Enqueue cost = " << total_time / 100;
 
   bess::PacketBatch* recv_batch = bess::ctrl::CreatePacketBatch();  
   start = rdtsc();
-  for (uint64_t i = 0; i < 500; i++) {
+  for (uint64_t i = 0; i < 100; i++) {
     int cnt = llring_sc_dequeue_burst(testq, (void **)recv_batch->pkts(), 32);
     if (cnt == 0) {
       break;
@@ -58,7 +58,7 @@ void NFVCore::EnqueueDequeueBatchBenchmark() {
   }
   total_time = rdtsc() - start;
   LOG(INFO) << "Test queue size = " << llring_count(testq);
-  LOG(INFO) << "Dequeue cost = " << total_time / 500;
+  LOG(INFO) << "Dequeue cost = " << total_time / 100;
 }
 
 FlowState* NFVCore::GetFlowState(bess::Packet* pkt) {
