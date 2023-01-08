@@ -38,7 +38,7 @@ class NFVCore final : public Module {
   CommandResponse Init(const bess::pb::NFVCoreArg &arg);
   void DeInit() override;
 
-  void EnqueueBatchBenchmark();
+  void EnqueueDequeueBatchBenchmark();
 
   struct task_result RunTask(Context *ctx, bess::PacketBatch *batch, void *arg);
   void ProcessBatch(Context *ctx, bess::PacketBatch *batch) override;

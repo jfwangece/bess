@@ -19,7 +19,7 @@ const Commands NFVCore::cmds = {
 };
 
 // NFVCore member functions
-void NFVCore::EnqueueBatchBenchmark() {
+void NFVCore::EnqueueDequeueBatchBenchmark() {
   int bytes = llring_bytes_with_slots(32768);
   llring* testq = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
   int ret = llring_init(testq, 32768, 1, 1);
@@ -29,18 +29,32 @@ void NFVCore::EnqueueBatchBenchmark() {
   }
 
   bess::PacketBatch* batch = bess::ctrl::CreatePacketBatch();
-  bess::Packet *pkt = current_worker.packet_pool()->Alloc();
-  if (!pkt) {
-    return;
+  for (uint64_t i = 0; i < 32; i++) {
+    bess::Packet *pkt = current_worker.packet_pool()->Alloc();
+    if (!pkt) {
+      return;
+    }
+    batch->add(pkt);
   }
-  batch->add(pkt);
 
   uint64_t start = rdtsc();
-  for (uint64_t i = 0; i < 10000; i++) {
-    llring_sp_enqueue_burst(testq, (void **)batch->pkts(), batch->cnt());
+  for (uint64_t i = 0; i < 1000; i++) {
+    SpEnqueue(batch, testq);
   }
   uint64_t total_time = rdtsc() - start;
-  LOG(INFO) << total_time / 10000;
+  LOG(INFO) << "Test queue size = " << llring_count(testq);
+  LOG(INFO) << "Enqueue cost = " << total_time / 1000;
+
+  start = rdtsc();
+  for (uint64_t i = 0; i < 1000; i++) {
+    int cnt = llring_sc_dequeue_burst(testq, (void **)batch->pkts(), 32);
+    if (cnt == 0) {
+      break;
+    }
+  }
+  total_time = rdtsc() - start;
+  LOG(INFO) << "Test queue size = " << llring_count(testq);
+  LOG(INFO) << "Dequeue cost = " << total_time / 1000;
 }
 
 FlowState* NFVCore::GetFlowState(bess::Packet* pkt) {
@@ -48,8 +62,6 @@ FlowState* NFVCore::GetFlowState(bess::Packet* pkt) {
 }
 
 CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
-  EnqueueBatchBenchmark();
-
   const char *port_name;
   task_id_t tid;
   burst_ = bess::PacketBatch::kMaxBurst;
@@ -154,6 +166,10 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
 
   // Run!
   rte_atomic16_set(&disabled_, 0);
+
+  // Benchmark
+  EnqueueDequeueBatchBenchmark();
+
   return CommandSuccess();
 }
 

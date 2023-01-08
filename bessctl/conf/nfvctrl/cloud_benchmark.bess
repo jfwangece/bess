@@ -39,8 +39,8 @@ nfvctrl::NFVCtrl(wid=wid, ncore=1, rcore=0, qid=1,
                 exp_id=0)
 
 port0::PMDPort(pci=pcie0,
-    num_inc_q=ncore_cnt,
-    num_out_q=total_core_cnt + 1,
+    num_inc_q=1,
+    num_out_q=2,
     bench_rss=False)
 
 pinc0 = {}
