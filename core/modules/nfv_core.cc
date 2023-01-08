@@ -33,9 +33,7 @@ void NFVCore::EnqueueDequeueBatchBenchmark() {
     batch[i] = bess::ctrl::CreatePacketBatch();
     for (uint64_t j = 0; j < 32; j++) {
       bess::Packet *pkt = current_worker.packet_pool()->Alloc();
-      if (!pkt) {
-        return;
-      }
+      if (!pkt) { return; }
       batch[i]->add(pkt);
     }
   }
@@ -48,10 +46,9 @@ void NFVCore::EnqueueDequeueBatchBenchmark() {
   LOG(INFO) << "Test queue size = " << llring_count(testq);
   LOG(INFO) << "Enqueue cost = " << total_time / 100;
 
-  bess::PacketBatch* recv_batch = bess::ctrl::CreatePacketBatch();  
   start = rdtsc();
   for (uint64_t i = 0; i < 100; i++) {
-    int cnt = llring_sc_dequeue_burst(testq, (void **)recv_batch->pkts(), 32);
+    int cnt = llring_sc_dequeue_burst(testq, (void **)batch[i]->pkts(), 32);
     if (cnt == 0) {
       break;
     }
@@ -59,6 +56,58 @@ void NFVCore::EnqueueDequeueBatchBenchmark() {
   total_time = rdtsc() - start;
   LOG(INFO) << "Test queue size = " << llring_count(testq);
   LOG(INFO) << "Dequeue cost = " << total_time / 100;
+
+  // Clean up
+  for (uint64_t i = 0; i < 100; i++) {
+    bess::ctrl::FreePacketBatch(batch[i]);
+  }
+}
+
+void NFVCore::ShortEpochProcessBenchmark() {
+  int bytes = llring_bytes_with_slots(1024);
+  llring* testq = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+  int ret = llring_init(testq, 1024, 1, 1);
+  if (ret) {
+    std::free(testq);
+    return;
+  }
+
+  bess::PacketBatch* batch = bess::ctrl::CreatePacketBatch();
+  for (uint64_t i = 0; i < 4; i++) {
+    batch->clear();
+    for (uint64_t j = 0; j < 32; j++) {
+      bess::Packet *pkt = current_worker.packet_pool()->Alloc();
+      if (!pkt) { return; }
+      batch->add(pkt);
+    }
+    SpEnqueue(batch, testq);
+  }
+
+  int total_swq = 3;
+
+  uint64_t start = rdtsc();
+
+  uint32_t total_cnt = llring_count(testq);
+  uint32_t curr_cnt = 0;
+  // scan all packets only once
+  while (curr_cnt < total_cnt) {
+    batch->clear();
+    int cnt = llring_sc_dequeue_burst(testq, (void **)batch->pkts(), 32);
+    batch->set_cnt(cnt);
+
+    for (int i = 0; i < cnt; i++) {
+      bess::Packet *pkt = batch->pkts()[i];
+      int q_idx = i % total_swq;
+      bess::ctrl::sw_q_state[q_idx]->sw_batch->add(pkt);
+    }
+    for (int i = 0; i < total_swq; i++) {
+      MpEnqueue(bess::ctrl::sw_q_state[i]->sw_batch, bess::ctrl::sw_q[i]);
+    }
+    curr_cnt += cnt;
+  }
+
+  uint64_t total_time = rdtsc() - start;
+  LOG(INFO) << "Short epoch process cost = " << total_time / 100;
 }
 
 FlowState* NFVCore::GetFlowState(bess::Packet* pkt) {
@@ -172,7 +221,8 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
   rte_atomic16_set(&disabled_, 0);
 
   // Benchmark
-  EnqueueDequeueBatchBenchmark();
+  // EnqueueDequeueBatchBenchmark();
+  ShortEpochProcessBenchmark();
 
   return CommandSuccess();
 }
