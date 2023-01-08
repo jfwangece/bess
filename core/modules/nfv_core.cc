@@ -64,9 +64,9 @@ void NFVCore::EnqueueDequeueBatchBenchmark() {
 }
 
 void NFVCore::ShortEpochProcessBenchmark() {
-  int bytes = llring_bytes_with_slots(1024);
+  int bytes = llring_bytes_with_slots(4096);
   llring* testq = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-  int ret = llring_init(testq, 1024, 1, 1);
+  int ret = llring_init(testq, 4096, 1, 1);
   if (ret) {
     std::free(testq);
     return;
@@ -98,6 +98,12 @@ void NFVCore::ShortEpochProcessBenchmark() {
 
     for (int i = 0; i < cnt; i++) {
       bess::Packet *pkt = batch->pkts()[i];
+      if (pkt->head_len() > 10000) {
+        continue;
+      }
+      if (pkt->data_len() > 10000) {
+        continue;
+      }
       int q_idx = i % total_swq;
       bess::ctrl::sw_q_state[q_idx]->sw_batch->add(pkt);
     }
