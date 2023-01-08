@@ -114,7 +114,7 @@ void NFVCore::ShortEpochProcessBenchmark() {
   }
 
   uint64_t total_time = rdtsc() - start;
-  LOG(INFO) << "Short epoch process cost = " << total_time / 100;
+  LOG(INFO) << "Short epoch process cost = " << total_time;
 }
 
 FlowState* NFVCore::GetFlowState(bess::Packet* pkt) {
@@ -229,7 +229,7 @@ CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
 
   // Benchmark
   // EnqueueDequeueBatchBenchmark();
-  ShortEpochProcessBenchmark();
+  // ShortEpochProcessBenchmark();
 
   return CommandSuccess();
 }
