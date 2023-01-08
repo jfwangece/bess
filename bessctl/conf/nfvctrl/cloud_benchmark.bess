@@ -1,0 +1,72 @@
+#
+# Test NF chain #4: a stateful NF chain
+# ACL -> LB -> Monitor
+#
+
+wid = int($BESS_WID!"0")
+node_type = $BESS_NODE_TYPE!"c6525"
+experiment_index = int($BESS_EXP_ID!"0")
+
+if node_type == "r6525":
+    pcie0 = "81:00.0"
+elif node_type == "c6525":
+    pcie0 = "41:00.0"
+else:
+    raise Exception("node type is not supported")
+
+# NFVCtrl runs on its own core
+ncore = int($BESS_NCORE!"5")
+if node_type == "r6525":
+    # 2-socket, full 32-core
+    rcore_boost_core = 29
+    sys_dump_core = 30
+    nfvctrl_core = 31
+if node_type == "c6525":
+    # 1-socket, not full 23-core (0 is skipped)
+    rcore_boost_core = 20
+    sys_dump_core = 21
+    nfvctrl_core = 22
+
+slo = 1000000
+short_epoch_period = int(slo / 2)
+long_epoch_period = 2000000000
+
+# Module
+# nfvctrl must be declared before PMDPort
+nfvctrl::NFVCtrl(wid=wid, ncore=1, rcore=0, qid=1,
+                slo_ns=slo, long_epoch_period_ns=long_epoch_period,
+                nf_short_term_profile="./short.prof", nf_long_term_profile="./long.prof",
+                exp_id=0)
+
+port0::PMDPort(pci=pcie0,
+    num_inc_q=ncore_cnt,
+    num_out_q=total_core_cnt + 1,
+    bench_rss=False)
+
+pinc0 = {}
+pout0 = {}
+fw = {}
+ids = {}
+chacha = {}
+nfvmo = {}
+
+# Pipeline
+pinc0[0] = NFVCore(core_id=0, port=port0, qid=0, short_epoch_period_ns=short_epoch_period, large_queue_scale=1)
+
+## Core Assignment
+# Do not use core 0
+
+if node_type == "r6525":
+    socket0_cores = [i for i in range(1, 32, 1)]
+    socket1_cores = [i for i in range(32, 64, 1)]
+    socket_cores = socket1_cores
+
+    bess.add_worker(wid=0, core=socket_cores[0])
+    pinc0[0].attach_task(wid=0)
+
+if node_type == "c6525":
+    socket0_cores = [i for i in range(1, 24, 1)]
+    socket_cores = socket0_cores
+
+    bess.add_worker(wid=0, core=socket_cores[0])
+    pinc0[0].attach_task(wid=0)

@@ -78,35 +78,9 @@ int worker_ncore[DEFAULT_INVALID_WORKER_ID] = {0};
 // the packet rate on a server
 uint32_t worker_packet_rate[DEFAULT_INVALID_WORKER_ID] = {0};
 
-void NFVCtrlEnqueueBenchmark() {
-  int bytes = llring_bytes_with_slots(32768);
-  llring* testq = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
-  int ret = llring_init(testq, 32768, 1, 1);
-  if (ret) {
-    std::free(testq);
-    return;
-  }
-
-  bess::PacketBatch* batch = CreatePacketBatch();
-  bess::Packet *pkt = current_worker.packet_pool()->Alloc();
-  if (!pkt) {
-    return;
-  }
-  batch->add(pkt);
-
-  uint64_t start = rdtsc();
-  for (uint64_t i = 0; i < 10000; i++) {
-    llring_sp_enqueue_burst(testq, (void **)batch->pkts(), batch->cnt());
-  }
-  uint64_t total_time = rdtsc() - start;
-  LOG(INFO) << total_time / 10000;
-}
-
 /// Global software queue / reserved core management functions
 // bess/core/main.cc calls this function to init when bessd starts
 void NFVCtrlMsgInit() {
-  NFVCtrlEnqueueBenchmark();
-
   size_t sw_qsize = DEFAULT_SWQ_SIZE;
   int bytes = llring_bytes_with_slots(sw_qsize);
 

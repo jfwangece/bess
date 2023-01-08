@@ -19,11 +19,37 @@ const Commands NFVCore::cmds = {
 };
 
 // NFVCore member functions
+void NFVCore::EnqueueBatchBenchmark() {
+  int bytes = llring_bytes_with_slots(32768);
+  llring* testq = reinterpret_cast<llring *>(std::aligned_alloc(alignof(llring), bytes));
+  int ret = llring_init(testq, 32768, 1, 1);
+  if (ret) {
+    std::free(testq);
+    return;
+  }
+
+  bess::PacketBatch* batch = bess::ctrl::CreatePacketBatch();
+  bess::Packet *pkt = current_worker.packet_pool()->Alloc();
+  if (!pkt) {
+    return;
+  }
+  batch->add(pkt);
+
+  uint64_t start = rdtsc();
+  for (uint64_t i = 0; i < 10000; i++) {
+    llring_sp_enqueue_burst(testq, (void **)batch->pkts(), batch->cnt());
+  }
+  uint64_t total_time = rdtsc() - start;
+  LOG(INFO) << total_time / 10000;
+}
+
 FlowState* NFVCore::GetFlowState(bess::Packet* pkt) {
   return *(_ptr_attr_with_offset<FlowState*>(this->attr_offset(flow_stats_attr_id_), pkt));
 }
 
 CommandResponse NFVCore::Init(const bess::pb::NFVCoreArg &arg) {
+  EnqueueBatchBenchmark();
+
   const char *port_name;
   task_id_t tid;
   burst_ = bess::PacketBatch::kMaxBurst;
