@@ -83,10 +83,11 @@ void NFVCore::ShortEpochProcessBenchmark() {
     SpEnqueue(batch, testq);
   }
 
-  int total_swq = 3;
+  LOG(INFO) << "testq size = " << llring_count(testq);
 
   uint64_t start = rdtsc();
 
+  int total_swq = 3;
   uint32_t total_cnt = llring_count(testq);
   uint32_t curr_cnt = 0;
   // scan all packets only once
